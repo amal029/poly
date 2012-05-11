@@ -1,0 +1,154 @@
+/*  
+  The K-means algorithm designed in poly
+  Author: Avinash Malik
+  Date: Thu Apr 26 14:39:33 IST 2012
+*/
+
+/* Rewrite this using par i in 0:W etc....*/
+
+/* Find the distance between two vector strings */
+distance_xc in float C[N], float X[N] out float D[N] 
+  par i in 0:(N-1) D[i] = X[i] - C[i]
+
+/* Find the distance between M vector strings and 1 centroids */
+distance_Xc in float X[M][N], float C[N] out float D[M,N] 
+  par i in 0:M-1 D[i] = distance_xc (C,X[i])
+
+/* Find the distance with regards to all the centroids */
+distance_XC in float X[M][N], float C[K,N] out float D[K][M][N] 
+  par i in 0:K-1 D[i] = distance_Xc (C[i], X)
+
+/* Find the minimum of scalars */
+min in float a, float b, int index1, int index2 out float o , int index
+  case
+  ((a-b) >= 0.0) {o=a index=index1}
+  otherwise {o=b index=index2}
+
+/* Find the minimum of vectors */
+min_V in float D[N], float F[N], int index1, int index2 out float MIN[N] , int index
+  (MIN,index) = min(D,F,index1,index2)
+
+/* Find the index of the minimum vector in the distance cuboid */
+findMin in float D[K][N] out int index
+{
+ float C[N] = D[0]
+ int inter=0
+ for i in 1:K-1 (C,inter) = min_V (D[i],C,inter,i)
+ index = inter
+}
+
+/* Some boiler plate code */
+getOnes in int R, int comp, float X[N] out float O[N]
+{ 
+ float inter[N] = 0
+ case 
+ (R == comp) O = X
+ otherwise O = inter
+}
+
+/* Cluster the MxN strings together around the K-clusters*/
+getMs in int R[M], float X[M][N] out float O[N] 
+{
+  int comp = 1 
+  par i in 0:N-1 O[i] = getOnes (R,comp,X[*][i])
+}
+
+cluster_MIN in float D[K,M,N], float X[M,N] out float cluster [K,M,N]
+{
+  int index[K,M] = 0
+  for i in 0:K-1 for j in 0:M-1 index[i] = findMin(D[*,j,*])
+  par i in 0:K-1 cluster[i] = getMs (index[i],X)
+}
+
+/* Calculate the new centroids */
+add_V in float A[N], float B[N] out float C[N] 
+  par i in 0:(-1+N) C[i] = B[i] + A[i]
+reduce_over_M in float X[M][N], float O[N] out float U[N]
+{
+  float inter[N] = O
+  for i in 0:M-1 inter = add_V (X[i],inter)
+}
+
+divide_by_k in float A[N],  int K out float O[N] 
+  par i in 0:N-1 O[i] = A[i]/K
+/* adding multiple 2D planes in parallel over the Z-axis */
+reduce_over_k in float cluster[M][N][Q] out float C[K][N]
+{
+  float inter[K,N] = 0
+  par i in 0:K-1 inter[i] = reduce_over_M(cluster[i],inter[i])
+  par i in 0:K-1 C[i] = divide_by_k (inter[i], K)
+}
+
+remove in float Input[J,N], int indices[1,K] out float centroids [K,N]
+  for i in 0:K-1 centroids[i,*] = Input[(indices[i]),*]
+rest in float Input[J,N], int indices[1,K] out float X[M,N]
+{
+  par i in 0:J-1 
+    for j in 0:K-1
+    case 
+    (i - indices[j] == 0) {}
+    otherwise X[i] = Input[i]
+}
+build in int indices[1,K], float Input[M,N] out float centroids[K][N], float X[M][N]
+{
+  centroids = remove(Input,indices)
+  X = rest(Input,indices)
+}
+
+get_halt in float f[K,N], float s[K,N] out int8 o
+{
+  int8 inter[K,N] = 0
+  par i in 0:K-1 par j in 0:N-1 inter[i][j] = f[i][j] - s[i,j]
+  for i in 0:K-1
+   for j in 0:N-1
+    o = o + inter[i,j]
+  case
+  (o == 0) {o=1}
+  otherwise {}
+}
+
+/* Finally make the top loop in result the first two dimensions give the */
+/* cetroid position the final 3 dimensions give the points clustered */
+/* next to the centroids */
+TopLoop in Input[J][10], K out float Result[M][N][P][Q][R]
+{
+
+  Centroids[K][10] = 0
+  int randIndices[1,K] = 0 /*column vector*/
+  float X[(J-K)][N] = 0
+
+  <!--
+  #include<assert.h>
+  /* Haven't made sure that all indices are xored */
+  assert (K <= M);
+  int u = 0;
+  for (u=0;u<K;++u)
+    randIndices[u] = rand()%(K);
+  -->
+
+  (Centroids,X) = build(randIndices,Input)
+   
+  int8 halt = 0
+  float Distance_cuboid[K,M,N] = 0
+  float inter[K,M,N] = 0
+  <!-- while (true){ -->
+  float old_centroids[K,N] = Centroids
+  Distance_cuboid = distance_XC(X,Centroids)
+  inter = cluster_MIN(Distance_cuboid,X)
+  Centroids = reduce_over_k(inter)
+  halt = get_halt(Centroids,old_centroids)
+  case (halt == 1) <!--break;-->
+       otherwise {}
+  <!--}-->
+   for i in 0:M-1 for j in 0:N-1 Result[i,j] = inter
+   for i in 0:P-1 for j in 0:Q-1 for k in 0:R-1 Result[*,*,i,j,k] = cluster
+}
+
+main Main
+{
+  int J = 1100
+  int K = 100
+  float Result[K,10,K,(J-K),10] = 0
+  float Input[J][10] = 0
+  Result = TopLoop(Input,K)
+}

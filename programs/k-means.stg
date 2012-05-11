@@ -1,0 +1,170 @@
+// Find the distances between Centroids and the strings
+// in the hamming-plane
+
+//subtract two strings to find the hamming distance.
+// how to do the absolute??
+filter dist_xc
+in float32 C<N>,
+   float32 X<N>
+out float32 D<N>
+{par X - C => D}
+
+//Subtract the centroid with all the strings, 
+//*not* including itself
+filter dist_Xc
+in float32 X<M><N>,
+   float32 C<N>
+out D<M><N>
+{par dist_xc C X<> => D<>}
+
+//Do subtraction for all the selected K centroids
+filter dist_XC
+in float32 X<M><N>,
+   float32 C<K><N> //this is just a 2D vector
+out float32 D<K><M><N>
+{par dist_Xc C<> X => D<>}
+
+// Inner loops of the k-means algorithm. Find the minimum distance
+// between the centroids and the rest of the strings in the hamming plane.
+// Then group them together
+
+filter min
+in float32 a,
+  float32 b
+out float32 o
+{
+	(create float32 inter)
+	a-b => inter
+	case (inter)
+	(inter >= 0.0)  => a
+	otherwise => b
+}
+
+filter min_N 
+in float32 D<N>,
+   float32 F<N>
+out float32 MIN<N>
+{min D F => MIN}
+
+//find the minimum in D
+filter findMin
+int float32 D<K><N>
+out int32 kindex,
+{
+	(create float32 C<N>)
+	D<0> => C
+	rank (min_N D<> C => C) => kindex
+	// index is the K'th value
+
+}
+
+filter getOnes
+in int32 R,
+   float32 X<N>
+{
+	(create inter<N>)
+	0 => inter
+	case (R)
+	1 => X
+	otherwise => inter
+}
+
+filter getMs
+in int32 R<M>,
+   float32 X<M><N>
+out float32 O<N>
+{par getOnes R<> X<><0..N-1> => O}
+
+filter cluster_MIN
+in float32 D<K><M><N>,
+   float32 X<M><N>
+out float32 cluster<K><M><N> 
+{
+	(create int32s index<K><M>)
+	par findMin D<0..K-1><><0..N-1> => index<><>
+	
+	//now I have all the indices
+	
+	//insert the indices based X into the cluster
+	par getMs index<> X => cluster<><>
+}
+
+// Now change the values of the 2D centroid plane
+
+// add two vectors
+filter addVectors
+in float32 A<N>,
+   float32 B<N>
+out float32 C<N>
+{ A + B => C }
+
+//reduce over the M-axis
+filter reduceOverM
+in float32 X<M><N>,
+   float32 O<N>
+out float32 O<N>
+{ addVectors X<> O => O}
+
+
+filter divideByK
+in float32 A<N>,
+   int32 K
+out float O<N>
+{A / K => O}
+
+//now reduce planes over the Z-axis
+
+filter reduceOverZ
+in cluster<K><M><N>
+out C<K><N>
+{
+	(create inter<K><N>)
+	inter = 0 //just setting all elements to zero, maybe not necessary??
+	
+	//adding multiple 2D planes in parallel over the Z-axis
+	par reduceOverM cluster<> inter<> => inter<>
+	
+	//now divide the inter<><0..N-1> vectors point wise by K
+	//do them in parallel over the K-axis
+	
+	par divideByK inter<> K => C<>
+	
+	//now we have the new centroids and the main k-means
+	//is now over
+}
+
+filter remove
+in 
+
+//Finally make the top loop
+filter TopLoop
+in float32 X<M><N>,
+   int32 K
+
+// In result the first two dimensions give the cetroid position the 
+// final 3 dimensions give the points clustered next to the centroids
+
+out Result<K><N><K><M><N>
+
+{
+
+	(create float32 Centroids<K><N>)
+	
+	// Randomly choose the centroids from X
+	// then makes sure to remove these centroid points 
+	// from X
+	
+	(create int32 randIndices)
+	escape #
+	assert (K < M);
+	int u = 0;
+	for (u=0;u<K;++u)
+	    randIndices[u] = rand()%(K)
+	#
+	
+	// Now remove these ranIndices from the X<M><N>
+	// plane
+	
+	par remove X ranIndices => Centroids
+
+}

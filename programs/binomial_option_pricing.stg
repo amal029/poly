@@ -1,0 +1,140 @@
+// Binomial option pricing model 
+
+// For time step N=2048 and options optN = 2048 there are:
+//O((2048*2048)) parallel actors
+
+// Author: Avinash Malik
+// Mon Apr 16 17:53:18 IST 2012
+
+
+//See: The pricing of options and corporate liabilities
+
+//subtract in parallel
+//O(N) parallelism
+filter subf
+in float32 price<N>,
+   map float32 X
+out float32 steps<N>
+{
+	create(float32 inter)
+	inter = price - X
+	case inter
+	(inter > 0.0) => (steps=inter)
+	otherwise => (steps=0.0)
+}
+
+//You don't necessarily have to do it like 
+//this: i.e., in 2 parts
+
+//price range generation part-1
+filter computevaluesatexcersiedate1
+in map float32 VsdT,
+   map float32 S,
+   map float32 N
+out
+   float32 price<N>,
+{
+	create(float16 EXP)
+	create(int32 i)
+	escape # i = dim0iter; #
+	EXP = 2.718281828
+	price = S * EXP^(VsdT*((2.0 * i) -N))
+}
+
+//reduction of prices
+filter reducepricesinner1
+in 
+   float32 s<2>
+   float32 K1
+   float32 K2
+out 
+    float32 so<2>
+{so = (K1*s<0>)+(K2*s<1>)}
+
+//reduction of prices
+filter reducepricesinner2
+in 
+   block<2> float32 steps<N>
+   map K1
+   map K2
+out steps2<N>
+{ call (reducepricesinner1 steps K1 K2 => steps2) }
+
+
+//price range generation part-2
+filter computevaluesatexcersiedate
+in float32 T<optN>,
+   float32 S<optN>,
+   float32 X<optN>,
+   map float32 N,
+   map float23 Volatility,
+   map float32 RiskFree,
+out 
+   block<N> steps<N><optN>
+   block<N> prices<N><optN>
+{
+        //Time per step
+	create(float32 dT)
+	dT = T * (1/N)
+	create(float32 VsdT)
+	VsdT = Volatility * (dT^(1/2))
+	create(float32 RdT)
+	RdT = RiskFree * dT
+
+        //Per-step cont. compounded riskless rate
+	create(float32 R)
+	create(float32 EXP)
+	EXP = 2.718281828
+	R = EXP^(RdT)
+	create(float32 Rinv)
+	Rinv = 1.0/R
+
+        //Up move corresponding to given variance
+	create(float32 u)
+	u = EXP^(VsdT)
+
+        //Corresponding down move
+	create(float32 d)
+	d = 1.0/u
+
+        //Pseudo-probability of upward move
+	create(float32 Pu)
+	Pu = (R - d)/(u-d)
+
+        //Pseudo-probabi lity of downard move
+	create(float32 Pd)
+	Pd = 1.0-Pu
+	create(float32 PuByR)
+
+        //Compounded quotents
+	PuByR = Pu * Rinv
+	create(float32 PdByR)
+	PdByR = Pd * Rinv
+
+	//Do O(N) parallel computations at once
+	call(computevaluesatexcersiedate1 VsdT S N => prices)
+	//Do O(N) subf / maxf in parallel at once
+	call (subf price X => steps)
+
+	//reduce the price tree
+	create (int32 j)
+	//A stateful filter
+	escape #
+	       for(j=N;j>0;--j)
+	       //Do (N) parallel at once, then synchronize
+	        reducepricesinner2(steps,PuByR,PdByR,steps);
+	#
+}
+
+main filter entry
+in 
+   float32 T<optN>,
+   float32 S<optN>,
+   float32 X<optN>,
+   int32 N,
+   float32 Volatility,
+   float32 RiskFree
+out 
+    float32 steps<N><optN>
+    float32 prices<N><optN>
+{call (computevaluesatexcersiedate T S X N Volatility RiskFree => steps prices)}
