@@ -4,7 +4,6 @@ FIND=ocamlfind
 CC=ocamlc
 XMLLIB=xml-light.cma
 LANGLIB=language.cma
-BATLIB=batteries_uni.cma
 
 all: optimization
 

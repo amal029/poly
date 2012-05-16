@@ -1,56 +1,12 @@
 
-(* -------------The type judgments------------------------ *)
-
-(* Environment *)
-
-(* DataTypes.t *)
-
-(* Const := DataTypes.t => 'a[m..] *)
-
-(* Expressions: *)
-
-(* simple expressions *)
-(* (+) := DataTypes.t => 'a[m..] -> 'a[m..] -> 'a[m..] = <fun> *)
-(* (-) := DataTypes.t => 'a[m..] -> 'a[m..] -> 'a[m..] = <fun> *)
-(* (\*\) := DataTypes.t => 'a[m..] -> 'a[m..] -> 'a[m..] = <fun> *)
-(* (/) := DataTypes.t => 'a[m..] -> 'a[m..] -> 'a[m..] = <fun> *)
-(* (^) := DataTypes.t => 'a[m..] -> 'a[m..] -> 'a[m..] = <fun> *)
-(* ([]) := DataTypes.t => 'a[m...] -> 'a[n..], s.t: |'a[m..]| > |'a[n...]|-1 *)
-(* (Cast) := DataTypes.t => 'a[m...] -> 'b[m...], s.t: |'a[m..]| = |'b[m..]| *)
-
-(* rel expressions *)
-(* (<) := DataTypes.t => 'a[m..] -> 'a[m..] -> bool = <fun> *)
-(* (<=) := DataTypes.t => 'a[m..] -> 'a[m..] -> bool = <fun> *)
-(* (>) := DataTypes.t => 'a[m..] -> 'a[m..] -> bool = <fun> *)
-(* (>=) := DataTypes.t => 'a[m..] -> 'a[m..] -> bool = <fun> *)
-(* (==) := DataTypes.t => 'a[m..] -> 'a[m..] -> bool = <fun> *)
-
-(* statements  *)
-
-(* (Noop) := () *)
-(* (=) := 'a[m..] -> 'a[m..] = <fun> *)
-
-
-(* ----------The typing rules---------------------- *)
-
-(* (Case) := If type inference rules from lambda calculus *)
-(* (For/Par) := Recursion type inference rules from lambda calculus *)
-(* (FCall) := \lambda.e e *)
-(* (Escape) := () *)
-(* (Def/DefMain) := let rules for type inference (this is the only place polymorphism might happen) *)
-
-
-
-(* ------------Rewrites---------------- *)
-(* (Block) := rewrite to \lambdae.e with bounded recursion and Case *)
-
-
-module Simple_local_filter_types =
+module Simple =
 struct
   open Language
   open Language
   exception Error of string;;
   exception Internal_compiler_error of string;;
+
+
   let filter_signatures = Hashtbl.create 10;;
 
   let get_symbol = function
@@ -68,8 +24,8 @@ struct
   let get_typed_type = function
     | SimTypedSymbol (x,_) 
     | ComTypedSymbol (x,_) -> (match x with 
-	| DataTypes.None -> raise (Internal_compiler_error "Simple type inference erroneously hits typed_type as polymorphic") 
-	| DataTypes.Poly x -> raise (Internal_compiler_error "Simple type inference erroneously hits typed_type as polymorphic") 
+	| DataTypes.None -> raise (Error "Type of variable undefined, before use") 
+	| DataTypes.Poly x -> raise (Error "Type of the variable polymorphic (needs to be concrete), before use") 
 	| _ as s -> s)
 
   let add_to_declarations s declarations = 
@@ -77,9 +33,27 @@ struct
       raise (Error (("Symbol "^ (get_typed_symbol s)) ^ "multiply defined" ))
     else declarations := s :: !declarations
 
+  (*The expressions types are lists or just DataTypes.t types , because
+    of -> types, but Ocaml lets one compare two lists and its elements
+    with just =. This is also the reason why this function is
+    polymorphic
+
+    FIXME:
+    
+    1.) Currently we have exactly the same type inference algorithm like
+    Ocaml.  
+
+    2.) Do we need haskell style type-class, because currently even 2+2.0
+    will not work. Everyone is forced to write the above equation like
+    so: (((float32) 2)+2.0)
+
+  *)
+
+  let unify_types l r = l = r
+      
   let match_typed_symbol_type t = function
-    | SimTypedSymbol (x,_) -> x = t 
-    | ComTypedSymbol (x,_) -> x = t
+    | SimTypedSymbol (x,_) -> unify_types x t 
+    | ComTypedSymbol (x,_) -> unify_types x t
 
   let isnone = function
     | SimTypedSymbol (x,_) | ComTypedSymbol (x,_) -> match x with | DataTypes.None -> true | _ -> false
@@ -95,13 +69,6 @@ struct
   let rec get_block_less_declarations declarations = function
     | h::t -> (List.find (fun x -> x = h) declarations) :: get_block_less_declarations declarations t
     | [] -> []
-      
-  (*The expressions types are lists or just DataTypes.t types , because
-    of -> types, but Ocaml lets one compare two lists and its elements
-    with just =. This is also the reason why this function is
-    polymorphic*)
-
-  let unify_types l r = l = r
       
   let infer_call_argument declarations = function
     | CallAddrressedArgument x -> 
@@ -186,7 +153,7 @@ struct
 	| (_,DataTypes.None,_)
 	| (_,_,DataTypes.None) -> true
 	| _ -> false)
-      then raise (Error "Colon expressions can only of integral type")
+      then raise (Error "Colon expressions can only be of integral type")
       else f (*Just return of them*)
       (* These should all be of signed int types *)
     | TStar | TStarStar -> raise (Internal_compiler_error "Simple type inference erroneously hits a TStar/TStarStar")
@@ -221,11 +188,6 @@ struct
       let rexpr_type = (infer_simp_expr declarations y) in
       if (unify_types lexpr_type rexpr_type) then ()
       else raise (Error "Types do not unify in conditional expression")
-    | LessThan (x,y) -> 
-      let lexpr_type = (infer_simp_expr declarations x) in
-      let rexpr_type = (infer_simp_expr declarations y) in
-      if (unify_types lexpr_type rexpr_type) then ()
-      else raise (Error "Types do not unify in conditional expression")
     | GreaterThanEqual (x,y) -> 
       let lexpr_type = (infer_simp_expr declarations x) in
       let rexpr_type = (infer_simp_expr declarations y) in
@@ -238,6 +200,7 @@ struct
       else raise (Error "Types do not unify in conditional expression")
 
   let rec infer_stmt declarations = function
+    | VarDecl x as s -> let () = add_to_declarations x declarations in s
     | Assign (x,y) -> 
       let expr_type = infer_expr !declarations y in
       if List.length x <> List.length expr_type then 
@@ -251,10 +214,12 @@ struct
     | CaseDef x -> CaseDef (infer_casedef declarations x)
     | Par (x,y,z) -> 
       let _ = infer_simp_expr !declarations y in (* we don't bother with colon expr return types *)
-      Par(x,y,(infer_stmt declarations z))
+      let ss = (match z with | VarDecl _ -> Noop | _ -> infer_stmt declarations z) in
+      Par(x,y,ss)
     | For (x,y,z) -> 
       let _ = infer_simp_expr !declarations y in
-      For(x,y,(infer_stmt declarations z))
+      let ss = (match z with | VarDecl _ -> Noop | _ -> infer_stmt declarations z) in
+      For(x,y,ss)
     | _ as s -> s
   and infer_casedef declarations = function
     | Case (x,y) -> Case ((infer_casecluase_list declarations x), (infer_otherwise declarations y))
@@ -265,9 +230,12 @@ struct
     | Clause (expr,stmt) -> 
       let () = (infer_relexpr !declarations expr) in
       (* The above inference can have the side-affect of changing the declarations list *)
-      Clause (expr, infer_stmt declarations stmt)
+      let ss = (match stmt with | VarDecl x -> Noop | _ -> (infer_stmt declarations stmt)) in
+      Clause (expr, ss)
   and infer_otherwise declarations = function
-    | Otherwise x -> Otherwise (infer_stmt declarations x)
+    | Otherwise x -> 
+      let ss = (match x with | VarDecl x -> Noop | _ -> (infer_stmt declarations x)) in
+      Otherwise ss
   and infer_stmt_list declarations = function
     | h::t -> infer_stmt declarations h :: infer_stmt_list declarations t 
     | [] -> []
@@ -292,11 +260,11 @@ struct
 	  if (isnone (get !declarations (get_symbol x))) then
 	    let neww = build_new_typed_symbol expr_type (get !declarations (get_symbol x)) in 
 	    replace_in_declaration declarations (get !declarations (get_symbol x)) neww;
-	    AllTypedSymbol (neww)
+	    s (* AllTypedSymbol (neww) *)
 	  else raise (Error ("types do not unify for assignment to" ^ (get_symbol x)))
-      else (* This means this is a declaration lets add it to the declarations list *)
-	let ret = SimTypedSymbol (expr_type, x) in 
-	add_to_declarations ret declarations; AllTypedSymbol(ret)
+      else raise (Error (("Variable " ^ (get_symbol x)) ^ " is unbound"))
+	(* let ret = SimTypedSymbol (expr_type, x) in  *)
+	(* add_to_declarations ret declarations; AllTypedSymbol(ret) *)
     | AllAddressedSymbol x as s -> 
       if (exists !declarations (get_addressed_symbol x)) then 
 	if (match_typed_symbol_type expr_type (get !declarations (get_addressed_symbol x))) then s
@@ -304,20 +272,69 @@ struct
 	  if (isnone (get !declarations (get_addressed_symbol x))) then
 	    let neww = build_new_typed_symbol expr_type (get !declarations (get_addressed_symbol x)) in 
 	    replace_in_declaration declarations (get !declarations (get_addressed_symbol x)) neww;
-	    AllTypedSymbol (neww)
+	    s (* AllTypedSymbol (neww) *)
 	  else raise (Error ("types do not unify for assignment to" ^ (get_addressed_symbol x)))
-      else (* This means this is a declaration lets add it to the declarations list *)
-	let ret = ComTypedSymbol (expr_type, x) in 
-	add_to_declarations ret declarations; AllTypedSymbol (ret)
+      else raise (Error (("Variable " ^ (get_addressed_symbol x)) ^ " is unbound"))
+      (* else (\* This means this is a declaration lets add it to the declarations list *\) *)
+      (* 	let ret = ComTypedSymbol (expr_type, x) in  *)
+      (* 	add_to_declarations ret declarations; AllTypedSymbol (ret) *)
+
+  (* This is called in the second pass, gets rid of all the variables,
+     which are not used *)
+  let rec replace_var_decls declarations = function
+    | VarDecl x as ret -> 
+      let v = x in
+      (match x with
+	| SimTypedSymbol (x,_) 
+	| ComTypedSymbol (x,_) -> 
+	  (match x with
+	    | DataTypes.None -> 
+	      (try 
+		 let w = (List.find (fun x -> x = v) declarations) in
+		 (match w with 
+		   | SimTypedSymbol(DataTypes.None,_) 
+		   | ComTypedSymbol(DataTypes.None,_) -> 
+		     let () = print_endline (("Warning: Symbol " ^ (get_typed_symbol w)) ^ " not being used") in Noop
+		   | SimTypedSymbol(_,_)
+		   | ComTypedSymbol(_,_) as s -> VarDecl s
+		 )
+	       with
+		 | Not_found -> raise (Internal_compiler_error (("Simple type inference (second pass, cannot find " ^ (get_typed_symbol v)) ^ " in declarations")))
+	    | _ -> ret))
+    | Block x -> Block (replace_block_stmts declarations x)
+    | For (x,y,z) -> For(x,y, (replace_var_decls declarations z))
+    | Par(x,y,z) -> Par(x,y, (replace_var_decls declarations z))
+    | CaseDef x -> CaseDef (replace_casedef declarations x)
+    | _ as s -> s
+  and replace_block_stmts declarations = function
+    | h::t -> replace_var_decls declarations h :: replace_block_stmts declarations t
+    | [] -> []
+  and replace_casedef declarations = function
+    | Case (x,y) -> Case ((replace_clauselist declarations x), (replace_otherwise declarations y))
+  and replace_clauselist declarations = function
+    | h::t -> replace_clause declarations h :: replace_clauselist declarations t
+    | [] -> []
+  and replace_clause declarations = function
+    | Clause (x,s) -> 
+      let r = replace_var_decls declarations s in
+      let rr = (match r with | VarDecl x -> Noop | _ as s -> s) in
+      Clause (x,rr)
+  and replace_otherwise declarations = function
+    | Otherwise s -> 
+      let r = replace_var_decls declarations s in
+      let rr = (match r with | VarDecl x -> Noop | _ as s -> s) in
+      Otherwise (replace_var_decls declarations rr)
 
   let infer_filter = function
     | Filter (x,y,z,w) ->
       let declarations = ref (y @ z) in
       let ret_stmt = infer_stmt declarations w in
       (* First get the outputs from the declarations and put those in this filter*)
+      let rett_stmts = replace_var_decls !declarations ret_stmt in
       try 
 	let zo = List.map (fun y -> List.find (fun x -> (get_typed_symbol x) = (get_typed_symbol y)) !declarations) z in
-	Filter(x,y,zo,ret_stmt)
+	Hashtbl.add filter_signatures x ((List.map (fun x -> (get_typed_type x)) y), (List.map (fun x -> (get_typed_type x)) zo));
+	Filter(x,y,zo,rett_stmts)
       with
 	| Not_found -> raise (Internal_compiler_error "Filter re-build declarations don't have all the outputs")
 
@@ -333,8 +350,28 @@ struct
   let infer_ast = function
     | Program x -> Program (infer_toplevelstmt_list x)
 
-(*Once all the inputs and outputs for the filters are infered then we
-  re-go through the ast and replace all the none Datatypes with the
-  filter inputs and outputs with *)
+end
+
+
+module First_order =
+struct
+  open Language
+  open Language
+  open CFG
+
+  exception Internal_compiler_error of string;;
+  exception Error of string;;
+  
+  let infer_topnode = function
+    | Topnode (x,t,y) -> Topnode (x,t,infer_cfg_list y)
+    | Null -> raise (Internal_compiler_error "ERROR (First_order type inference): Topnode is Null")
+
+  let rec infer_filternode = function
+    | Filternode (x,y) ->
+      let topnode = infer_topnode in
+      let ll = infer_rest y in Filternode(topnode,ll)
+  and infer_rest = function
+    | h::t -> infer_filternode h; infer_rest t
+    | [] -> ()
 
 end

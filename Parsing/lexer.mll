@@ -33,6 +33,7 @@ rule lexer = parse
   | "otherwise" {Parser.TOtherwise}
   | "par" {Parser.TPar}
   | "for" {Parser.TPar}
+  | "var" {Parser.TVar}
   | "main" {Parser.TMain}
   | "case" {Parser.TCase}
   | "int" {Parser.TInt32}

@@ -16,7 +16,7 @@
 /* The tokens */
 /* Constant constructors */
 %token TPlus TMinus TTimes TDiv TPow TOP TCP TEqual TOB TCB TComma TLess TLessEqual TGreater TGreaterEqual TEqualEqual
-%token TLbrack TRbrack TColon TCase TEof TLShift TRShift
+%token TLbrack TRbrack TColon TCase TEof TLShift TRShift TVar
 %token TMain TIn TOut TOtherwise TPar TFor
 %token TInt8 TInt16 TInt32 TInt64 TInt8s TInt16s TInt32s TInt64s TFloat8 TFloat32 TFloat64 TFloat16
 
@@ -91,7 +91,8 @@ stmtlist:
 stmt:
     | allsymlist TEqual expr {Language.Language.Assign($1,$3)}
     | TOP allsymlist TCP TEqual expr {Language.Language.Assign($2,$5)} /* this is just a tuple back */
-    /*| typedsymbol {Language.Language.VarDecl($1)}*/
+    | typedsymbol {Language.Language.VarDecl($1)}
+    | varsymbol {Language.Language.VarDecl($1)}
     | TEscapedCode  {Language.Language.Escape ($1)}
     | TOB stmtlist TCB {Language.Language.Block ($2)}
     | TOB TCB {Language.Language.Noop}
@@ -130,6 +131,7 @@ allsym:
     | addrSymbol {Language.Language.AllAddressedSymbol ($1)}
     | symbol {Language.Language.AllSymbol($1)}
     | typedsymbol {Language.Language.AllTypedSymbol ($1)}
+    | varsymbol {Language.Language.AllTypedSymbol ($1)}
 ;
 
 expr:
@@ -139,6 +141,7 @@ expr:
 
 fcall:
     | symbol TOP callargumentlist TCP {Language.Language.Call ($1,$3)}
+    | symbol TOP TCP {Language.Language.Call ($1,[])}
 ;
 
 callargumentlist:
@@ -210,10 +213,15 @@ simpleExpr:
     | TOP simpleExpr TCP {Language.Language.Brackets ($2)}
     | addrSymbol {Language.Language.AddrRef($1)}
     | symbol {Language.Language.VarRef $1}
-    | TInt {Language.Language.Const (Language.DataTypes.Int32,$1)} /*e.g: 8, the type should be found using type inference, what now??*/
+    | TInt {Language.Language.Const (Language.DataTypes.Int32s,$1)} /*e.g: 8, the type should be found using type inference, what now??*/
     | TFloat {Language.Language.Const (Language.DataTypes.Float32, $1)} /*e.g.: 8.0, this should be done using type inference, what now??*/
     | TOP dataTypes TCP simpleExpr {Language.Language.Cast ($2,$4)}
     | TMinus simpleExpr %prec TUminus {Language.Language.Opposite($2)}
+;
+
+varsymbol:
+    | TVar symbol {Language.Language.SimTypedSymbol (Language.DataTypes.None, $2)}
+    | TVar addrSymbol {Language.Language.ComTypedSymbol (Language.DataTypes.None, $2)}
 ;
 
 typedsymbol:

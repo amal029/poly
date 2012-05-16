@@ -63,9 +63,10 @@ cluster_MIN in float D[K,M,N], float X[M,N] out float cluster [K,M,N]
 /* Calculate the new centroids */
 add_V in float A[N], float B[N] out float C[N] 
   par i in 0:(-1+N) C[i] = B[i] + A[i]
+zero_1 out H[K] par i in 0:K-1 H[k] = 0
 reduce_over_M in float X[M][N], float O[N] out float U[N]
 {
-  float inter[N] = O
+  float inter[N] = zero_1()
   for i in 0:M-1 inter = add_V (X[i],inter)
 }
 
@@ -89,7 +90,7 @@ rest in float Input[J,N], int indices[1,K] out float X[M,N]
     (i - indices[j] == 0) {}
     otherwise X[i] = Input[i]
 }
-build in int indices[1,K], float Input[M,N] out float centroids[K][N], float X[M][N]
+build in indices[1,K], Input[M,N] out centroids[K][N], X[M][N]
 {
   centroids = remove(Input,indices)
   X = rest(Input,indices)
@@ -107,16 +108,17 @@ get_halt in float f[K,N], float s[K,N] out int8 o
   otherwise {}
 }
 
+zeros out H[K][M] par i in 0:K-1 par j in 0:M-1 H[i,j] = 0
+
 /* Finally make the top loop in result the first two dimensions give the */
 /* cetroid position the final 3 dimensions give the points clustered */
 /* next to the centroids */
 TopLoop in Input[J][10], K out float Result[M][N][P][Q][R]
 {
 
-  Centroids[K][10] = 0
-  int randIndices[1,K] = 0 /*column vector*/
-  float X[(J-K)][N] = 0
-
+  var randIndices[1,K] = zeros() /*column vector*/
+  var Centroids[K,10]
+  var X[(J-K),N]
   <!--
   #include<assert.h>
   /* Haven't made sure that all indices are xored */
@@ -128,17 +130,15 @@ TopLoop in Input[J][10], K out float Result[M][N][P][Q][R]
 
   (Centroids,X) = build(randIndices,Input)
    
-  int8 halt = 0
-  float Distance_cuboid[K,M,N] = 0
-  float inter[K,M,N] = 0
+  int8 halt 
   <!-- while (true){ -->
   float old_centroids[K,N] = Centroids
-  Distance_cuboid = distance_XC(X,Centroids)
-  inter = cluster_MIN(Distance_cuboid,X)
+  Distance_cuboid[K][M][N] = distance_XC(X,Centroids)
+  inter[K,M,N] = cluster_MIN(Distance_cuboid,X)
   Centroids = reduce_over_k(inter)
   halt = get_halt(Centroids,old_centroids)
   case (halt == 1) <!--break;-->
-       otherwise {}
+  otherwise {}
   <!--}-->
    for i in 0:M-1 for j in 0:N-1 Result[i,j] = inter
    for i in 0:P-1 for j in 0:Q-1 for k in 0:R-1 Result[*,*,i,j,k] = cluster
@@ -147,8 +147,7 @@ TopLoop in Input[J][10], K out float Result[M][N][P][Q][R]
 main Main
 {
   int J = 1100
-  int K = 100
-  float Result[K,10,K,(J-K),10] = 0
-  float Input[J][10] = 0
-  Result = TopLoop(Input,K)
+  var K = 100
+  float Input[J][10] = zeros()
+  var Result = TopLoop(Input,K)
 }

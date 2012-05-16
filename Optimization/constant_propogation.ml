@@ -54,6 +54,7 @@ let get_data_type_float lvalue rvalue =
   if (get_index lvalue 0 DataTypes.floating) >= (get_index rvalue 0 DataTypes.floating) then lvalue else rvalue
 
 let process lvalue rvalue func_int func_float = 
+  let ttype = (match lvalue with | VConst(x,_) -> x | Top x -> x) in
   if ((match lvalue with | VConst (_,_) -> true | _ -> false)  && (match rvalue with | VConst (_,_) -> true | _ -> false)) then
     if((match lvalue with | VConst (x,_) -> is_int_type x
       | _ -> false)  && 
@@ -74,7 +75,7 @@ let process lvalue rvalue func_int func_float =
 	VConst (dt,(string_of_float value))
       with
 	| Failure _ -> raise (Error (("Value " ^ ((get_value lvalue) ^" or ")) ^ (get_value rvalue ^ "undefined or not supported by the native architecure ")))
-  else Top 
+  else Top ttype
 
 let rec get_simexpr_const = function
   | Const (x,y) -> VConst (x,y)
@@ -100,7 +101,7 @@ let rec get_simexpr_const = function
     (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
   | Brackets x | Opposite x -> get_simexpr_const x
   | ColonExpr (x,y,z) -> raise (Error ("Colon expressions not allowed in expressions "))
-  | _ -> Top
+  | _ -> Top DataTypes.None
 (* These are for polyhedrons *)
 and get_vardecl_consts = function
   | ComTypedSymbol (x,y) -> 
@@ -120,7 +121,7 @@ and get_angledimexpr_const = function
       | DimSpecExpr x ->  
 	let ret = get_simexpr_const x in
 	(match ret with 
-	  | Top -> raise (Error "AngleDim Expr not a constant")
+	  | Top _ -> raise (Error "AngleDim Expr not a constant")
 	  | VConst(_,x) -> if x = "NULL" then raise (Error "AngleDim Expr is NULL") else ())
     )
 and get_dimspec_consts = function
@@ -135,16 +136,19 @@ and get_dimspecexpr_const = function
   | DimSpecExpr x -> 
     let ret = get_simexpr_const x in
     (match ret with 
-      | Top -> raise (Error "Dimspec Expr not a constant")
+      | Top _ -> raise (Error "Dimspec Expr not a constant")
       | VConst(_,x) -> if x = "NULL" then raise (Error "Dimspec Expr is NULL") else ())
 
-let get_expr_const = function
-  | SimExpr x -> get_simexpr_const x
+let get_expr_const lvalue_assign_type_list = function
+  | SimExpr x -> [get_simexpr_const x]
   (* This is fcall *)
-  | _ -> Top (* FIXME: You need to see how to get the actual value if it is a const from here *)
+  | _ ->  (* FIXME: You need to see how to get the actual value if it is a const from here *)
+    List.map (fun x -> Top x) lvalue_assign_type_list
 
 let assign_lvalue_const rvalue = function
-  | AllSymbol x -> Hashtbl.replace consts (get_symbol x) Top
+  | AllSymbol x -> 
+    let ttype = match (Hashtbl.find consts (get_symbol x)) with VConst (x,_) -> x | Top x -> x in
+    Hashtbl.replace consts (get_symbol x) (Top ttype)
   | AllTypedSymbol x -> 
     (* Check that dimensions of the addressed symbol are constants *)
     (match x with
@@ -152,20 +156,33 @@ let assign_lvalue_const rvalue = function
       |  _ -> ()
     );
     Hashtbl.add consts (get_typed_symbol x) rvalue 
-  | AllAddressedSymbol x -> Hashtbl.replace consts (get_addressed_symbol x) Top
+  | AllAddressedSymbol x -> 
+    let ttype = match (Hashtbl.find consts (get_addressed_symbol x)) with VConst (x,_) -> x | Top x -> x in
+    Hashtbl.replace consts (get_addressed_symbol x) (Top ttype)
 
-let rec get_assign_lvalue_const rvalue = function
-  | h::t -> assign_lvalue_const rvalue h; get_assign_lvalue_const rvalue t
+let rec get_assign_lvalue_const counter rvalue = function
+  | h::t -> assign_lvalue_const (List.nth rvalue counter) h; get_assign_lvalue_const (counter+1) rvalue t
   | [] -> ()
+
+(* Depends upon the simple type inference engine *)
+(* Return a list of DataTypes.t *)
+let get_lvalue_type_2 = function
+  | AllTypedSymbol (SimTypedSymbol (x,_) | ComTypedSymbol(x,_)) -> x
+  | AllAddressedSymbol (AddressedSymbol (x,_,_)) 
+  | AllSymbol x -> match (Hashtbl.find consts (get_symbol x)) with VConst (x,_) -> x | Top x -> x
+let rec get_lvalue_type = function
+  | h::t -> get_lvalue_type_2 h :: get_lvalue_type t
+  | [] -> []
 
 let rec get_stmt_const = function
   | VarDecl x -> 
     let sym = (get_typed_symbol x) in
     Hashtbl.add consts sym (get_vardecl_consts x)
-  (*FIXME: you are not checking that the assignment is of equal sized dimensions, do that*)
-  | Assign (x,y) -> 
-    let rvalue = get_expr_const y in
-    get_assign_lvalue_const rvalue x
+  (*FIXME: you are not checking that the assignment is of equal sized
+    dimensions, do that --> Done in the type inference engine *)
+  | Assign (x,y) ->
+    let rvalue =  get_expr_const (get_lvalue_type x) y in
+    get_assign_lvalue_const 0 rvalue x
   | Escape x -> ()
   | Noop -> ()
   | _ -> raise (Error ("Unexpected statement encountered after rewrites!!"))
@@ -295,7 +312,7 @@ let rec simple_epxr_const v = function
     (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
   | Brackets x | Opposite x -> simple_epxr_const v x
   | ColonExpr (x,y,z) -> raise (Internal_compiler_error ("ColonExpr detected after all rewrites!!"))
-  | _ -> Top
+  | _ -> Top DataTypes.None
 
 let get_dim_spec_expr v = function
   | DimSpecExpr x -> simple_epxr_const v x
@@ -341,8 +358,9 @@ and get_ass_list list name v = function
 
 let rec get_fcall_consts fcall nodes = function
   (* Only square nodes can have the assignment statement *)
-  | h::t -> 
+  | h::t ->
     (match h with 
+      (* v is the hashtbl connected to the fcall node *)
       | (x,v) -> 
 	(match x with 
 	  | Squarenode (x,_) -> 
@@ -393,6 +411,7 @@ and get_allsym_consts v nodes = function
        ( (Hashtbl.find v (get_typed_symbol x)) , (get_typed_sym_dim v x))
      with | Not_found -> raise (Internal_compiler_error "Could not find variable (get_allsym_consts)"))
 
+(* function input is the argument list *)
 and get_fcaldim_consts nodes v = function
   | h::t -> 
     (try
@@ -413,6 +432,10 @@ and get_fcaldim_consts nodes v = function
 	   (* no more angle dimensions in the programs at all *)
 	   | CallAddrressedArgument x -> 
 	     (* Now actually remove from dim_list *)
+	     (* This thing is dropping the indexed dimensions e.g., int
+		M[20][30] but we have a call, FCall(M[i]) that means we
+		only are taking as input a 1D Vector, since [i]
+		dereferences the 1D vector.*)
 	     let to_rem_list = ref [] in
 	     let torem = ref 0 in
 	     remove_from_dim_list  torem to_rem_list (match x with AddressedSymbol (_,_,y) -> y ) ;
@@ -446,7 +469,7 @@ and is_expr = function
 *)
 let get_it = function
   | Const (x,y) -> ("NULL", VConst (x,y))
-  | VarRef x -> ((get_symbol x), Top)
+  | VarRef x -> ((get_symbol x), (Top DataTypes.Int32))
   (* Try floding expressions and see if you get a constant *)
   | _ -> raise (Error "We currently do not support higher order dependent types")
 

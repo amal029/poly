@@ -3,8 +3,8 @@ XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 OCMLOPTS=-a
 OCMALDEBUG=-g
 XMLLIB=xml-light.cma
-LANGLIB=language.cma
-CC=ocamlc
+LANGLIB=language.cmxa
+CC=ocamlc.opt
 YACC=ocamlyacc
 LEX=ocamllex
 

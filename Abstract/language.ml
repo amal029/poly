@@ -157,5 +157,5 @@ module Consts =
 struct 
   type consts = 
     | VConst of DataTypes.t * string
-    | Top
+    | Top of DataTypes.t
 end
