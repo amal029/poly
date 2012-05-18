@@ -1,0 +1,35 @@
+Fri May 18 14:35:51 IST 2012
+
+Written code for:
+
+Optimizations
+
+1.) Aggressive constant propagation.
+2.) Constant folding leads to removal of loops, if assignment is to a constant
+3.) Removing dead-code: both filters and converting stmts (e.g., unsused variables) to Noop
+
+
+Type inference and safety
+
+1.) First order dependent typing
+2.) Non-overflowing loop-bounds
+3.) Forcing affine loop-bounds (needs a lot more testing)
+
+Written examples:
+
+1.) K-means.poly
+2.) N-body.poly
+3.) Binomial-lattice.poly
+
+
+TODO
+
+Safety checks
+
+1.) Aggressive testing (Next 2 weeks)
+
+2.) Transitive closures for making sure that pars are pars and
+extracting parallelism, see: Induction variable analysis with delayed
+abstractions (Hipeac'05).
+
+3.) WRITE POPL PAPER (START 1st WEEK OF JUNE)
