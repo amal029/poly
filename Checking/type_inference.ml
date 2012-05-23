@@ -611,9 +611,9 @@ struct
     | Empty as s -> s
     | Endnode (stmt,x) -> Endnode(stmt,(infer_cfg declarations x))
       
-  let rec infer_cfg_list declarations = function
-    | h::t -> infer_cfg declarations h :: infer_cfg_list declarations t
-    | [] -> []
+  (* let rec infer_cfg_list declarations = function *)
+  (*   | h::t -> infer_cfg declarations h :: infer_cfg_list declarations t *)
+  (*   | [] -> [] *)
   
   let infer_topnode = function
     | Topnode (x,t,y) -> 
@@ -621,7 +621,8 @@ struct
       (*MAYBE: We will need to Hashtbl, but the fcall primitive type
 	inference is bing done in Simple and the dimensions are being done
 	in Const propogation*)
-      Topnode (x,t, (infer_cfg_list (ref []) y))
+      (* Topnode (x,t, (infer_cfg_list (ref []) y)) *)
+      Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) y))
     | Null -> raise (Internal_compiler_error "ERROR (First_order type inference): Topnode is Null")
 
   let rec infer_filternode = function

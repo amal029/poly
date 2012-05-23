@@ -6,7 +6,7 @@ Optimizations
 
 1.) Aggressive constant propagation.
 2.) Constant folding leads to removal of loops, if assignment is to a constant
-3.) Removing dead-code: both filters and converting stmts (e.g., unsused variables) to Noop
+3.) Removing dead-code: both filters and converting stmts (e.g., unused variables) to Noop
 
 
 Type inference and safety
