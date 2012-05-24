@@ -8,12 +8,12 @@ all: fcfg
 
 
 fcfg: fcheck
-	$(CC) -I $(LANGDIR) $(LANGLIB) -a *.cmo -o rewrites.cma
+	$(CC) -I $(LANGDIR) -a *.cmo -o rewrites.cma
 fcheck: 
 	$(CC) -I $(LANGDIR) -i fcfg.ml
 	$(CC) -I $(LANGDIR) -i cfg.ml
-	$(CC) -I $(LANGDIR) $(LANGLIB) -c fcfg.ml
-	$(CC) -I $(LANGDIR) $(LANGLIB) -c cfg.ml
+	$(CC) -I $(LANGDIR) -c fcfg.ml
+	$(CC) -I $(LANGDIR) -c cfg.ml
 
 clean:
 	rm -rf *.cm*

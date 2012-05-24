@@ -45,7 +45,7 @@ ast:
 ;
 
 toplevelstmtlist:
-    | toplevelstmtlist toplevelstmt {$1@[$2]}
+    | toplevelstmtlist toplevelstmt {$2::$1}
     | toplevelstmt {[$1]}
 
 toplevelstmt:
@@ -84,7 +84,7 @@ argument_input:
 ;
 
 stmtlist:
-    | stmtlist stmt {$1@[$2]}
+    | stmtlist stmt {$2::$1}
     | stmt {[$1]}
 ;
 
@@ -112,7 +112,7 @@ case:
     | TCase caseclauselist otherwise {Language.Language.Case($2,$3)}
 ;
 caseclauselist:
-    | caseclauselist caseclause {$1@[$2]}
+    | caseclauselist caseclause {$2::$1}
     | caseclause {[$1]}
 ;
 caseclause:

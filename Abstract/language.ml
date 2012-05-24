@@ -16,6 +16,8 @@ end
 
 module DataTypes =
 struct
+  exception Error of string;;
+  (* Debugging function *)
   type t =
     | Int8 | Int16 | Int32 | Int64
     | Int8s | Int16s | Int32s | Int64s
@@ -25,6 +27,24 @@ struct
     | None
     | Bool
     | Poly of string
+
+  let print_datatype = function
+    | Int8 -> "Int8"
+    | Int16 -> "Int16"
+    | Int32 -> "Int32"
+    | Int64 -> "Int64"
+    | Int8s -> "Int8s"
+    | Int16s -> "Int16s"
+    | Int32s -> "Int32s"
+    | Int64s -> "Int64s"
+    | Float8 -> "Float8"
+    | Float16 -> "Float16"
+    | Float32 -> "Float32"
+    | Float64 -> "Float64"
+    | None -> "None"
+    | Poly x -> x
+    | Bool -> "Bool"
+    | _ -> raise (Error ("DataType not recognised"))
 
   (* Type Ranges *)
   let unsignedIntegral    = [Int8; Int16; Int32; Int64];;

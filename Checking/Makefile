@@ -14,5 +14,5 @@ check:
 	$(CC) -I $(LANGDIR) $(LANGLIB) -c type_inference.ml
 
 clean:
-	rm -rf *.cm*
+	rm -rf *.cm* *mli
 

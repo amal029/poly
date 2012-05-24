@@ -4,7 +4,7 @@ OCMLOPTS=-a
 OCMALDEBUG=-g
 XMLLIB=xml-light.cma
 LANGLIB=language.cmxa
-CC=ocamlc.opt
+CC=ocamlc
 YACC=ocamlyacc
 LEX=ocamllex
 
