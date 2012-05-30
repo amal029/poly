@@ -121,10 +121,9 @@ struct
     | Par of symbol * simpleExpr * stmt
     | For of symbol * simpleExpr * stmt
     | Noop
-  and expr = 
+  and expr =
     | FCall of filterCall
     | SimExpr of simpleExpr
-    | Main
   and case =
     | Case of caseClause list * otherwise
   and caseClause = 
@@ -153,7 +152,7 @@ module FCFG =
 struct
   open Language
   type fcfg = 
-    | Node of expr * filter * fcfg list
+    | Node of stmt * filter * fcfg list
 end
 
 module CFG =
@@ -163,11 +162,11 @@ struct
     | Startnode of stmt * cfg (* When entering a complex statement *)
     | Squarenode of stmt * cfg (* this is the internal cfg within the filter *)
     | Conditionalnode of relExpr * cfg * cfg (* a conditional has true and false outputs *)
-    | Endnode of stmt * cfg (* can have multiple incoming nodes, but only one outgoing node *)
+    | Endnode of stmt * cfg * int (* can have multiple incoming nodes, but only one outgoing node *)
     | Backnode of cfg ref (* For loops (*pun intended*) *)
     | Empty
   and topnode = 
-    | Topnode of expr * string * cfg list (* These are my statements within a filter and its name *)
+    | Topnode of stmt * string * cfg list (* These are my statements within a filter and its name *)
     | Null
   type filternode = 
     | Filternode of topnode * filternode list (* These are the connections to other filters' topnodes *)

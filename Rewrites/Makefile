@@ -10,8 +10,8 @@ all: fcfg
 fcfg: fcheck
 	$(CC) -I $(LANGDIR) -a *.cmo -o rewrites.cma
 fcheck: 
-	$(CC) -I $(LANGDIR) -i fcfg.ml
-	$(CC) -I $(LANGDIR) -i cfg.ml
+	# $(CC) -I $(LANGDIR) -i fcfg.ml
+	# $(CC) -I $(LANGDIR) -i cfg.ml
 	$(CC) -I $(LANGDIR) -c fcfg.ml
 	$(CC) -I $(LANGDIR) -c cfg.ml
 

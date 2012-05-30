@@ -2,6 +2,7 @@ open Language
 open Language
 
 exception Recursion of string
+exception Error of string
 
 let nested_names = Stack.create();;
 let tbl = Hashtbl.create (25);;
@@ -9,7 +10,12 @@ let tbl = Hashtbl.create (25);;
 let get_tfs = function
   | Def t | DefMain t -> 
     (match t with Filter (x,_,_,_) -> 
-      match x with Symbol x -> Hashtbl.add tbl x t)
+      match x with Symbol x -> 
+	(try
+	   let _ = Hashtbl.find tbl x in
+	   raise (Error (("Filter: " ^ x) ^ " multiply defined"))
+	 with
+	   | Not_found -> Hashtbl.add tbl x t))
   | _ -> ()
 let rec get_filters = function
   | Program x -> get_fs x
@@ -20,20 +26,20 @@ and get_fs = function
 let check_for_recursion g = Stack.iter (fun x -> if x = g 
   then raise (Recursion (("Filter " ^ g) ^ (" has a path to itself")))) nested_names
 
-let rec check_expr = function
-  |  FCall x as s -> 
+let rec check_expr mystmt = function
+  |  FCall x ->
     let name = (match x with Call(x,_) -> match x with Symbol x -> x) in
     (try 
        let filter = (Hashtbl.find tbl name) in 
        let ll = main filter in
        check_for_recursion name;
-       [FCFG.Node (s, filter, ll)];
+       [FCFG.Node (mystmt, filter, ll)];
      with 
        | Not_found -> (failwith (("Filter: " ^ name) ^ (" not found"))))
   | _ -> []
 
 and check_stmt = function
-  | Assign (_,y) -> check_expr y
+  | Assign (_,y) as s -> check_expr s y
   | Block x -> check_block x
   | For (_,_,x) -> check_stmt x
   | Par (_,_,x) -> check_stmt x
@@ -68,7 +74,7 @@ let rec check_ast = function
     get_main_ref m x;
     let mm = match !m with None -> failwith "Main not defined" | Some x -> x in
     let retl = check_program x in
-    FCFG.Node (Main, mm, retl)
+    FCFG.Node (Noop, mm, List.rev(retl))
 and check_program = function
   | h::t -> ((toplevelstmt h) @ (check_program t));
   | [] -> [] 

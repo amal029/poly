@@ -1,0 +1,35 @@
+test in X[K] out Y[K] Y = X
+
+zeros out H[M] par i in 0:(M-1) H[i] = 0
+
+zeros2 out L[K][T] par i in 0:K-1 par j in 0:T-1 L[i][j] = 0.0
+
+main Main
+{
+  var J = 10
+  var K = 100
+  var REE[100] = zeros()
+  var minter = K-J /* Currently you have to do it this way !!*/
+  var inter[minter][10] = zeros2()
+  var Result[J][J] = zeros2()
+  float Input[minter][10] = inter
+  case
+  (J == 1100) K=90
+  (J==900) { case (K <= 90) K=10 otherwise K=80}
+  otherwise {} K=78
+  var M = 100
+  var N = 100
+  var P = 100
+  var Q = 100
+  var R = 100
+  var Centroids[J,J] = zeros2()
+  
+  int8 halt = (int8)1
+  case (halt == (int8)1) {Q = 90} /* <!--break;--> */
+  otherwise {}
+  for i in 0:((K-J)-1) for j in 0:9 inter[i][j] = 20.0
+  for i in 0:M-1 for j in 0:N-1 Result[i,j] = Centroids[i][j]
+  var ER[10] = zeros()
+  var RT[J] = test (ER)
+  
+}

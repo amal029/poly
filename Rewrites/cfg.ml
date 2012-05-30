@@ -9,47 +9,54 @@ let rec get_new_block enode = function
     let tb = get_new_block enode x in
     let fb = get_new_block enode y in
     Conditionalnode (z,tb,fb)
-  | Endnode (y,x) -> Endnode (y, (get_new_block enode x))
+  | Endnode (y,x,z) -> Endnode (y, (get_new_block enode x), z)
   | Empty -> enode
   | Backnode _ as s -> s
+
+let get_num_case = function
+  | Case (x,_) -> (List.length x) + 1
 
 let rec make_stmt list = function
   | Block x as s -> 
     let enode =  make_block list in (* This is where I will continue to *)
-    let n = make_block x in (* This is my own list *)
+    let n = make_block (List.rev x) in (* This is my own list *)
     let snode = Startnode (s,n) in
-    let my_end_node = Endnode (s,enode) in
-    get_new_block snode my_end_node
+    let my_end_node = Endnode (s,enode,1) in
+    get_new_block my_end_node snode
   | For (x,y,z) | Par (x,y,z) as s ->
     let node = make_block list in (* This is where I continue to *)
-    let enode = Endnode (s,node) in
+    let enode = Endnode (s,node,1) in
     (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)
-    let (vinit,vend,vstride) = (match y with | ColonExpr (x,y,z) -> (x,y,z) | _ -> failwith "Loop cannot hvave any, but colonExpr") in
-    let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32, x))],(SimExpr vinit)), 
+    let (vinit,vend,vstride) = (match y with | ColonExpr (x,y,z) -> (x,y,z) | _ -> failwith "Loop cannot have any, but colonExpr") in
+    let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x))],(SimExpr vinit)), 
 			       (build_loop vend vstride enode x z)) in
     Startnode (s, vinitode)
   | CaseDef x as s ->
     let node = make_block list in (* Where I need to continue to *)
-    let enode = Endnode (s,node) in
+    let enode = Endnode (s,node,(get_num_case x)) in
     let cnode = build_case x in
     let snode = Startnode (s, cnode) in
-    get_new_block snode enode
+    get_new_block enode snode
   | _ as s -> Squarenode (s , make_block list) (* TODO: There shoud be no colon expr assigns left when coming here *)
 and build_loop vend vstride enode x stmt = 
-  let sexpr = Plus ((VarRef x),vstride) in
-  let cond = Conditionalnode (LessThanEqual ((VarRef x), vend), make_stmt [Assign ([AllSymbol x],(SimExpr sexpr))] stmt (* true child *),  enode (* false child *)) in
-  let bedge = ref (Backnode (ref Empty)) in
+  let sexpr = Plus ((VarRef x),Brackets(Cast(DataTypes.Int32s,vstride))) in (*FIXME: vstride needs to be of type Int32s*)
+  let tbranch = make_stmt [Assign ([AllSymbol x],(SimExpr sexpr))] stmt in
+  let back = ref Empty in
+  let bedge = (Backnode back) in
   (* replace the Empty in the true branch with the back edge *)
-  let rcond = get_new_block !bedge cond in
-  bedge := Backnode (ref rcond);
-  rcond
+  let ntbranch = get_new_block bedge tbranch in
+  let cond = Conditionalnode (LessThanEqual ((VarRef x), vend),  ntbranch (* true child *),  enode (* false child *)) in
+  back := cond;
+  (*Debugging*)
+  (* print_endline (match bedge with Backnode x -> if (!x == cond) then "true" else "false"); *)
+  cond
 and make_block = function
   | h::t -> make_stmt t h;
   | [] -> Empty
 and build_case = function
   | Case (x,y) -> 
     let ostmt = make_stmt [] (match y with Otherwise x -> x) in
-    build_case_clause ostmt x
+    build_case_clause ostmt (List.rev x)
 and build_case_clause ostmt = function
   | h::t -> build_clause_stmt t ostmt h
   | [] -> ostmt

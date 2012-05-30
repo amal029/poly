@@ -63,7 +63,7 @@ struct
   let check_expr vars errors warns = function
       | FCall x -> check_filter_call vars errors warns x
       | SimExpr x -> check_sim_expr vars errors warns x
-      | Main -> ()
+      (* | Main -> () *)
 
   let check_relexpr vars errors warns = function
       | LessThan (x,y) | LessThanEqual (x,y) | GreaterThan (x,y) 

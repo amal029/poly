@@ -9,9 +9,12 @@ compile:
 	$(MAKE) -C Abstract/ all
 	$(MAKE) -C Parsing/ all
 	$(MAKE) -C Rewrites/ all
-	$(MAKE) -C Checking/ all
+	$(MAKE) -C backend/ all
 	$(MAKE) -C Optimization/ all
+	$(MAKE) -C Checking/ all
 	$(MAKE) -C Tests/ all
+	mkdir -p output
+	mkdir -p output1
 
 clean:
 	$(MAKE) -C Abstract/ clean
@@ -19,6 +22,7 @@ clean:
 	$(MAKE) -C Checking/ clean
 	$(MAKE) -C Rewrites/ clean
 	$(MAKE) -C Optimization/ clean
+	$(MAKE) -C backend/ clean
 	$(MAKE) -C Tests/ clean
 
 run:
