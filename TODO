@@ -30,6 +30,14 @@ Safety checks
 
 2.) Transitive closures for making sure that pars are pars and
 extracting parallelism, see: Induction variable analysis with delayed
-abstractions (Hipeac'05).
+abstractions (Hipeac'05). --> DONE
 
 3.) WRITE POPL PAPER (START 1st WEEK OF JUNE)
+
+4.) Resolve these bugs:
+
+a.) Right now a person cannot right var G[J-K], where J and K are
+defined variables.
+
+b.) Right now the **, semantics are not implemented correctly in
+constant propogation and First order type inference
