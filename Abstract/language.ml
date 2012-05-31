@@ -44,7 +44,7 @@ struct
     | None -> "None"
     | Poly x -> x
     | Bool -> "Bool"
-    | _ -> raise (Error ("DataType not recognised"))
+    | _ -> raise (Error ("DataType not recognized"))
 
   (* Type Ranges *)
   let unsignedIntegral    = [Int8; Int16; Int32; Int64];;
@@ -178,3 +178,5 @@ struct
     | VConst of DataTypes.t * string
     | Top of DataTypes.t
 end
+
+

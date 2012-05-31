@@ -12,6 +12,7 @@ compile:
 	$(MAKE) -C backend/ all
 	$(MAKE) -C Optimization/ all
 	$(MAKE) -C Checking/ all
+	$(MAKE) -C Codegen/ all
 	$(MAKE) -C Tests/ all
 	mkdir -p output
 	mkdir -p output1
@@ -23,6 +24,7 @@ clean:
 	$(MAKE) -C Rewrites/ clean
 	$(MAKE) -C Optimization/ clean
 	$(MAKE) -C backend/ clean
+	$(MAKE) -C Codegen/ clean
 	$(MAKE) -C Tests/ clean
 
 run:
