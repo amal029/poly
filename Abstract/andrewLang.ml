@@ -110,8 +110,8 @@ struct
     | CaseDef of case
     | FCall of functionCall
     | Escape of string
-    | Par of symbol * simpleExpr * block
-    | For of symbol * simpleExpr * block
+    | Par of symbol * dimspec * block
+    | For of symbol * dimspec * block
   and case =
     | Case of caseClause list * otherwise
   and caseClause = 

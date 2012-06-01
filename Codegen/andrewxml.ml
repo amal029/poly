@@ -15,7 +15,7 @@ open AndrewLang
 let symbol_xml = function
   | Symbol x -> Element ("Symbol",[],[PCData x])
 
-let value_xml x = PCData x
+let value_xml x = PCData (("\"" ^ x) ^ "\"")
 
 let rec simexpr_xml = function
   | Plus (x,y) -> Element("Plus",[],[(simexpr_xml x);(simexpr_xml y)])
@@ -85,8 +85,8 @@ let rec stmt_xml = function
   | AggregateDeclAssign (x,y) -> Element("DeclAssignAggregateConst",[],(List.map (fun x -> value_xml x) y))
   | VarDecl x ->  Element("VarDecl",[],[(typedsymbol_xml x)])
   | Assign (x,y) -> Element("Assign",[],[(rsymbol_xml x);(simexpr_xml y)])
-  | For (x,y,z) -> Element("For",[],[(symbol_xml x);(simexpr_xml y);(block_xml z)])
-  | Par (x,y,z) -> Element("Par",[],[(symbol_xml x);(simexpr_xml y);(block_xml z)])
+  | For (x,y,z) -> Element("For",[],[(symbol_xml x);(dimspec_xml y);(block_xml z)])
+  | Par (x,y,z) -> Element("Par",[],[(symbol_xml x);(dimspec_xml y);(block_xml z)])
 
 and block_xml x = Element("StmtList",[],(List.map (fun x -> stmt_xml x) x))
 
@@ -119,7 +119,13 @@ let toplevelstmt_xml = function
   | DefMain x -> Element ("DefMain", [], [filter_xml x]) 
   | TopEscape x -> Element("TopEscape",[],[PCData x])
 
-let ast_xml = function
+let ast_xml file = function
   | Program x -> 
     let toplevelStmtList = List.map (fun x -> toplevelstmt_xml x) x in
-    Element ("Program", [], [Element ("ToplevelStmtList",[],toplevelStmtList)])
+    let ret = Element ("Program", [], [Element ("ToplevelStmtList",[],toplevelStmtList)]) in
+    (* Write the output file to file *)
+    let sret = to_string_fmt ret in
+    let ochan = open_out file in
+    output_string ochan sret;
+    flush ochan; (*flush everything down*)
+    close_out ochan

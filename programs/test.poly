@@ -27,7 +27,7 @@ main Main
   int8 halt = (int8)1
   case (halt == (int8)1) {Q = 90} /* <!--break;--> */
   otherwise {}
-  for i in 0:((K-J)-1) for j in 0:9 inter[i][j] = 20.0
+  for i in 0:((K-J)-1) for j in 0:9 {inter[i][j] = 20.0}
   for i in 0:M-1 for j in 0:N-1 Result[i,j] = Centroids[i][j]
   var ER[10] = zeros()
   var RT[J] = test (ER)
