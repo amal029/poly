@@ -7,6 +7,7 @@ all: compile
 
 compile:
 	$(MAKE) -C Abstract/ all
+	$(MAKE) -C Error/ all
 	$(MAKE) -C Parsing/ all
 	$(MAKE) -C Rewrites/ fcheck
 	$(MAKE) -C backend/ all
@@ -21,6 +22,7 @@ compile:
 
 clean:
 	$(MAKE) -C Abstract/ clean
+	$(MAKE) -C Error/ clean
 	$(MAKE) -C Parsing/ clean
 	$(MAKE) -C Checking/ clean
 	$(MAKE) -C Rewrites/ clean

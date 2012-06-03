@@ -3,11 +3,21 @@ module Simple =
 struct
   open Language
   open Language
+  open Reporting
+
   exception Error of string;;
   exception Internal_compiler_error of string;;
 
 
   let filter_signatures = Hashtbl.create 10;;
+  let curr_lnum = ref (0,0)
+  let set_curr_line_num s = 
+    let () = IFDEF DEBUG THEN print_endline ("Curr num bindings: " ^ (string_of_int (get_stmt_lnum_length ()))) ELSE () ENDIF in
+    curr_lnum := get_stmt_lnum s
+  let print_curr_line_num x = (match x with (x,y) -> 
+    print_string ("line number: ");
+    print_int x;
+    print_endline (", column number: " ^ (string_of_int y) ^ " "))
 
   let get_symbol = function
     | Symbol x -> x
@@ -19,8 +29,10 @@ struct
 
   let exists declarations s = 
     List.exists (fun x -> (get_typed_symbol x) = s ) declarations
+
   let get declarations s = 
     List.find (fun x -> (get_typed_symbol x) = s) declarations
+
   let get_typed_type = function
     | SimTypedSymbol (x,_) 
     | ComTypedSymbol (x,_) -> (match x with 
@@ -30,6 +42,7 @@ struct
 
   let add_to_declarations s declarations = 
     if (exists !declarations (get_typed_symbol s)) then 
+      let () = print_curr_line_num !curr_lnum in
       raise (Error (("Symbol "^ (get_typed_symbol s)) ^ " multiply defined" ))
     else declarations := s :: !declarations
 
@@ -72,7 +85,11 @@ struct
 	
   let replace_in_declaration declarations s neww = 
     let ll = List.filter (fun x -> x <> s) !declarations in
-    declarations := neww :: ll
+    (* Check that you are not adding the same thing more than once *)
+    declarations := ll;
+    let () = add_to_declarations neww declarations in  (* declarations := neww :: ll *)
+    (* Now add the rest to the declarations *)
+    (* let () = List.iter (fun x -> add_to_declarations x declarations) ll in *) ()
 
   let rec get_block_less_declarations declarations = function
     | h::t -> (List.find (fun x -> (get_typed_symbol x) = (get_typed_symbol h)) declarations) :: get_block_less_declarations declarations t
@@ -354,7 +371,7 @@ struct
 	let _ = propogate_constraints declarations lexpr_type rexpr_type in ()
 
   let rec replace_var_decls declarations = function
-    | VarDecl x as ret -> 
+    | VarDecl x as ret ->
       let v = x in
       (match x with
 	| SimTypedSymbol (x,_) 
@@ -399,9 +416,10 @@ struct
 
   let rec infer_stmt declarations = function
     | VarDecl x as s -> 
-      (* let () = print_endline ("vardecl: " ^ (get_typed_symbol x)) in *)
+      let () = set_curr_line_num s in
       let () = add_to_declarations x declarations in s
-    | Assign (x,y) -> 
+    | Assign (x,y) as s -> 
+      let () = set_curr_line_num s in
       let expr_type = infer_expr declarations y in
       if List.length x <> List.length expr_type then 
 	raise (Error "Simple: Input and output types do not unify")
@@ -464,13 +482,14 @@ struct
   and infer_assign_lvalue declarations expr_type = function
   (* Return back vardeclared or non-var declared symbols *)
     | AllTypedSymbol x as s -> 
-      (* let () = print_endline (get_typed_symbol x) in *)
       if (match_typed_symbol_type expr_type x) then
 	(add_to_declarations x declarations; s)
       else 
 	if (isnone x) then
 	  let neww = build_new_typed_symbol expr_type x in
 	  replace_in_declaration declarations x neww;
+	  (* Debugging *)
+	  let () = IFDEF DEBUG THEN List.iter (fun x -> print_endline ("Added to decl : " ^ (get_typed_symbol x))) !declarations ELSE() ENDIF in
 	  AllTypedSymbol (neww)
 	else
 	  begin
@@ -875,7 +894,8 @@ struct
     | _ -> ()
 
   let rec infer_stmt declarations = function
-    | VarDecl x as s -> let () = Simple.add_to_declarations x declarations in s
+    | VarDecl x as s -> 
+      let () = Simple.add_to_declarations x declarations in s
     | Assign (x,y) as s ->
       if (match y with FCall _ -> false | _ -> true) then
 	let expr_type = infer_expr !declarations y in

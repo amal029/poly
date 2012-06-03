@@ -2,6 +2,7 @@ COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml
 BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
 BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
+ERRORDIR=$(COMP_HOME)/Error
 LIBDIR=$(COMP_HOME)/lib
 LANGDIR=$(COMP_HOME)/Abstract
 PARSEDIR=$(COMP_HOME)/Parsing
@@ -25,6 +26,7 @@ BIGARRAYLIB=bigarray.cma
 NUMSLIB=nums.cma
 UNIXLIB=unix.cma
 STRLIB=str.cma
+ERRORLIB=error.cma
 FILEUTILS=fileutils.cma
 CC=ocamlc
 SRC=polyc.ml
@@ -39,7 +41,7 @@ run:
 
 compile:
 	$(CC) -I $(PARSEDIR) -I $(LANGDIR) -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) \
-	-I $(OPTDIR) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(REWRITES) $(ANALYSIS) \
+	-I $(OPTDIR) -I $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(REWRITES) $(ANALYSIS) \
 	$(OPTIMIZATIONS) -I $(CODEGENDIR) $(CODEGENLIB) \
 	-I $(LIBDIR) $(FILEUTILS) $(SRC) -o $(TARGET)
 

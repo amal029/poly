@@ -56,8 +56,13 @@ struct
 end
 ;;
 
+
+(* FIXME: All the ast nodes need to be attached with line and column
+   number information, which changes everything else as well.*)
 module Language =
 struct
+
+
   (* the overall ast *)
   type symbol =
       Symbol of string

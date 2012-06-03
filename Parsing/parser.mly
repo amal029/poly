@@ -1,14 +1,19 @@
 %{
 (* This is the header *)
-  (* let _ = Parsing.set_trace true in () *)
-  let counter = ref 0;;
-  let parse_error s = 
-    let mypos = Parsing.symbol_start_pos() in
-    print_string (s ^ " (line number: ");
-    print_int mypos.Lexing.pos_lnum;
-    print_string (", column number: " ^ (string_of_int (mypos.Lexing.pos_cnum - mypos.Lexing.pos_bol)));
-    print_endline ")";
-    flush stdout
+ (* let _ = Parsing.set_trace true in () *)
+ let counter = ref 0
+ let line_nums = Hashtbl.create (1000) 
+ let parse_error s = 
+   let mypos = Parsing.symbol_start_pos() in
+   print_string (s ^ " (line number: ");
+   print_int mypos.Lexing.pos_lnum;
+   print_string (", column number: " ^ (string_of_int (mypos.Lexing.pos_cnum - mypos.Lexing.pos_bol)));
+   print_endline ")";
+   flush stdout
+ let ln () = 
+   let mypos = Parsing.symbol_start_pos() in 
+   let cnum = (mypos.Lexing.pos_cnum) - (mypos.Lexing.pos_bol) in
+   (mypos.Lexing.pos_lnum,cnum)
 %}
 
 /* These are the declarations */
@@ -89,15 +94,38 @@ stmtlist:
 ;
 
 stmt:
-    | allsymlist TEqual expr {Language.Language.Assign($1,$3)}
-    | TOP allsymlist TCP TEqual expr {Language.Language.Assign($2,$5)} /* this is just a tuple back */
-    | typedsymbol {Language.Language.VarDecl($1)}
-    | varsymbol {Language.Language.VarDecl($1)}
-    | TEscapedCode  {Language.Language.Escape ($1)}
-    | TOB stmtlist TCB {Language.Language.Block ($2)}
+    | allsymlist TEqual expr {
+      let ret = Language.Language.Assign($1,$3) in
+      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
+    }
+    | TOP allsymlist TCP TEqual expr { 
+      let ret = Language.Language.Assign($2,$5) in
+      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
+    } /* this is just a tuple back */
+    | typedsymbol {
+      let ret = Language.Language.VarDecl($1) in 
+      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
+    }
+    | varsymbol {
+      let ret = Language.Language.VarDecl($1) in
+      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
+    }
+    | TEscapedCode  {
+      let ret = Language.Language.Escape ($1) in
+      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
+    }
+    | TOB stmtlist TCB {
+      let ret = Language.Language.Block ($2) in
+      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
+    }
     | TOB TCB {Language.Language.Noop}
-    | case {Language.Language.CaseDef ($1)}
-    | iter {$1}
+    | case {
+      let ret = Language.Language.CaseDef ($1) in
+      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
+    }
+    | iter {let ret = $1 in 
+	    let () = Reporting.add_stmt_lnum ret (ln ()) in ret
+	   }
 ;
 
 iter:

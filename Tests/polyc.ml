@@ -9,11 +9,14 @@ try
 		      ("-v", Arg.Set version, "  Get the compiler version")] (fun x -> file_name := x) usage_msg in
   if !version then print_endline "Poly compiler version alpha"
   else 
+    (* Initialize the error reporting structures *)
+    let () = Reporting.init () in
     let in_chan = open_in !file_name in
     let () = print_endline "Step 1....Lexing and parsing..." in
     let lexbuf = Lexing.from_channel in_chan in
     let ast = Parser.ast Lexer.lexer lexbuf in 
     (* The first type inference: simple ML type inference engine*)
+    let () = print_endline (string_of_int (Reporting.get_stmt_lnum_length ())) in
     let () = print_endline "Step 2...ML type inference....." in
     let ast = Type_inference.Simple.infer_ast ast in
     let () = print_endline "Step 3....Building the call graph..." in
