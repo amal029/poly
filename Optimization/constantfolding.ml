@@ -721,6 +721,7 @@ struct
 
   exception Internal_compiler_error of string;;
   let endnodes = Hashtbl.create (20)
+  let fcall_map = Hashtbl.create (20)
 
   let rec change_backnode cond = function
     | Conditionalnode (_,x,y) -> change_backnode cond x; change_backnode cond y
@@ -873,11 +874,14 @@ struct
     (* If it is an addressed symbol then make the non-constant dimensions constants in here*)
     (* assignment remains NULL string*)
     | VarDecl x -> VarDecl (fold_var_decl consts x)
-    | Assign (x,y) -> 
+    | Assign (x,y) as s -> 
+      (* Put this stmt in the hashtbl if this stmt has type FCall in lvalue *)
+      let put = (match y with | FCall _ -> true | _ -> false) in
       let rvalue = fold_expr consts y in
       (* Fold the constants here on the lavalue side as well*)
       let lvalue = List.map (fun x -> fold_assign_decl consts x) x in
-      Assign (lvalue,rvalue)
+      let ret = Assign (lvalue,rvalue) in
+      if put then let () = Hashtbl.add fcall_map s ret in ret else ret
     | Escape x -> Escape x
     | Noop -> Noop
     | _ -> raise (Internal_compiler_error "const_folding: Unexpected statement encountered after rewrites!!")
@@ -929,7 +933,14 @@ struct
     | [] -> []
 
   let fold_topnode nodes = function
-    | Topnode (f,name,y) -> Topnode(f,name,(fold_cfg_list nodes (List.rev y)))
+    | Topnode (f,name,y) -> 
+      (* Just get the new f from the hashtbl *)
+      let f = (try
+		 (match f with | Noop -> Noop 
+		   | _ -> Hashtbl.find fcall_map f)
+	with
+	  | Not_found -> raise (Internal_compiler_error ("Stmt: " ^ (Dot.dot_stmt f) ^ " replacement not found"))) in
+      Topnode(f,name,(fold_cfg_list nodes (List.rev y)))
     | Null -> raise (Internal_compiler_error "TopNode is null")
 
   let rec fold top_nodes = function

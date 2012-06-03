@@ -23,7 +23,15 @@ let rec make_stmt list = function
     let snode = Startnode (s,n) in
     let my_end_node = Endnode (s,enode,1) in
     get_new_block my_end_node snode
-  | For (x,y,z) | Par (x,y,z) as s ->
+  | For (x,y,z) as s -> 
+    let node = make_block list in (* This is where I continue to *)
+    let enode = Endnode (s,node,1) in
+    (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)
+    let (vinit,vend,vstride) = (match y with | ColonExpr (x,y,z) -> (x,y,z) | _ -> failwith "Loop cannot have any, but colonExpr") in
+    let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x))],(SimExpr vinit)), 
+			       (build_loop vend vstride enode x z)) in
+    Startnode (s, vinitode)
+  | Par (x,y,z) as s ->
     let node = make_block list in (* This is where I continue to *)
     let enode = Endnode (s,node,1) in
     (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)

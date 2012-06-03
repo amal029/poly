@@ -51,8 +51,12 @@ let rec decompile_cfg arg = function
     (* First determine the type of stmt this is *)
     (match stmt with
       | CaseDef _ -> startnode_case arg x
-      | For (_,_,_) -> startnode_for arg x
-      | Par (_,_,_) -> startnode_par arg x
+      | For (_,_,_) as s -> 
+	let () = IFDEF DEBUG THEN print_endline ("Building a for stmt" ^ Dot.dot_stmt s) ELSE () ENDIF in
+	startnode_for arg x
+      | Par (_,_,_) as s -> 
+	let () = IFDEF DEBUG THEN print_endline ("Building a par stmt" ^ Dot.dot_stmt s) ELSE () ENDIF in
+	startnode_par arg x
       | Block _ -> startnode_block arg x
       | _ -> raise (Internal_compiler_error "Got an unknown type stmt in the start node"))
   | Empty -> []
@@ -69,7 +73,10 @@ let rec decompile_cfg arg = function
 	       | _ -> raise (Internal_compiler_error "Fcall_map assign rvalue not of type Fcall!!"))
 	   | _  -> raise (Internal_compiler_error "Fcall_map hashtbl not of type Assign!!"))
        with
-	 | Not_found -> x) in
+	 | Not_found -> 
+	   (match x with
+	     | Assign (a,y) -> (match y with | FCall _ -> raise (Internal_compiler_error "Right hand side FCall, yet new name not found in the hashtbl") | _ -> x)
+	     | _ -> x)) in
     (S stmt) :: (decompile_cfg arg y)
   | Backnode _ -> []
   | Conditionalnode (x,y,z) -> 
@@ -200,6 +207,8 @@ let decompile_topnode = function
 	counter := !counter + 1;
 	(* Put the name in the hash map *)
 	let name = Symbol (name ^ (string_of_int !counter)) in
+	(* Debugging adding to the hashtbl *)
+	let () = IFDEF DEBUG THEN print_endline ("Adding to hashtbl: " ^ Dot.dot_stmt fcall) ELSE () ENDIF in
 	Hashtbl.add fcall_map fcall name;
 	let body_list = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-block in the Topnode"))) body in
 	Def(Filter(name, inputs, outputs, (Block body_list)))

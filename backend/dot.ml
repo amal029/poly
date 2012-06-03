@@ -108,11 +108,16 @@ let rec dot_stmt = function
     (("{" ^  !tot) ^ "}")
   | Escape x -> x
   | Noop -> "Noop"
-  | For (x,y,z) | Par (x,y,z) -> 
+  | For (x,y,z) -> 
     let e1 = get_symbol x in
     let e2 = dot_simpleexpr y in
     let e3 = dot_stmt z in
-    (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
+    (" For ") ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
+  | Par (x,y,z) -> 
+    let e1 = get_symbol x in
+    let e2 = dot_simpleexpr y in
+    let e3 = dot_stmt z in
+    " Par " ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
   | CaseDef x -> "case stmt"
 
 let dot_relexpr = function
