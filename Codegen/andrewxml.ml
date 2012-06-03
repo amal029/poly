@@ -12,6 +12,8 @@ open Xml
 open AndrewLang
 open AndrewLang
 
+exception Internal_compiler_error of string
+
 let symbol_xml = function
   | Symbol x -> Element ("Symbol",[],[PCData x])
 
@@ -28,15 +30,16 @@ let rec simexpr_xml = function
   | Brackets x -> Element("Brackets",[],[(simexpr_xml x)])
   | Negate x -> Element("Negate",[],[(simexpr_xml x)])
   | Cast (x,y) -> Element("Cast",[],[(DataTypes.datatype_xml x);(simexpr_xml y)])
+  | ColonExpr _ -> raise (Internal_compiler_error "Got a Colon Expr, cannot proceed further")
 
 and typedsymbol_xml = function
   | TypedSymbol (x,y) -> 
     let dtype = DataTypes.datatype_xml x in
     let symbol = symbol_xml y in
     Element ("TypedSymbol",[],[dtype;symbol])
+  | TypedAddressedSymbol (x,y) -> Element("TypedAddressedSymbol",[],[(DataTypes.datatype_xml x);(addressedSymbol_xml y)])
 
-and addresstypedsymbol = function
-  | TypedAdressedSymbol (x,y) -> Element("TypedAddressedSymbol",[],[(DataTypes.datatype_xml x);(addressedSymbol_xml y)])
+(* and addresstypedsymbol = function *)
 
 and dimspec_xml = function
   | VarDimSpec (x,y,z) -> 

@@ -65,15 +65,14 @@ struct
     | Brackets of simpleExpr
     | Cast of DataTypes.t * simpleExpr
     | Negate of simpleExpr
+    | ColonExpr of dimspec (* This is an extra, which does nothing *)
 
   and addressedSymbol =
       AddressedSymbol of symbol * comprehension
 
   and typedSymbol =
     | TypedSymbol of DataTypes.t * symbol (* Type Symbol *)
-
-  and addresstypedsymbol = 
-    | TypedAdressedSymbol of DataTypes.t * addressedSymbol
+    | TypedAddressedSymbol of DataTypes.t * addressedSymbol
 
   (* This is the colon expr *)
   (*

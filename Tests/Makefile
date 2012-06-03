@@ -2,12 +2,15 @@ COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml
 BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
 BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
+LIBDIR=$(COMP_HOME)/lib
 LANGDIR=$(COMP_HOME)/Abstract
 PARSEDIR=$(COMP_HOME)/Parsing
 ANALYSISDIR=$(COMP_HOME)/Checking
 REWRITEDIR=$(COMP_HOME)/Rewrites
+CODEGENDIR=$(COMP_HOME)/Codegen
 OPTDIR=$(COMP_HOME)/Optimization
 BACKEND=$(COMP_HOME)/backend
+CODEGENLIB=backend.cma
 PARSELIB=parser.cma
 LANGLIB=language.cma
 REWRITES=rewrites.cma
@@ -22,6 +25,7 @@ BIGARRAYLIB=bigarray.cma
 NUMSLIB=nums.cma
 UNIXLIB=unix.cma
 STRLIB=str.cma
+FILEUTILS=fileutils.cma
 CC=ocamlc
 SRC=polyc.ml
 TARGET=polyc
@@ -34,7 +38,10 @@ run:
 	./polyc $(FILE)
 
 compile:
-	$(CC) -I $(PARSEDIR) -I $(LANGDIR) -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(REWRITES) $(ANALYSIS) $(OPTIMIZATIONS) $(SRC) -o $(TARGET)
+	$(CC) -I $(PARSEDIR) -I $(LANGDIR) -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) \
+	-I $(OPTDIR) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(REWRITES) $(ANALYSIS) \
+	$(OPTIMIZATIONS) -I $(CODEGENDIR) $(CODEGENLIB) \
+	-I $(LIBDIR) $(FILEUTILS) $(SRC) -o $(TARGET)
 
 clean:
 	rm -rf ../output ../output1 polyc *.cm* *mli
