@@ -1,0 +1,86 @@
+calcAcceleration in r[N], s out float a[N] 
+  par i in 0:N-1 a[i] = a[i]+(s*r[i])
+
+invDist in r[N], p, w out a[N]
+{
+ var EPS2 = 0.00125
+ var s = w * (1.0/((p+EPS2)^(3.0/2.0)))
+ a = calcAcceleration (r,s)
+}
+
+zeros out O[N] par i in 0:N-1 O[i] = 0.0
+
+multm in r[N] out float p
+{
+ var inter[N] = zeros()
+ par i in 0:N-1 inter[i] = (r[i]*r[i])
+ /* reduce */
+ for i in 0:N-1 p = p + inter[i]
+}
+
+mult in r[N], w out a[N]
+{
+  var p = multm (r)
+  a = invDist (r,p,w)
+}
+
+calcdist in ai[N], aj[N], w out a[N]
+{
+  var r[N] = zeros()
+  par i in 0:N-1 r[i] = ai[i] - aj[i]
+  a = mult (r,w)
+}
+
+calcposition in v[N] out float bi[N] par i in 0:N-1 bi[i] = bi[i] + (v[i]*0.5)
+
+calcvelocity in ai[N] out bi[N]
+{
+  var v[3] = zeros()
+  par i in 0 : N-1 v[i] =  ai[i] * 0.5
+  par i in 0:N-1 v[i] = v[i]*0.5
+  bi = calcposition (v)
+}
+
+BODY2 in bi[M], bj[M][N] out ai[K][N]
+{
+  var position[K] = zeros()
+  var positionj[K] = zeros()
+  par i in 0:N-1 {
+    par j in 0:M-2 {
+      position[j] = bi[j]
+      positionj[j] = bj[j][i]
+    }
+    ai[i] = calcdist (position, positionj, bi[3])
+  }
+}
+
+acceladd in accel[M][N] out float acc[M] for i in 0:N-1 acc = acc + accel[*][i]
+
+calcnpos in bodies [M][N], bodies2[M][N]
+  out accel[K][N], naccell[K][N]
+{
+  par i in 0:N-1 accel = BODY2(bodies[i],bodies2)
+  par i in 0:N-1 naccell[*,i] = acceladd (accel)
+}
+
+zerost out O[M,N] par i in 0:M-1 par j in 0:N-1 O[i,j] = 0.0
+
+integrateovertime in naccell[3,N], bodies[4,N] out nbodies[4,N]
+{
+  var position[3,N] = zerost()
+  par i in 0:N-1 {
+    position[*,i] = calcvelocity(naccell[*][i])
+    par j in 0:2 nbodies[j,i] = position[j,i]
+    nbodies[3,i] = bodies[3,i]
+  }
+}
+
+main entry
+{
+  var naccel[3][1024] = zerost()
+  var nbodies[4,1024] = zerost()
+  var accel[3,1024] = zerost()
+  var bodies[4,1024] = zerost()
+  (accel,naccel) = calcnpos(bodies, bodies)
+  nbodies = integrateovertime(naccel,bodies)
+}

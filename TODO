@@ -18,7 +18,7 @@ Type inference and safety
 Written examples:
 
 1.) K-means.poly
-2.) N-body.poly
+2.) N-body.poly (Done)
 3.) Binomial-lattice.poly
 
 
@@ -41,3 +41,6 @@ defined variables.
 
 b.) Right now the **, semantics are not implemented correctly in
 constant propogation and First order type inference
+
+c.) The polarity of the loop is always increasing, i.e., <=, it should
+depend really. Binomial option pricing gets affected

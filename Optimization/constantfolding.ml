@@ -692,8 +692,7 @@ struct
     | Topnode (fcall, x,y) as s ->
       let () = Hashtbl.clear consts in
       let () = Hashtbl.clear nodes in
-      let () = IFDEF DEBUG THEN
-      print_endline ("Filter: " ^ x) ELSE () ENDIF in
+      let () = print_endline ("Filter: " ^ x ^ " ..Done") in
     (* y is the cfg list: inputs, outputs, and the body *)
       let () = propogate_cfg_list prev_topnode (List.nth y 0) (List.nth y 1) (List.nth y 2) fcall in 
     (* Here consts and nodes should be full *)
@@ -945,11 +944,7 @@ struct
 
   let rec fold top_nodes = function
     | Filternode (x,y) -> 
-      let () =
-      	IFDEF DEBUG THEN
-      	  print_endline ("Got the topnode named: " ^ (match x with | Topnode (_,x,_) -> x))
-      	ELSE ()
-      	END in
+      let () = print_endline ("Filter: " ^ (match x with | Topnode (_,x,_) -> x | Null -> raise (Internal_compiler_error "Hit a Null, by mistake")) ^ "...Done") in
       let topnode = fold_topnode (Hashtbl.find top_nodes x) x in
       let ll = fold_rest top_nodes y in
       Filternode (topnode,ll)

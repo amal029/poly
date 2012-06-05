@@ -20,7 +20,7 @@ pack: check
 	$(REWRITELIB) -I $(ERRORDIR) $(ERRORLIB) -a *.cmo -o static-analysis.cma
 check: 
 	$(CC) -I $(LANGDIR) -I $(PARSEDIR) $(PARSELIB) $(LANGLIB) -c syntax_check.ml
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR) -I	\
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
 	$(BACKDIR) -I $(REWRITEDIR) -I $(PARSEDIR) $(PARSELIB)		\
 	$(LANGLIB) -I $(ERRORDIR) $(ERRORLIB) -c type_inference.ml
 

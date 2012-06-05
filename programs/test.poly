@@ -30,6 +30,6 @@ main Main
   for i in 0:((K-J)-1) for j in 0:9 {inter[i][j] = 20.0}
   for i in 0:M-1 for j in 0:N-1 Result[i,j] = Centroids[i][j]
   var ER[10] = zeros()
-  /* var RT[J] = test (ER) */
+  var RT[J] = test (ER)
   
 }

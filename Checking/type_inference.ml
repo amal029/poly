@@ -42,7 +42,7 @@ struct
 
   let add_to_declarations s declarations = 
     if (exists !declarations (get_typed_symbol s)) then 
-      let () = print_curr_line_num !curr_lnum in
+      (* let () = print_curr_line_num !curr_lnum in *)
       raise (Error (("Symbol "^ (get_typed_symbol s)) ^ " multiply defined" ))
     else declarations := s :: !declarations
 
@@ -416,10 +416,10 @@ struct
 
   let rec infer_stmt declarations = function
     | VarDecl x as s -> 
-      let () = set_curr_line_num s in
+      (*let () = set_curr_line_num s in*)
       let () = add_to_declarations x declarations in s
-    | Assign (x,y) as s -> 
-      let () = set_curr_line_num s in
+    | Assign (x,y) -> 
+      (*let () = set_curr_line_num s in*)
       let expr_type = infer_expr declarations y in
       if List.length x <> List.length expr_type then 
 	raise (Error "Simple: Input and output types do not unify")
@@ -658,6 +658,8 @@ struct
 
   exception Internal_compiler_error of string;;
   exception Error of string;;
+  
+  let fcall_map = Hashtbl.create 20
   
   (* This function only works on declarations and hence, if the
      declarations is a SimTypedSymbol then that means it is a scalar.
@@ -909,7 +911,17 @@ struct
 	   polymorphic functions become concrete. Constraints only flow
 	   one way in this case from callee site to the called function,
 	   i.e., upwards!! *)
-	let () = List.iter (fun r -> set_ass_decs declarations r) x in s 
+	let () = List.iter (fun r -> set_ass_decs declarations r) x in 
+	(* First get the declarations from the declarations list *)
+	let fargs = (match y with FCall x -> (match x with Call (_,x) -> 
+	  List.map (fun x -> (match x with | CallAddrressedArgument x -> Simple.get_addressed_symbol x 
+	  | CallSymbolArgument x -> Simple.get_symbol x)) x) | _ -> raise (Internal_compiler_error "Reached SimExpr after filtering for it")) in
+	let fargdecs = List.map (fun x -> Simple.get !declarations x) fargs in
+	let fvardecsyms = List.map (fun x -> (match x with AllAddressedSymbol x -> Simple.get_addressed_symbol x
+	  | AllSymbol x -> Simple.get_symbol x | AllTypedSymbol x -> Simple.get_typed_symbol x)) x in
+	let fvardecs = List.map (fun x -> Simple.get !declarations x) fvardecsyms in
+	(* Put the fvardecs and fargdecs in a hashmap *)
+	let () = Hashtbl.add fcall_map s (fargdecs@fvardecs) in s 
     | Block x as s ->
       let vcopy = !declarations in
       let _ = infer_stmt_list declarations x in
@@ -1016,37 +1028,68 @@ struct
     | Empty -> []
     | _ -> raise (Internal_compiler_error "get_ins_and_outs INS/OUTS are not of Squarenode type, CFG construction error")
 
-let dot_typed_symbol = function
-  | SimTypedSymbol (x,y) -> (Simple.get_symbol y)
-  | ComTypedSymbol (x,y) -> (Dot.get_addressed_string y)
+  let dot_typed_symbol = function
+    | SimTypedSymbol (x,y) -> (Simple.get_symbol y)
+    | ComTypedSymbol (x,y) -> (Dot.get_addressed_string y)
+      
+  let rec replace_in_ou counter type_list = function
+    | Squarenode (x,y) -> 
+      let tt = (List.nth type_list !counter) in
+      counter := !counter + 1;
+      let t = (match tt with | SimTypedSymbol (x,_) | ComTypedSymbol (x,_) -> x) in
+      let x = (match x with 
+	| VarDecl x as s -> 
+	  (match x with 
+	    | SimTypedSymbol (x,y) -> (match x with DataTypes.Poly _ -> VarDecl (SimTypedSymbol (t,y)) | _ -> s)
+	    | ComTypedSymbol (x,y) -> (match x with DataTypes.Poly _ -> VarDecl (ComTypedSymbol (t,y)) | _ -> s))
+	| _ -> raise (Internal_compiler_error "Inputs/Outputs not of type VarDecl")) in
+      Squarenode (x, replace_in_ou counter type_list y)
+    | Empty as s -> s
+    | _ -> raise (Internal_compiler_error "get_ins_and_outs INS/OUTS are not of Squarenode type, CFG construction error")
 
-  let infer_topnode = function
+  let rec replace_ins_outs counter type_list = function
+    | h::t -> replace_in_ou counter type_list h :: replace_ins_outs counter type_list t
+    | [] -> []
+
+  let infer_topnode check = function
     | Topnode (x,t,y) ->
-      (* Put the x -> signature_mapping in the filter_signatures Hashtbl*)
-      (*MAYBE: We will need to Hashtbl, but the fcall primitive type
-	inference is bing done in Simple and the dimensions are being done
-	in Const propogation*)
-      (* Topnode (x,t, (infer_cfg_list (ref []) y)) *)
       let () = IFDEF DEBUG THEN print_endline ("Filter: " ^ t) ELSE () ENDIF in
-      let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) (List.rev y))) in
+      (* First look at the fcall_map and see if you are there, you have to be there whatever happens !! *)
+      let filter_signature = 
+	(try
+	   Hashtbl.find fcall_map x
+	 with
+	   | Not_found -> 
+	     if not check then []
+	     else raise (Internal_compiler_error ("Signature for filter " ^ t ^ " not found in the hashtbl"))) in
+      (* Now replace the inputs and outputs with the correct primitive types *)
+      let temp = List.rev y in
+      let y = replace_ins_outs (ref 0) filter_signature [(List.nth temp 0) ; (List.nth temp 1)] in
+      (* Now put the cfg_stmts in the y list *)
+      let y = y @ [(List.nth temp 2)] in
+      (* let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) (List.rev y))) in *)
+      let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) y)) in
       (* Give out the final type signature for this thing *)
       let () = print_string (("Filter " ^ t) ^ " : ") in
-      let ins = (get_ins_and_outs (List.nth (List.rev y) 0)) in
+      (* let ins = (get_ins_and_outs (List.nth (List.rev y) 0)) in *)
+      let ins = (get_ins_and_outs (List.nth y 0)) in
       let () = List.iter (fun x -> print_string ((match x with VarDecl x -> Dot.dot_typed_symbol x | 
       _ -> raise (Internal_compiler_error "Found a non-square node for in/outs ")) ^ " ")) ins in
       let () = if ins <> [] then print_string " -> " in
       let () = List.iter (fun x -> print_string ((match x with VarDecl x -> Dot.dot_typed_symbol x | 
-      _ -> raise (Internal_compiler_error "Found a non-square node for in/outs ")))) (get_ins_and_outs (List.nth (List.rev y) 1)) in
+      (* _ -> raise (Internal_compiler_error "Found a non-square node for in/outs ")))) (get_ins_and_outs (List.nth (List.rev y) 1)) in *)
+      _ -> raise (Internal_compiler_error "Found a non-square node for in/outs ")))) (get_ins_and_outs (List.nth y 1)) in
       let () = print_endline " " in
       ret
     | Null -> raise (Internal_compiler_error "ERROR (First_order type inference): Topnode is Null")
 
-  let rec infer_filternode = function
+  let rec infer_filternode check = function
     | Filternode (x,y) ->
+      let topnode = infer_topnode check x in
       let ll = infer_rest y in
-      let topnode = infer_topnode x in Filternode(topnode,ll)
+      Filternode(topnode,ll)
   and infer_rest = function
-    | h::t -> infer_filternode h :: infer_rest t
+    | h::t -> infer_filternode true h :: infer_rest t
     | [] -> []
 
 end

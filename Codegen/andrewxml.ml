@@ -17,7 +17,7 @@ exception Internal_compiler_error of string
 let symbol_xml = function
   | Symbol x -> Element ("Symbol",[],[PCData x])
 
-let value_xml x = PCData (("\"" ^ x) ^ "\"")
+let value_xml x = Element ("Value",[],[PCData x])
 
 let rec simexpr_xml = function
   | Plus (x,y) -> Element("Plus",[],[(simexpr_xml x);(simexpr_xml y)])
@@ -30,7 +30,7 @@ let rec simexpr_xml = function
   | Brackets x -> Element("Brackets",[],[(simexpr_xml x)])
   | Negate x -> Element("Negate",[],[(simexpr_xml x)])
   | Cast (x,y) -> Element("Cast",[],[(DataTypes.datatype_xml x);(simexpr_xml y)])
-  | ColonExpr _ -> raise (Internal_compiler_error "Got a Colon Expr, cannot proceed further")
+  | ColonExpr x -> dimspec_xml x
 
 and typedsymbol_xml = function
   | TypedSymbol (x,y) -> 

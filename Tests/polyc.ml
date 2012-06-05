@@ -16,7 +16,7 @@ try
     let lexbuf = Lexing.from_channel in_chan in
     let ast = Parser.ast Lexer.lexer lexbuf in 
     (* The first type inference: simple ML type inference engine*)
-    let () = print_endline (string_of_int (Reporting.get_stmt_lnum_length ())) in
+    (*let () = print_endline (string_of_int (Reporting.get_stmt_lnum_length ())) in*)
     let () = print_endline "Step 2...ML type inference....." in
     let ast = Type_inference.Simple.infer_ast ast in
     let () = print_endline "Step 3....Building the call graph..." in
@@ -43,7 +43,7 @@ try
       let () = Dot.build_program_dot cfg1 "output1/output1.dot" in ()
     else ();
     let () = print_endline "Step 7....First order dependent type inference..." in
-    let cfg = Type_inference.First_order.infer_filternode cfg1 in
+    let cfg = Type_inference.First_order.infer_filternode false cfg1 in
     (* If decompile option is given then just decompile to andrew lang*)
     if !decompile_flag then
       let () = print_endline "Step 8....Deompiling to AST......" in

@@ -217,7 +217,7 @@ dimspecExprlist:
 dimSpecExpr:
     | pdimSpec {Language.Language.DimSpecExpr($1)}
     | TTimes {Language.Language.DimSpecExpr(Language.Language.TStar)}
-    | TTimes TTimes {Language.Language.DimSpecExpr(Language.Language.TStarStar)} 
+    /*| TTimes TTimes {Language.Language.DimSpecExpr(Language.Language.TStarStar)}*/
 ;
 
 /*2 (a+2),....,etc*/
@@ -260,9 +260,13 @@ symbol:
     | TSymbol {Language.Language.Symbol ($1)} /*e.g.: t*/
 ;
 addrSymbol:
-    | symbol dimspeclist {Language.Language.AddressedSymbol($1,[],$2)} /* a<><>[][]... */
+    | symbol dimspeclist {
+      let ll = List.flatten (List.map (fun x -> match x with Language.Language.BracDim x -> x) $2) in
+      Language.Language.AddressedSymbol($1,[], [Language.Language.BracDim ll])} /* a<><>[][]... */
     | symbol angledimlist {Language.Language.AddressedSymbol($1,$2,[])} /* a<><>[][]... */
-    | symbol angledimlist dimspeclist {Language.Language.AddressedSymbol($1,$2,$3)} /* a<><>[][]... */
+    | symbol angledimlist dimspeclist {
+      let ll = List.flatten (List.map (fun x -> match x with Language.Language.BracDim x -> x) $3) in
+      Language.Language.AddressedSymbol($1,$2,[Language.Language.BracDim ll])} /* a<><>[][]... */
 ;
 /* Types */
 dataTypes:
