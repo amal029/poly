@@ -34,7 +34,7 @@ compute_value_at_excercise_date in T[optN], S[optN], X[optN], M, Volatility, Ris
     prices[i] = compute_values_at_excercise_date_1 (VsdT, S, M)
     steps[i] = subf (price[i],X)
   }
-  for i in 0:N-1 steps[i] = reduce_prices_inner_2(steps[i],PuByR,PdByR)
+  for i in N-1:0:(-1) steps[i] = reduce_prices_inner_2(steps[i],PuByR,PdByR)
 }
 
 main entry
