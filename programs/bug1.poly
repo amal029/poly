@@ -1,0 +1,12 @@
+
+buggy_test in u out yu {
+  var erw = u
+  yu = erw+1
+}
+
+main entry
+{
+  var J = 10
+  var qwe = buggy_test (J)
+  
+}

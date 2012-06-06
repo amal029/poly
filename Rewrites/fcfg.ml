@@ -43,7 +43,10 @@ and check_stmt = function
   | Block x -> check_block x
   | For (_,_,x) -> check_stmt x
   | Par (_,_,x) -> check_stmt x
+  | CaseDef x ->  check_case x
   | _ -> []
+and check_case = function
+  | Case (x,y) -> List.flatten (List.map (fun x -> (match x with Clause (_,x) -> check_stmt x)) x) @ (match y with Otherwise x -> check_stmt x)
 and check_block = function
   | h::t -> ((check_stmt h) @ (check_block t))
   | [] -> []

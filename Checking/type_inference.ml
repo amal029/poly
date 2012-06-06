@@ -8,7 +8,6 @@ struct
   exception Error of string;;
   exception Internal_compiler_error of string;;
 
-
   let filter_signatures = Hashtbl.create 10;;
   let curr_lnum = ref (0,0)
   let set_curr_line_num s = 
@@ -139,7 +138,7 @@ struct
       (*Now match the filter signature with the arg_types and also if
 	everything unifies then just give back the output list *)
 	if (List.length args) <> (List.length arg_types) then
-	  raise (Error ("Filter arguments and signature do not unify " ^ (get_symbol x)))
+	  raise (Error ("Filter arguments and signature do not unify " ^ (get_symbol x) ^ ", size of args and input parameters not equal"))
 	else 
 	  (* fix this make a hashmap *)
 	  (* If the args has a concrete type then they should match,
@@ -499,7 +498,9 @@ struct
 		  (* Propogate a concrete type from lvalue to the rvalue *)
 		  declarations := List.map (resolve_all_decs_types expr_type (get_typed_type x)) !declarations;
 		| _ -> let () = print_types (get_typed_type x) expr_type in
-		       raise (Error (("types do not unify for assignment to " ^ (get_typed_symbol x))))) in s
+		       raise (Error (("types do not unify for assignment to " ^ (get_typed_symbol x))))) in 
+	      (* add the declaration to the declarations list *)
+	      let () = add_to_declarations x declarations in s
 	    else
 	      begin
 		if (ispoly x) then
@@ -1068,9 +1069,9 @@ struct
       (* Now put the cfg_stmts in the y list *)
       let y = y @ [(List.nth temp 2)] in
       (* let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) (List.rev y))) in *)
+      let () = print_string (("Filter " ^ t) ^ " : ") in
       let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) y)) in
       (* Give out the final type signature for this thing *)
-      let () = print_string (("Filter " ^ t) ^ " : ") in
       (* let ins = (get_ins_and_outs (List.nth (List.rev y) 0)) in *)
       let ins = (get_ins_and_outs (List.nth y 0)) in
       let () = List.iter (fun x -> print_string ((match x with VarDecl x -> Dot.dot_typed_symbol x | 

@@ -15,6 +15,9 @@ struct
   let top_nodes = Hashtbl.create (20)
   let endnodes = Hashtbl.create (20)
 
+  let list_from_hash ll tbl = 
+    Hashtbl.iter (fun x y -> ll := ((x,y) :: !ll)) tbl
+
   let get_symbol = function
     | Symbol x -> x
 
@@ -73,13 +76,22 @@ struct
     | Const (x,y) -> VConst (x,y)
     | VarRef x -> 
       (try 
+	 let lc = ref [] in
+	 list_from_hash lc consts;
+	 let () = IFDEF DEBUG THEN print_endline (string_of_int (List.length !lc)) ELSE () ENDIF in
+	 let () = IFDEF DEBUG THEN (List.iter (fun (x,y) -> print_endline (("key: " ^ x) ^ (" = value : " ^ (match y with VConst (_,y) -> y | _ -> "Top")))) !lc)
+	   ELSE () ENDIF in
 	 Hashtbl.find consts (get_symbol x)
-       with | Not_found -> failwith (("Var " ^ (get_symbol x)) ^ " not defined before use"))
+       with | Not_found -> raise (Error (("VarRef consts: Var " ^ (get_symbol x)) ^ " not defined before use")))
   (* Try floding expressions and see if you get a constant *)
     | AddrRef x -> 
       (try 
+	 let lc = ref [] in
+	 list_from_hash lc consts;
+	 let () = IFDEF DEBUG THEN (List.iter (fun (x,y) -> print_endline (("key: " ^ x) ^ ("value : " ^ (match y with VConst (_,y) -> y | _ -> "Top")))) !lc)
+	   ELSE () ENDIF in
 	 Hashtbl.find consts (get_addressed_symbol x)
-       with | Not_found -> failwith (("Var " ^ (get_addressed_symbol x)) ^ " not defined before use"))
+       with | Not_found -> raise ( Error ((" AddrRef consts: Var " ^ (get_addressed_symbol x)) ^ " not defined before use")))
     | Plus (x,y) ->
       let lvalue = get_simexpr_const x in
       let rvalue = get_simexpr_const y in
@@ -298,7 +310,7 @@ struct
       let rll = replace_consts_in_tbl tbl in
       Hashtbl.replace nodes s rll;
       replace_node_tables y
-    | Backnode x -> 
+    | Backnode x ->
       let () = IFDEF DEBUG THEN print_endline ("Replace trace.. back node: " ^ 
 						  (match !x with Conditionalnode (e,_,_) -> (Dot.dot_relexpr e))) ELSE () ENDIF in
       ()
@@ -390,18 +402,23 @@ struct
     | Const (x,y) -> VConst (x,y)
     | VarRef x -> 
       (try 
+	 let lc = ref [] in
+	 list_from_hash lc v;
+	 let () = IFDEF DEBUG THEN (List.iter (fun (x,y) -> print_endline (("key: " ^ x) ^ ("value : " ^ (match y with VConst (_,y) -> y | _ -> "Top")))) !lc)
+	   ELSE () ENDIF in
 	 Hashtbl.find v (get_symbol x)
        with | Not_found -> raise (Internal_compiler_error (("simple_epxr_const: Var " ^ (get_symbol x)) ^ " not defined before use")))
   (* Try floding expressions and see if you get a constant *)
     | AddrRef x -> Hashtbl.find v (get_addressed_symbol x)
     | Plus (x,y) ->
-      let lvalue = get_simexpr_const x in
-      let rvalue = get_simexpr_const y in
+      (* This is wrong, since we are calling the original function, but are not *)
+      let lvalue = simple_epxr_const v x in
+      let rvalue = simple_epxr_const v y in
       process lvalue rvalue Int.add Float.add
-    | Minus (x,y) -> process (get_simexpr_const x) (get_simexpr_const y) Int.sub Float.sub
-    | Times (x,y) -> process (get_simexpr_const x) (get_simexpr_const y) Int.mul Float.mul
-    | Div (x,y) -> process (get_simexpr_const x) (get_simexpr_const y) Int.div Float.div
-    | Pow (x,y) -> process (get_simexpr_const x) (get_simexpr_const y) Int.pow Float.pow
+    | Minus (x,y) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.sub Float.sub
+    | Times (x,y) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.mul Float.mul
+    | Div (x,y) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.div Float.div
+    | Pow (x,y) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.pow Float.pow
     | Cast (d,y) -> 
       let ret = simple_epxr_const v y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
@@ -692,11 +709,13 @@ struct
     | Topnode (fcall, x,y) as s ->
       let () = Hashtbl.clear consts in
       let () = Hashtbl.clear nodes in
-      let () = print_endline ("Filter: " ^ x ^ " ..Done") in
+      let () = print_string ("Filter: " ^ x ^ " " ) in
     (* y is the cfg list: inputs, outputs, and the body *)
       let () = propogate_cfg_list prev_topnode (List.nth y 0) (List.nth y 1) (List.nth y 2) fcall in 
     (* Here consts and nodes should be full *)
-      let () = Hashtbl.add top_nodes s (Hashtbl.copy nodes) in s
+      let () = Hashtbl.add top_nodes s (Hashtbl.copy nodes) in 
+      let () = print_endline "...Done" in
+      s
   (* If there is nothing in the prev_topnode, the main filter then *)
     | Null -> raise (Internal_compiler_error "TopNode is Null")
 

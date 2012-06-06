@@ -36,7 +36,8 @@ let extract_loop_variable = function
 
 let extract_loop_end_expr = function
   | LessThanEqual (_,y) -> y
-  | _ -> raise (Internal_compiler_error "Loop bound expression not of type <=")
+  | GreaterThanEqual (_,y) -> y
+  | _ -> raise (Internal_compiler_error "Loop bound expression not of type <= or >= ")
 
 let extract_loop_stride_expr = function
   | Assign (_,y) -> (match y with 

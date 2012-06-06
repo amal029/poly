@@ -19,7 +19,7 @@ Written examples:
 
 1.) K-means.poly
 2.) N-body.poly (Done)
-3.) Binomial-lattice.poly
+3.) Binomial-lattice.poly (Done)
 
 
 TODO
@@ -30,17 +30,11 @@ Safety checks
 
 2.) Transitive closures for making sure that pars are pars and
 extracting parallelism, see: Induction variable analysis with delayed
-abstractions (Hipeac'05). --> DONE
+abstractions (Hipeac'05).
 
 3.) WRITE POPL PAPER (START 1st WEEK OF JUNE)
 
 4.) Resolve these bugs:
 
-a.) Right now a person cannot right var G[J-K], where J and K are
-defined variables.
-
-b.) Right now the **, semantics are not implemented correctly in
+a.) Right now the **, semantics are not implemented correctly in
 constant propogation and First order type inference
-
-c.) The polarity of the loop is always increasing, i.e., <=, it should
-depend really. Binomial option pricing gets affected

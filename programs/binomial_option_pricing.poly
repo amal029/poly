@@ -1,49 +1,62 @@
 zeros out O[N] par i in 0:N-1 O[i] = 0.0
 
-cmp in inter[N] out float value for i in 1:N-1 value = value + inter[i]
+cmp in inter[N] out float value for i in 0:N-1 value = value + inter[i]
 
 subf in price[N], X out steps[N]
 {
   var inter[N] = zeros()
   par i in 0:N-1 inter[i] = price[i] - X
-  var value = 0
-  value = cmp(inter,value)
+  var value = 0.0
+  value = cmp(inter)
   case
   (value >= 0.0) steps = inter
   otherwise steps = zeros()
 }
 
 compute_values_at_excercise_date_1 in VsdT, S, M out price[N] 
-  par i in 0:N-1 price[i] = S*(2.718281828^((2.0-(float)i) - M))
+  par i in 0:N-1 price[i] = S*(2.718281828^(VsdT*(2.0*(float)i) - M))
 
-reduce_prices_inner_1 in s1, s2, K1, K2 out so so = (K1*s1) + (K2*s2)
+reduce_prices_inner_1 in s1, s2, K1, K2 out so
+  so = (K1*s1) + (K2*s2)
 
-reduce_prices_inner_2 in steps[N], K1, K2, out steps2[N]
+reduce_prices_inner_2 in steps[N], K1, K2 out steps2[N]
   par i in 0:N-2 steps2[i] = reduce_prices_inner_1 (steps[i],steps[i+1],K1,K2)
 
 compute_value_at_excercise_date in T[optN], S[optN], X[optN], M, Volatility, RiskFree
   out steps[N][optN], prices[N][optN]
 {
-  var dT = T/M var VsdT = Volatility * (dT^(1/2))
-  var RdT = RiskFree * dT var EXP = 2.71828128
-  var R = EXP ^ RdT var Rinv = 1/R
-  var u = EXP ^ VsdT var d = 1/u
-  var Pu = (R-d)/(u-d) var Pd = 1-Pu
-  var PuByR = Pu * Rinv var PdByR = Pd * Rinv
-  par i in 0:N-1 {
-    prices[i] = compute_values_at_excercise_date_1 (VsdT, S, M)
-    steps[i] = subf (price[i],X)
+  for u in 0:optN-1
+  {
+    var VsdT = Volatility * ((T[u]/M)^(1.0/2.0))
+    var RdT = RiskFree * (T[u]/M)
+    var EXP = 2.71828128
+    var R = EXP ^ (float)RdT 
+    var Rinv = 1.0/R
+    var u1 = EXP ^ VsdT 
+    var d = 1.0/u1
+    var Pu = (R-d)/(u1-d) 
+    var Pd = 1.0-Pu
+    var PuByR = Pu * Rinv
+    var PdByR = Pd * Rinv
+    par i in 0:N-1 {
+      prices[i] = compute_values_at_excercise_date_1 (VsdT, S[u], M)
+      steps[i] = subf (prices[i],X[u])
+    }
+    for i in N-1:0:(-1) steps[i] = reduce_prices_inner_2(steps[i],PuByR,PdByR)
   }
-  for i in N-1:0:(-1) steps[i] = reduce_prices_inner_2(steps[i],PuByR,PdByR)
 }
 
 main entry
 {
+  var N = 0
+  var optN = 0
   var T[optN] = zeros()
   var S[optN] = zeros()
   var X[optN] = zeros()
-  var N = 0 var Volatility = 0 var RiskFree = 0
+  var M = 0.0
+  var Volatility = 0.0
+  var RiskFree = 0.0
   var steps[N][optN]
   var prices[N][optN]
-  (steps, prices) = compute_value_at_excercise_date (T,S,X,N,Volatility,RiskFree)
+  (steps, prices) = compute_value_at_excercise_date (T,S,X,M,Volatility,RiskFree)
 }
