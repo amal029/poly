@@ -27,8 +27,9 @@ compute_value_at_excercise_date in T[optN], S[optN], X[optN], M, Volatility, Ris
 {
   for u in 0:optN-1
   {
-    var VsdT = Volatility * ((T[u]/M)^(1.0/2.0))
-    var RdT = RiskFree * (T[u]/M)
+    var dT = T[u]/M 
+    var VsdT = Volatility * (dT^(1.0/2.0))
+    var RdT = RiskFree * dT
     var EXP = 2.71828128
     var R = EXP ^ (float)RdT 
     var Rinv = 1.0/R

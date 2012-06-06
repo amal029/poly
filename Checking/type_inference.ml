@@ -286,7 +286,7 @@ struct
       let t = (infer_simp_expr declarations z) in
       if (List.exists (fun x -> x = f) DataTypes.floating) || (List.exists (fun x -> x = s) DataTypes.floating) 
 	|| (List.exists (fun x -> x = t) DataTypes.floating) then
-	raise (Error "Colon expressions can only of integral type")
+	raise (Error "Colon expressions can only be of integral type")
       else if (match (f,s,t) with 
 	| (DataTypes.Bool,_,_)
 	| (_,DataTypes.Bool,_)
@@ -369,7 +369,29 @@ struct
       else 
 	let _ = propogate_constraints declarations lexpr_type rexpr_type in ()
 
+  let get_new_typed_symbol declarations v = function
+    | SimTypedSymbol (x,_)
+    | ComTypedSymbol (x,_) as ret -> 
+      (match x with
+	| DataTypes.Poly _ -> 
+	  (try 
+	     let w = (List.find (fun x -> (get_typed_symbol x) = (get_typed_symbol v)) declarations) in
+	     (match w with 
+	       | SimTypedSymbol(DataTypes.None,_) 
+	       | ComTypedSymbol(DataTypes.None,_) -> raise (Error " Second pass, typed symbol of type none cannot be set!!")
+	       | SimTypedSymbol(_,_)
+	       | ComTypedSymbol(_,_) as s -> s)
+	   with
+	     | Not_found -> raise (Internal_compiler_error (("Simple type inference (second pass, cannot find " ^ (get_typed_symbol v)) ^ " in declarations")))
+	| DataTypes.None -> raise (Error " Second pass, typed symbol of type none, should never happen in an assignment !!")
+	| _ -> ret)
+
+  (* You have to do this for Assign with var decls as well *)
   let rec replace_var_decls declarations = function
+    | Assign (x,r) ->
+      Assign ((List.map (fun x -> (match x with 
+	| AllTypedSymbol x -> AllTypedSymbol (get_new_typed_symbol declarations x x) 
+	| _ as s -> s)) x), r)
     | VarDecl x as ret ->
       let v = x in
       (match x with

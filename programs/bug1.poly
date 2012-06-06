@@ -1,4 +1,3 @@
-
 buggy_test in u out yu {
   var erw = u
   yu = erw+1
