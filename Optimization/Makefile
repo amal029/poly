@@ -1,4 +1,5 @@
 LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Abstract
+ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Error
 DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/backend
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
@@ -17,6 +18,7 @@ BIGARRAYLIB=bigarray.cma
 NUMSLIB=nums.cma
 UNIXLIB=unix.cma
 STRLIB=str.cma
+ERRORLIB=error.cma
 
 all: optimization
 
@@ -30,7 +32,8 @@ optimization: fcheck
 	            *.cmo -o optimizations.cma
 fcheck: 
 	# $(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -i constantfolding.ml
-	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) $(LANGLIB) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -c constantfolding.ml
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
+	-I $(ERRORDIR) -I $(LANGDIR) $(LANGLIB) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -c constantfolding.ml
 
 clean:
 	rm -rf *.cm* *mli

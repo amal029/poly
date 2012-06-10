@@ -11,7 +11,7 @@ struct
   open Language
   exception SyntaxException of string
 
-  let match_vars vars used errors = 
+  let match_vars lc vars used errors = 
     let m = ref false in
     for i = 1 to (List.length used) do
       m := false;
@@ -24,13 +24,13 @@ struct
     done
 
   let get_symbol = function
-    | Symbol x -> x
+    | Symbol (x,_) -> x
   let get_addressed_symbol = function
-    | AddressedSymbol (x,_,_) -> get_symbol x
+    | AddressedSymbol (x,_,_,_) -> get_symbol x
 
   let  get_symbols = function
-    | SimTypedSymbol (_,y) -> get_symbol y
-    | ComTypedSymbol (_,y) -> get_addressed_symbol y
+    | SimTypedSymbol (_,y,_) -> get_symbol y
+    | ComTypedSymbol (_,y,_) -> get_addressed_symbol y
 
   let get_all_syms vars used = function
     | AllAddressedSymbol x -> used:=(get_addressed_symbol x)::!used
@@ -46,16 +46,16 @@ struct
       | [] -> []
 
   let check_filter_call vars errors warns = function
-    | Call (_,y) -> match_vars vars (get_callarguments y) errors
+    | Call (_,y,lc) -> match_vars lc vars (get_callarguments y) errors
 
   let rec check_sim_expr vars errors warns = function
-      | Plus (x,y) | Minus (x,y) 
-      | Times(x,y) | Div (x,y) 
-      | Pow (x,y) -> check_sim_expr vars errors warns x; 
+      | Plus (x,y,_) | Minus (x,y,_) 
+      | Times(x,y,_) | Div (x,y,_) 
+      | Pow (x,y,_) -> check_sim_expr vars errors warns x; 
 	check_sim_expr vars errors warns y
-      | VarRef x -> match_vars vars [(get_symbol x)] errors 
-      | Brackets x | Opposite x -> check_sim_expr vars errors warns x
-      | ColonExpr (x,y,z) -> check_sim_expr vars errors warns x; 
+      | VarRef (x,lc) -> match_vars lc vars [(get_symbol x)] errors 
+      | Brackets (x,_) | Opposite (x,_) -> check_sim_expr vars errors warns x
+      | ColonExpr (x,y,z,_) -> check_sim_expr vars errors warns x; 
 	check_sim_expr vars errors warns y;
 	check_sim_expr vars errors warns z;
       | _ -> ()
@@ -66,8 +66,8 @@ struct
       (* | Main -> () *)
 
   let check_relexpr vars errors warns = function
-      | LessThan (x,y) | LessThanEqual (x,y) | GreaterThan (x,y) 
-      | GreaterThanEqual (x,y) | EqualTo (x,y) -> 
+      | LessThan (x,y,_) | LessThanEqual (x,y,_) | GreaterThan (x,y,_) 
+      | GreaterThanEqual (x,y,_) | EqualTo (x,y,_) -> 
 	(check_sim_expr vars errors warns x;
 	 check_sim_expr vars errors warns y)
 	  
@@ -80,22 +80,22 @@ struct
     | [] -> ()
 
   let rec check_stmt vars errors warns = function
-      | Assign (x,y) -> let used = ref [] in
+      | Assign (x,y,lc) -> let used = ref [] in
 			let vs = ref [] in
 			get_all_symbols vs used x;
 			check_scope_existence !vs errors !vars;
-			match_vars vars !used errors;
+			match_vars lc vars !used errors;
 			vars:=(!vars @ !vs);
 			check_expr vars errors warns y
-      | VarDecl x -> let vs = ref [] in
+      | VarDecl (x,lc) -> let vs = ref [] in
 		     let sym = get_symbols x in
 		     vs:=sym::!vs; 
 		     check_scope_existence !vs errors !vars;
-		     match_vars vars !vs warns;
+		     match_vars lc vars !vs warns;
 		     vars:=(!vars @ !vs)
-      | CaseDef x -> check_case vars errors warns x
-      | Block t -> let vcopy = !vars in check_block vars errors warns t; vars := vcopy
-      | Par (x,y,z) | For (x,y,z) -> vars:=(get_symbol x)::!vars; 
+      | CaseDef (x,lc) -> check_case vars errors warns x
+      | Block (t,lc) -> let vcopy = !vars in check_block vars errors warns t; vars := vcopy
+      | Par (x,y,z,lc) | For (x,y,z,lc) -> vars:=(get_symbol x)::!vars; 
 	check_sim_expr vars errors warns y; 
 	check_stmt vars errors warns z
       | _ -> ()
@@ -148,8 +148,8 @@ struct
       | [] -> []
 	
   let rec check_tolevelstmt = function
-      | Def x -> check_filter x
-      | DefMain x -> check_filter x
+      | Def (x,lc) -> check_filter x
+      | DefMain (x,lc) -> check_filter x
       | _ -> () (* You can put anything in the escape code *)
 
   let rec check_ast = function

@@ -11,46 +11,48 @@ let visited_nodes = Hashtbl.create 50
 (* let cond_nodes = Hashtbl.create 10 *)
 
 let get_symbol = function
-  | Symbol x -> x
+  | Symbol (x,_) -> x
+
 let get_addressed_symbol = function
-  | AddressedSymbol (x,_,_) -> get_symbol x
+  | AddressedSymbol (x,_,_,_) -> get_symbol x
+
 let get_typed_symbol = function
-  | SimTypedSymbol (_,x) -> get_symbol x
-  | ComTypedSymbol (_,x) -> get_addressed_symbol x
+  | SimTypedSymbol (_,x,_) -> get_symbol x
+  | ComTypedSymbol (_,x,_) -> get_addressed_symbol x
     
 let rec dot_simpleexpr = function
   | TStar -> "*"
   | TStarStar -> "**"
-  | Plus (x,y)  -> 
+  | Plus (x,y,_)  -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " + " ) ^ rstring
-  | Minus (x,y)  -> 
+  | Minus (x,y,_)  -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " - " ) ^ rstring
-  | Times (x,y)  -> 
+  | Times (x,y,_)  -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " x " ) ^ rstring
-  | Div (x,y)  -> 
+  | Div (x,y,_)  -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " / " ) ^ rstring
-  | Pow (x,y)  -> 
+  | Pow (x,y,_)  -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " ^ " ) ^ rstring
-  | Const (x,y) -> ((DataTypes.print_datatype x) ^ " ") ^ y
-  | VarRef x -> get_symbol x
-  | AddrRef x -> get_addressed_string x
-  | ColonExpr (x,y,z) -> ((dot_simpleexpr x) ^ (dot_simpleexpr y)) ^ (dot_simpleexpr z)
-  | Opposite x -> "-" ^ dot_simpleexpr x
-  | Brackets x -> dot_simpleexpr x
-  | Cast (x,y) -> (("(" ^ DataTypes.print_datatype x) ^ ")") ^ (dot_simpleexpr y)
+  | Const (x,y,_) -> ((DataTypes.print_datatype x) ^ " ") ^ y
+  | VarRef (x,_) -> get_symbol x
+  | AddrRef (x,_) -> get_addressed_string x
+  | ColonExpr (x,y,z,_) -> ((dot_simpleexpr x) ^ (dot_simpleexpr y)) ^ (dot_simpleexpr z)
+  | Opposite (x,_) -> "-" ^ dot_simpleexpr x
+  | Brackets (x,_) -> dot_simpleexpr x
+  | Cast (x,y,_) -> (("(" ^ DataTypes.print_datatype x) ^ ")") ^ (dot_simpleexpr y)
 
 and get_addressed_string = function
-  | AddressedSymbol (x,_,z) -> 
+  | AddressedSymbol (x,_,z,_) -> 
     let name = get_symbol x in
     let string_brac_dims = get_string_brac_dims z in
     name ^ string_brac_dims
@@ -66,8 +68,8 @@ and get_string_dimspec = function
   | DimSpecExpr x -> (dot_simpleexpr x)
 
 let dot_typed_symbol = function
-  | SimTypedSymbol (x,y) -> ((DataTypes.print_datatype x) ^ " ") ^ (get_symbol y)
-  | ComTypedSymbol (x,y) -> ((DataTypes.print_datatype x) ^ " ") ^ (get_addressed_string y)
+  | SimTypedSymbol (x,y,_) -> ((DataTypes.print_datatype x) ^ " ") ^ (get_symbol y)
+  | ComTypedSymbol (x,y,_) -> ((DataTypes.print_datatype x) ^ " ") ^ (get_addressed_string y)
 
 
 let dot_allsym = function
@@ -88,7 +90,7 @@ let rec dot_callargument_list = function
   | [] -> ""
 
 let dot_filtercall = function
-  | Call (x,y) -> (get_symbol x) ^ (( "(" ^ (dot_callargument_list y)) ^ ")" )
+  | Call (x,y,_) -> (get_symbol x) ^ (( "(" ^ (dot_callargument_list y)) ^ ")" )
 
 let dot_expr = function
   | SimExpr x -> (dot_simpleexpr x)
@@ -96,48 +98,48 @@ let dot_expr = function
   | FCall x -> dot_filtercall x
 
 let rec dot_stmt = function
-  | Assign (x,y) -> 
+  | Assign (x,y,_) -> 
     let rvalue = (dot_expr y) in
     let lvalue = (( "(" ^ (dot_allsym_list x)) ^ ")") in
     (lvalue ^ " = " ) ^ rvalue
-  | VarDecl x -> (dot_typed_symbol x)
-  | Block x -> 
+  | VarDecl (x,_) -> (dot_typed_symbol x)
+  | Block (x,_) -> 
     let ll = List.map (fun x -> dot_stmt x) x in
     let tot = ref "" in
     let () = (List.iter (fun x -> tot := ((!tot ^ x)) ) ll ) in
     (("{" ^  !tot) ^ "}")
-  | Escape x -> x
+  | Escape (x,_) -> x
   | Noop -> "Noop"
-  | For (x,y,z) -> 
+  | For (x,y,z,_) -> 
     let e1 = get_symbol x in
     let e2 = dot_simpleexpr y in
     let e3 = dot_stmt z in
     (" For ") ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
-  | Par (x,y,z) -> 
+  | Par (x,y,z,_) -> 
     let e1 = get_symbol x in
     let e2 = dot_simpleexpr y in
     let e3 = dot_stmt z in
     " Par " ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
-  | CaseDef x -> "case stmt"
+  | CaseDef (x,_) -> "case stmt"
 
 let dot_relexpr = function
-  | LessThan (x,y) -> 
+  | LessThan (x,y,_) -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " < " ) ^ rstring
-  | GreaterThan (x,y) -> 
+  | GreaterThan (x,y,_) -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " > " ) ^ rstring
-  | LessThanEqual (x,y) -> 
+  | LessThanEqual (x,y,_) -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " <= " ) ^ rstring
-  | GreaterThanEqual (x,y) -> 
+  | GreaterThanEqual (x,y,_) -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " >= " ) ^ rstring
-  | EqualTo (x,y) -> 
+  | EqualTo (x,y,_) -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " == " ) ^ rstring

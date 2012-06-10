@@ -35,25 +35,25 @@ let get_andrew_primitive_datatype = function
     raise (Internal_compiler_error "Wrong datatype detected")
 
 let get_andrew_symbol = function
-  | Symbol x -> AndrewLang.AndrewLang.Symbol x 
+  | Symbol (x,_) -> AndrewLang.AndrewLang.Symbol x 
 
 
 
 let get_andrew_comprehension x = AndrewLang.AndrewLang.Comprehension x
 
 let rec get_andrew_simple_expr = function
-  | Plus (x,y) -> AndrewLang.AndrewLang.Plus ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
-  | Minus (x,y) -> AndrewLang.AndrewLang.Minus ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
-  | Times (x,y) -> AndrewLang.AndrewLang.Times ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
-  | Pow (x,y) -> AndrewLang.AndrewLang.Pow ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
-  | Div (x,y) -> AndrewLang.AndrewLang.Div ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
-  | Const (x,y) -> AndrewLang.AndrewLang.Const ((get_andrew_primitive_datatype x),y)
-  | VarRef x -> AndrewLang.AndrewLang.Ref (get_andrew_rsymbol x)
-  | AddrRef x -> AndrewLang.AndrewLang.Ref (get_andrew_add_rsymbol x)
-  | Cast (x,y) -> AndrewLang.AndrewLang.Cast ((get_andrew_primitive_datatype x),(get_andrew_simple_expr y))
-  | Brackets x -> AndrewLang.AndrewLang.Brackets (get_andrew_simple_expr x)
-  | Opposite x -> AndrewLang.AndrewLang.Negate (get_andrew_simple_expr x)
-  | ColonExpr (x,y,z) -> 
+  | Plus (x,y,_) -> AndrewLang.AndrewLang.Plus ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
+  | Minus (x,y,_) -> AndrewLang.AndrewLang.Minus ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
+  | Times (x,y,_) -> AndrewLang.AndrewLang.Times ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
+  | Pow (x,y,_) -> AndrewLang.AndrewLang.Pow ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
+  | Div (x,y,_) -> AndrewLang.AndrewLang.Div ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
+  | Const (x,y,_) -> AndrewLang.AndrewLang.Const ((get_andrew_primitive_datatype x),y)
+  | VarRef (x,_) -> AndrewLang.AndrewLang.Ref (get_andrew_rsymbol x)
+  | AddrRef (x,_) -> AndrewLang.AndrewLang.Ref (get_andrew_add_rsymbol x)
+  | Cast (x,y,_) -> AndrewLang.AndrewLang.Cast ((get_andrew_primitive_datatype x),(get_andrew_simple_expr y))
+  | Brackets (x,_) -> AndrewLang.AndrewLang.Brackets (get_andrew_simple_expr x)
+  | Opposite (x,_) -> AndrewLang.AndrewLang.Negate (get_andrew_simple_expr x)
+  | ColonExpr (x,y,z,_) -> 
     let d = (get_andrew_vardim_spec (get_andrew_simple_expr x) (Some (get_andrew_simple_expr y)) (Some (get_andrew_simple_expr z))) in
     AndrewLang.AndrewLang.ColonExpr d
   | TStar | TStarStar -> raise (Internal_compiler_error "Decompiler poly to Andrew Lang erroneously hits a TStar/TStarStar")
@@ -61,7 +61,7 @@ let rec get_andrew_simple_expr = function
 and get_andrew_vardim_spec x y z = AndrewLang.AndrewLang.VarDimSpec (x,y,z)
 
 and get_andrew_rsymbol = function
-  | Symbol x as s -> AndrewLang.AndrewLang.RSym (get_andrew_symbol s)
+  | Symbol (x,_) as s -> AndrewLang.AndrewLang.RSym (get_andrew_symbol s)
 
 and get_andrew_add_rsymbol = function
   | AddressedSymbol _ as s -> AndrewLang.AndrewLang.RASym (get_andrew_addressed_symbol s)
@@ -73,10 +73,10 @@ and decompile_dimspec = function
   | BracDim x -> List.map (fun x -> decompile_dimspecexpr x) x
 
 and decompile_addressed_symbol_dimensions = function
-  | AddressedSymbol (_,_,x) -> List.flatten (List.map (fun x -> decompile_dimspec x) x)
+  | AddressedSymbol (_,_,x,_) -> List.flatten (List.map (fun x -> decompile_dimspec x) x)
 
 and get_andrew_addressed_symbol = function
-  | AddressedSymbol (x,y,z) as s -> 
+  | AddressedSymbol (x,y,z,_) as s -> 
     (* The size_list is of andrew_simple_expr *)
     let ll = decompile_addressed_symbol_dimensions s in
     (* First we need to make the vardim spec type and then make the comprehensions *)
@@ -99,15 +99,15 @@ let get_andrew_typed_address_symbol x y =
   AndrewLang.AndrewLang.TypedAddressedSymbol ((AndrewLang.DataTypes.Aggregate (primitive_type, size_list)),(get_andrew_addressed_symbol y))
 
 let decompile_typedsymbol = function
-  | SimTypedSymbol (x,y) -> get_andrew_typed_symbol x y
-  | ComTypedSymbol (x,y) -> get_andrew_typed_address_symbol x y
+  | SimTypedSymbol (x,y,_) -> get_andrew_typed_symbol x y
+  | ComTypedSymbol (x,y,_) -> get_andrew_typed_address_symbol x y
 
 let get_andrew_relexpr = function
-  | LessThan (x,y) -> AndrewLang.AndrewLang.LessThan ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
-  | LessThanEqual (x,y) -> AndrewLang.AndrewLang.LessThanEqual ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
-  | GreaterThanEqual (x,y) -> AndrewLang.AndrewLang.GreaterThanEqual ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
-  | GreaterThan (x,y) -> AndrewLang.AndrewLang.GreaterThan ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
-  | EqualTo (x,y) -> AndrewLang.AndrewLang.EqualTo ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
+  | LessThan (x,y,_) -> AndrewLang.AndrewLang.LessThan ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
+  | LessThanEqual (x,y,_) -> AndrewLang.AndrewLang.LessThanEqual ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
+  | GreaterThanEqual (x,y,_) -> AndrewLang.AndrewLang.GreaterThanEqual ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
+  | GreaterThan (x,y,_) -> AndrewLang.AndrewLang.GreaterThan ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
+  | EqualTo (x,y,_) -> AndrewLang.AndrewLang.EqualTo ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
 
 
 let get_andrew_call_list = function
@@ -125,7 +125,7 @@ let get_andrew_allsym_list = function
   | AllSymbol x -> (get_andrew_rsymbol x)
 
 let get_andrew_function_call outputs = function
-  | Call (x,inputs)  -> AndrewLang.AndrewLang.Call ((get_andrew_symbol x),
+  | Call (x,inputs,_)  -> AndrewLang.AndrewLang.Call ((get_andrew_symbol x),
 						    (List.map (fun x -> get_andrew_call_list x) inputs),
 						    (List.map (fun x -> get_andrew_allsym_list x) outputs))
 
@@ -138,18 +138,18 @@ let decompile_simple_assign outputs expr =
   List.map (fun x -> get_andrew_assign_stmt (get_andrew_simple_expr expr) x) outputs 
 
 let rec get_andrew_stmt = function
-  | VarDecl x ->  [AndrewLang.AndrewLang.VarDecl (decompile_typedsymbol x)]
-  | Escape x -> [AndrewLang.AndrewLang.Escape x]
-  | Block x -> List.flatten (List.map (fun x -> get_andrew_stmt x) x)
-  | Par (x,y,z) -> 
+  | VarDecl (x,_) ->  [AndrewLang.AndrewLang.VarDecl (decompile_typedsymbol x)]
+  | Escape (x,_) -> [AndrewLang.AndrewLang.Escape x]
+  | Block (x,_) -> List.flatten (List.map (fun x -> get_andrew_stmt x) x)
+  | Par (x,y,z,_) -> 
     let d = (match (get_andrew_simple_expr y) with AndrewLang.AndrewLang.ColonExpr x -> x | _ -> raise (Internal_compiler_error "Not found a colon expr "))  in
     [AndrewLang.AndrewLang.Par((get_andrew_symbol x),d,(get_andrew_stmt z))]
-  | For (x,y,z) -> 
+  | For (x,y,z,_) -> 
     let d = (match (get_andrew_simple_expr y) with AndrewLang.AndrewLang.ColonExpr x -> x | _ -> raise (Internal_compiler_error "Not found a colon expr "))  in
     [AndrewLang.AndrewLang.For((get_andrew_symbol x),d,(get_andrew_stmt z))]
   | Noop -> []
-  | CaseDef x -> [AndrewLang.AndrewLang.CaseDef (get_andrew_case x)]
-  | Assign (x,y) -> (match y with | SimExpr s -> decompile_simple_assign x s | FCall f -> [AndrewLang.AndrewLang.FCall (get_andrew_function_call x f)])
+  | CaseDef (x,_) -> [AndrewLang.AndrewLang.CaseDef (get_andrew_case x)]
+  | Assign (x,y,_) -> (match y with | SimExpr s -> decompile_simple_assign x s | FCall f -> [AndrewLang.AndrewLang.FCall (get_andrew_function_call x f)])
 
 and get_andrew_case = function
   | Case (x,y) -> AndrewLang.AndrewLang.Case ((List.map (fun x -> get_andrew_clause x) x) , (get_andrew_otherwise y))
@@ -167,9 +167,9 @@ let get_andrew_filter = function
 						      (List.map (fun x -> decompile_typedsymbol x) z), get_andrew_stmt t)
 
 let get_andrew_toplevelstmt = function
-  | Def x -> 
+  | Def (x,_) -> 
     AndrewLang.AndrewLang.Def (get_andrew_filter x)
-  | DefMain x -> AndrewLang.AndrewLang.DefMain (get_andrew_filter x)
+  | DefMain (x,_) -> AndrewLang.AndrewLang.DefMain (get_andrew_filter x)
   | _ -> raise (Internal_compiler_error "I do not allow topescapes, they suck!!")
 
 let get_andrew_program = function

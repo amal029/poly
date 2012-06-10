@@ -54,9 +54,9 @@ toplevelstmtlist:
     | toplevelstmt {[$1]}
 
 toplevelstmt:
-    | filter {Language.Language.Def ($1)}
-    | TMain filter {Language.Language.DefMain($2)}
-    | TEscapedCode {Language.Language.TopEscape ($1)}
+    | filter {Language.Language.Def ($1, ln())}
+    | TMain filter {Language.Language.DefMain($2, ln())}
+    | TEscapedCode {Language.Language.TopEscape ($1, ln())}
 ;
 
 filter:
@@ -77,14 +77,14 @@ argumentlist_in:
 ;
 
 argument_out:
-    | addrSymbol {Language.Language.ComTypedSymbol(Language.DataTypes.None,$1)}
-    | symbol {Language.Language.SimTypedSymbol(Language.DataTypes.None,$1)}
+    | addrSymbol {Language.Language.ComTypedSymbol(Language.DataTypes.None,$1,ln())}
+    | symbol {Language.Language.SimTypedSymbol(Language.DataTypes.None,$1,ln())}
     | typedsymbol {$1}
 ;
 
 argument_input:
-    | addrSymbol { let () = counter := !counter +1 in Language.Language.ComTypedSymbol(Language.DataTypes.Poly ("'a" ^ (string_of_int (!counter))),$1)}
-    | symbol {let () = counter := !counter +1 in Language.Language.SimTypedSymbol(Language.DataTypes.Poly ("'a" ^ (string_of_int (!counter))),$1)}
+    | addrSymbol { let () = counter := !counter +1 in Language.Language.ComTypedSymbol(Language.DataTypes.Poly ("'a" ^ (string_of_int (!counter))),$1, ln())}
+    | symbol {let () = counter := !counter +1 in Language.Language.SimTypedSymbol(Language.DataTypes.Poly ("'a" ^ (string_of_int (!counter))),$1, ln())}
     | typedsymbol {$1}
 ;
 
@@ -94,47 +94,24 @@ stmtlist:
 ;
 
 stmt:
-    | allsymlist TEqual expr {
-      let ret = Language.Language.Assign($1,$3) in
-      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
-    }
-    | TOP allsymlist TCP TEqual expr { 
-      let ret = Language.Language.Assign($2,$5) in
-      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
-    } /* this is just a tuple back */
-    | typedsymbol {
-      let ret = Language.Language.VarDecl($1) in 
-      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
-    }
-    | varsymbol {
-      let ret = Language.Language.VarDecl($1) in
-      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
-    }
-    | TEscapedCode  {
-      let ret = Language.Language.Escape ($1) in
-      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
-    }
-    | TOB stmtlist TCB {
-      let ret = Language.Language.Block ($2) in
-      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
-    }
+    | allsymlist TEqual expr {Language.Language.Assign($1,$3, ln())}
+    | TOP allsymlist TCP TEqual expr {Language.Language.Assign($2,$5, ln())} /* this is just a tuple back */
+    | typedsymbol {Language.Language.VarDecl($1, ln())}
+    | varsymbol {Language.Language.VarDecl($1, ln())}
+    | TEscapedCode  {Language.Language.Escape ($1, ln())}
+    | TOB stmtlist TCB {Language.Language.Block ($2, ln())}
     | TOB TCB {Language.Language.Noop}
-    | case {
-      let ret = Language.Language.CaseDef ($1) in
-      let () = Reporting.add_stmt_lnum ret (ln ()) in ret
-    }
-    | iter {let ret = $1 in 
-	    let () = Reporting.add_stmt_lnum ret (ln ()) in ret
-	   }
+    | case {Language.Language.CaseDef ($1, ln())}
+    | iter {$1}
 ;
 
 iter:
-    | TPar symbol TIn colonExpr stmt {Language.Language.Par($2,$4,$5)}
-    | TPar stmt {Language.Language.Par(Language.Language.Symbol("NULL"),
-				       Language.Language.ColonExpr(Language.Language.Const (Language.DataTypes.Int32, "$i"),
-								   Language.Language.Const(Language.DataTypes.Int32,"1"),
-								   Language.Language.Const(Language.DataTypes.Int32,"'size")),$2)}
-    | TFor symbol TIn colonExpr stmt {Language.Language.For($2,$4,$5)}
+    | TPar symbol TIn colonExpr stmt {Language.Language.Par($2,$4,$5, ln())}
+    | TPar stmt {Language.Language.Par(Language.Language.Symbol("NULL", ln()),
+				       Language.Language.ColonExpr(Language.Language.Const (Language.DataTypes.Int32, "$i", ln()),
+								   Language.Language.Const(Language.DataTypes.Int32,"1", ln()),
+								   Language.Language.Const(Language.DataTypes.Int32,"'size", ln()), ln()),$2, ln())}
+    | TFor symbol TIn colonExpr stmt {Language.Language.For($2,$4,$5, ln())}
 
 case:
     | TCase caseclauselist otherwise {Language.Language.Case($2,$3)}
@@ -168,8 +145,8 @@ expr:
 ;
 
 fcall:
-    | symbol TOP callargumentlist TCP {Language.Language.Call ($1,$3)}
-    | symbol TOP TCP {Language.Language.Call ($1,[])}
+    | symbol TOP callargumentlist TCP {Language.Language.Call ($1,$3, ln())}
+    | symbol TOP TCP {Language.Language.Call ($1,[], ln())}
 ;
 
 callargumentlist:
@@ -183,11 +160,11 @@ callargument:
 ;
 
 relExpr:
-    | simpleExpr TLess simpleExpr {Language.Language.LessThan($1,$3)}
-    | simpleExpr TLessEqual simpleExpr {Language.Language.LessThanEqual($1,$3)}
-    | simpleExpr TGreater simpleExpr {Language.Language.GreaterThan($1,$3)}
-    | simpleExpr TGreaterEqual simpleExpr {Language.Language.GreaterThanEqual($1,$3)}
-    | simpleExpr TEqualEqual simpleExpr {Language.Language.EqualTo($1,$3)}
+    | simpleExpr TLess simpleExpr {Language.Language.LessThan($1,$3, ln())}
+    | simpleExpr TLessEqual simpleExpr {Language.Language.LessThanEqual($1,$3, ln())}
+    | simpleExpr TGreater simpleExpr {Language.Language.GreaterThan($1,$3, ln())}
+    | simpleExpr TGreaterEqual simpleExpr {Language.Language.GreaterThanEqual($1,$3, ln())}
+    | simpleExpr TEqualEqual simpleExpr {Language.Language.EqualTo($1,$3, ln())}
 ;
 
 angledimlist:
@@ -228,45 +205,45 @@ pdimSpec:
 
 
 colonExpr:
-    | simpleExpr TColon  simpleExpr TColon simpleExpr {Language.Language.ColonExpr($1,$3,$5)}
-    | simpleExpr TColon  simpleExpr {Language.Language.ColonExpr($1,$3, Language.Language.Const(Language.DataTypes.Int32, "1"))}
+    | simpleExpr TColon  simpleExpr TColon simpleExpr {Language.Language.ColonExpr($1,$3,$5, ln())}
+    | simpleExpr TColon  simpleExpr {Language.Language.ColonExpr($1,$3, Language.Language.Const(Language.DataTypes.Int32, "1", ln()), ln())}
 ;
 
 simpleExpr:
-    | simpleExpr TPlus simpleExpr {Language.Language.Plus ($1, $3)}
-    | simpleExpr TMinus simpleExpr {Language.Language.Minus ($1, $3)}
-    | simpleExpr TTimes simpleExpr {Language.Language.Times ($1, $3)}
-    | simpleExpr TPow simpleExpr {Language.Language.Pow ($1, $3)}
-    | simpleExpr TDiv simpleExpr {Language.Language.Div ($1, $3)}
-    | TOP simpleExpr TCP {Language.Language.Brackets ($2)}
-    | addrSymbol {Language.Language.AddrRef($1)}
-    | symbol {Language.Language.VarRef $1}
-    | TInt {Language.Language.Const (Language.DataTypes.Int32s,$1)} /*e.g: 8, the type should be found using type inference, what now??*/
-    | TFloat {Language.Language.Const (Language.DataTypes.Float32, $1)} /*e.g.: 8.0, this should be done using type inference, what now??*/
-    | TOP dataTypes TCP simpleExpr {Language.Language.Cast ($2,$4)}
-    | TMinus simpleExpr %prec TUminus {Language.Language.Opposite($2)}
+    | simpleExpr TPlus simpleExpr {Language.Language.Plus ($1, $3, ln())}
+    | simpleExpr TMinus simpleExpr {Language.Language.Minus ($1, $3, ln())}
+    | simpleExpr TTimes simpleExpr {Language.Language.Times ($1, $3, ln())}
+    | simpleExpr TPow simpleExpr {Language.Language.Pow ($1, $3, ln())}
+    | simpleExpr TDiv simpleExpr {Language.Language.Div ($1, $3, ln())}
+    | TOP simpleExpr TCP {Language.Language.Brackets ($2, ln())}
+    | addrSymbol {Language.Language.AddrRef($1,ln())}
+    | symbol {Language.Language.VarRef ($1, ln())}
+    | TInt {Language.Language.Const (Language.DataTypes.Int32s,$1, ln())} /*e.g: 8, the type should be found using type inference, what now??*/
+    | TFloat {Language.Language.Const (Language.DataTypes.Float32, $1, ln())} /*e.g.: 8.0, this should be done using type inference, what now??*/
+    | TOP dataTypes TCP simpleExpr {Language.Language.Cast ($2,$4,ln())}
+    | TMinus simpleExpr %prec TUminus {Language.Language.Opposite($2,ln())}
 ;
 
 varsymbol:
-    | TVar symbol {Language.Language.SimTypedSymbol (Language.DataTypes.None, $2)}
-    | TVar addrSymbol {Language.Language.ComTypedSymbol (Language.DataTypes.None, $2)}
+    | TVar symbol {Language.Language.SimTypedSymbol (Language.DataTypes.None, $2, ln())}
+    | TVar addrSymbol {Language.Language.ComTypedSymbol (Language.DataTypes.None, $2, ln())}
 ;
 
 typedsymbol:
-    | dataTypes symbol {Language.Language.SimTypedSymbol ($1, $2)} /*e.g.: int8s t*/
-    | dataTypes addrSymbol {Language.Language.ComTypedSymbol ($1,$2)}
+    | dataTypes symbol {Language.Language.SimTypedSymbol ($1, $2, ln())} /*e.g.: int8s t*/
+    | dataTypes addrSymbol {Language.Language.ComTypedSymbol ($1,$2,ln())}
 ;
 symbol:
-    | TSymbol {Language.Language.Symbol ($1)} /*e.g.: t*/
+    | TSymbol {Language.Language.Symbol ($1, ln())} /*e.g.: t*/
 ;
 addrSymbol:
     | symbol dimspeclist {
       let ll = List.flatten (List.map (fun x -> match x with Language.Language.BracDim x -> x) $2) in
-      Language.Language.AddressedSymbol($1,[], [Language.Language.BracDim ll])} /* a<><>[][]... */
-    | symbol angledimlist {Language.Language.AddressedSymbol($1,$2,[])} /* a<><>[][]... */
+      Language.Language.AddressedSymbol($1,[], [Language.Language.BracDim ll], ln())} /* a<><>[][]... */
+    | symbol angledimlist {Language.Language.AddressedSymbol($1,$2,[],ln())} /* a<><>[][]... */
     | symbol angledimlist dimspeclist {
       let ll = List.flatten (List.map (fun x -> match x with Language.Language.BracDim x -> x) $3) in
-      Language.Language.AddressedSymbol($1,$2,[Language.Language.BracDim ll])} /* a<><>[][]... */
+      Language.Language.AddressedSymbol($1,$2,[Language.Language.BracDim ll],ln())} /* a<><>[][]... */
 ;
 /* Types */
 dataTypes:

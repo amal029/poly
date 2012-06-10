@@ -25,9 +25,9 @@ let add_to_stack x =
   else Stack.push x one_place_stack
 
 let extract_loop_variable = function
-  | Assign (x,y) as s -> 
+  | Assign (x,y,_) as s -> 
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_stmt s) ELSE () ENDIF in
-    let lvar = List.map (fun x -> match x with AllTypedSymbol x -> (match x with SimTypedSymbol (_,x) -> x 
+    let lvar = List.map (fun x -> match x with AllTypedSymbol x -> (match x with SimTypedSymbol (_,x,_) -> x 
       | _ -> raise (Internal_compiler_error "While decompiling loop start_decl symbol not of type SimTypedSymbol"))
       | _ -> raise (Internal_compiler_error "While decompiling loop start_decl not of type allsymbol")) x in
     if not (List.length lvar = 1) then raise (Internal_compiler_error "More than one variable declaration for loop start_decl") else ();
@@ -35,82 +35,84 @@ let extract_loop_variable = function
   | _ -> raise (Internal_compiler_error "While decompiling Loop got a non assign in the start_decl")
 
 let extract_loop_end_expr = function
-  | LessThanEqual (_,y) -> y
-  | GreaterThanEqual (_,y) -> y
+  | LessThanEqual (_,y,_) -> y
+  | GreaterThanEqual (_,y,_) -> y
   | _ -> raise (Internal_compiler_error "Loop bound expression not of type <= or >= ")
 
 let extract_loop_stride_expr = function
-  | Assign (_,y) -> (match y with 
+  | Assign (_,y,_) -> (match y with 
       SimExpr y -> 
-	(match y with Plus (_,y) -> y | _ -> raise (Internal_compiler_error "While decompiling loop stride expr not of type Plus "))
+	(match y with Plus (_,y,_) -> y | _ -> raise (Internal_compiler_error "While decompiling loop stride expr not of type Plus "))
       | _ -> raise (Internal_compiler_error " Loop stride expression not of type simple expression"))
   | _ -> raise (Internal_compiler_error "While decompiling Loop got a non assign in the start_decl")
 
-let replace_star_simpleexpr const_value = function
+let replace_star_simpleexpr lc const_value = function
   | TStar -> 
-    let start = Const (DataTypes.Int32s, "0") in
-    let stride = Const (DataTypes.Int32s, "1") in
-    let end_ = Const (DataTypes.Int32s, const_value) in
-    ColonExpr (start,end_,stride)
-  | TStarStar -> raise (Internal_compiler_error "The compiler currently does not support **, sorry :-(")
+    let start = Const (DataTypes.Int32s, "0", lc) in
+    let stride = Const (DataTypes.Int32s, "1", lc) in
+    let end_ = Const (DataTypes.Int32s, const_value, lc) in
+    ColonExpr (start,end_,stride, lc)
+  | TStarStar -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "The compiler currently does not support **, sorry :-("))
   | _ as s -> s
 
 (* This is the main replace * function *)
 let rec replace_stars_simpleexpr declarations = function
-  | Plus (x,y) -> Plus (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y)
-  | Minus (x,y) -> Minus (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y)
-  | Times (x,y) -> Times (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y)
-  | Div (x,y) -> Div (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y)
-  | Pow (x,y) -> Pow (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y)
+  | Plus (x,y,lc) -> Plus (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
+  | Minus (x,y,lc) -> Minus (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
+  | Times (x,y,lc) -> Times (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
+  | Div (x,y,lc) -> Div (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
+  | Pow (x,y,lc) -> Pow (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
   | Const _ | VarRef _ as s -> s
-  | Brackets x -> Brackets (replace_stars_simpleexpr declarations x)
-  | AddrRef x -> AddrRef (replace_stars_addr_symbol declarations x)
+  | Brackets (x,lc) -> Brackets (replace_stars_simpleexpr declarations x, lc)
+  | AddrRef (x,lc) -> AddrRef (replace_stars_addr_symbol declarations x, lc)
   | TStarStar | TStar -> raise (Internal_compiler_error "Replacing Tstar/Tstarstar hit erroneously")
-  | Opposite x -> Opposite (replace_stars_simpleexpr declarations x)
-  | ColonExpr (x,y,z) -> ColonExpr (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, replace_stars_simpleexpr declarations z)
-  | Cast (x,y) -> Cast (x, (replace_stars_simpleexpr declarations y))
+  | Opposite (x,lc) -> Opposite (replace_stars_simpleexpr declarations x, lc)
+  | ColonExpr (x,y,z,lc) -> ColonExpr (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, replace_stars_simpleexpr declarations z, lc)
+  | Cast (x,y,lc) -> Cast (x, (replace_stars_simpleexpr declarations y), lc)
 
-and replace_stars_dimspecexpr const_value = function
+and replace_stars_dimspecexpr lc const_value = function
   | DimSpecExpr x ->
     let const_value = (match const_value with DimSpecExpr x -> x) in
-    let const_value = (match const_value with Const (_,x) -> (string_of_int ((int_of_string x) - 1))
+    let const_value = (match const_value with Const (_,x,lc) -> (string_of_int ((int_of_string x) - 1))
       | _ -> 
 	let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr x) ELSE () ENDIF in
-	raise (Internal_compiler_error "Typed dimspec expr not of type const")) in
-    DimSpecExpr (replace_star_simpleexpr const_value x)
+	raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Typed dimspec expr not of type const"))) in
+    DimSpecExpr (replace_star_simpleexpr lc const_value x)
 
-and replace_stars_dimspecexpr_list dimspecexpr_list counter = function
+and replace_stars_dimspecexpr_list lc dimspecexpr_list counter = function
   | h::t -> 
     let () = IFDEF DEBUG THEN print_endline "In declarations 3" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN print_endline (Dot.get_string_dimspec_list dimspecexpr_list) ELSE () ENDIF in
-    (replace_stars_dimspecexpr (List.nth dimspecexpr_list counter) h) 
-    :: (replace_stars_dimspecexpr_list dimspecexpr_list (counter + 1) t)
+    (replace_stars_dimspecexpr lc (List.nth dimspecexpr_list counter) h) 
+    :: (replace_stars_dimspecexpr_list lc dimspecexpr_list (counter + 1) t)
   | [] -> []
 
-and replace_stars_dimspec bracdim = function
+and replace_stars_dimspec lc bracdim = function
   | BracDim x -> 
     let dimspecexpr_list = (match bracdim with BracDim x -> x) in
-    BracDim (replace_stars_dimspecexpr_list dimspecexpr_list 0 x)
+    BracDim (replace_stars_dimspecexpr_list lc dimspecexpr_list 0 x)
 
-and replace_stars_dimspeclist bdim_list counter = function
+and replace_stars_dimspeclist lc bdim_list counter = function
   | h::t -> 
     let () = IFDEF DEBUG THEN print_endline "In declarations 2" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN print_endline (Dot.get_string_brac_dims bdim_list) ELSE () ENDIF in
-    (replace_stars_dimspec (List.nth bdim_list counter) h) :: (replace_stars_dimspeclist bdim_list (counter+1) t)
+    (replace_stars_dimspec lc (List.nth bdim_list counter) h) :: (replace_stars_dimspeclist lc bdim_list (counter+1) t)
   | [] -> []
 
 and replace_stars_addr_symbol declarations = function
-  | AddressedSymbol (x,y,z) ->
+  | AddressedSymbol (x,y,z,lc) ->
     (* I need to remove the addressed symbol from the declarations list *)
     let () = IFDEF DEBUG THEN print_endline "In declarations 1" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN (List.iter (fun x -> print_endline (Dot.dot_typed_symbol x)) declarations) ELSE () ENDIF in
-    let decl = List.filter (fun n -> (match n with | ComTypedSymbol (_,n) -> (match n with | AddressedSymbol (n,_,_) -> (n = x)) | _ -> false)) declarations in
-    if decl = [] then raise (Internal_compiler_error ((match x with Symbol x -> x) ^ "Not defined before use!!"))
-    else if not (List.length decl = 1) then raise (Internal_compiler_error ((match x with Symbol x -> x) ^ ", variable multiply defined"))
+    let decl = List.filter (fun n -> (match n with | ComTypedSymbol (_,n,_) -> (match n with 
+      | AddressedSymbol (n,_,_,_) -> (match n with Symbol(n,_) -> n = (match x with Symbol (x,_) -> x))) | _ -> false)) declarations in
+    if decl = [] then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ (match x with Symbol (x,lc) -> x) ^ " Not defined before use!!"))
+    else if not (List.length decl = 1) then raise (Internal_compiler_error ((match x with Symbol (x,lc) -> x) ^ (Reporting.get_line_and_column lc) ^ 
+									       ", variable multiply defined"))
     else ();
-    AddressedSymbol (x,y, (replace_stars_dimspeclist (match (List.hd decl) with 
-      | ComTypedSymbol (_,n) -> (match n with | AddressedSymbol (_,_,n) -> n) 
-      | _ -> raise (Internal_compiler_error "Got a non addressed symbol, even after filtering")) 0 z))
+    AddressedSymbol (x,y, (replace_stars_dimspeclist lc (match (List.hd decl) with 
+      | ComTypedSymbol (_,n,_) -> (match n with | AddressedSymbol (_,_,n,_) -> n) 
+      | _ -> raise (Internal_compiler_error "Got a non addressed symbol, even after filtering")) 0 z), lc)
 
 let replace_stars_allsym declarations = function
   | AllAddressedSymbol x -> AllAddressedSymbol (replace_stars_addr_symbol declarations x)
@@ -121,36 +123,36 @@ let replace_stars_callargument declarations = function
   | _ as s -> s
 
 let replace_stars_filtercall declarations = function
-  | Call (x,y) -> Call (x, (List.map (fun x -> replace_stars_callargument declarations x) y))
+  | Call (x,y,lc) -> Call (x, (List.map (fun x -> replace_stars_callargument declarations x) y),lc)
 
 let replace_stars_expr declarations = function
   | SimExpr x -> SimExpr (replace_stars_simpleexpr declarations x)
   | FCall x -> FCall (replace_stars_filtercall declarations x)
 
 let replace_stars declarations = function
-  | Assign (x,y) -> 
+  | Assign (x,y,lc) -> 
     let lvalue = List.map (fun x -> replace_stars_allsym declarations x) x in
     let rvalue = replace_stars_expr declarations y in
-    Assign (lvalue,rvalue)
+    Assign (lvalue,rvalue,lc)
   | _ as s -> s
 
 let add_var_decls declarations = function
-  | VarDecl x -> declarations := x :: !declarations
-  | Assign (x,y) -> declarations := (List.flatten ((List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> []))) x)) @ !declarations
+  | VarDecl (x,_) -> declarations := x :: !declarations
+  | Assign (x,y,_) -> declarations := (List.flatten ((List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> []))) x)) @ !declarations
   | _ -> ()
 
 let get_vars = function
-  | VarDecl x  -> [x]
-  | Assign (x,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
+  | VarDecl (x,_)  -> [x]
+  | Assign (x,_,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
     (* | Block x -> List.flatten (List.map (fun x -> get_vars x) x) *)
   | _ -> []
 
 let rec get_dvars = function
-  | Block x -> List.flatten (List.map (fun x -> get_vars x) x)
-  | For (x,y,z) | Par (x,y,z) -> 
-    let sym = (SimTypedSymbol (DataTypes.Int32s, x)) in
+  | Block (x,_) -> List.flatten (List.map (fun x -> get_vars x) x)
+  | For (x,y,z,lc) | Par (x,y,z,lc) -> 
+    let sym = (SimTypedSymbol (DataTypes.Int32s, x, lc)) in
     sym :: (get_vars z)
-  | CaseDef case -> 
+  | CaseDef (case,_) -> 
     let (clause_list,other) = (match case with Case (x,y) -> (x,y)) in
     let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x) -> x)) clause_list in
     let other_stmt = (match other with Otherwise x -> x) in
@@ -169,14 +171,14 @@ let rec decompile_cfg declarations arg = function
   | Startnode (stmt,x) -> 
     (* First determine the type of stmt this is *)
     (match stmt with
-      | CaseDef _ -> startnode_case declarations arg x
-      | For (_,_,_) as s -> 
+      | CaseDef (_,lc) -> startnode_case lc declarations arg x
+      | For (_,_,_,lc) as s -> 
 	let () = IFDEF DEBUG THEN print_endline ("Building a for stmt" ^ Dot.dot_stmt s) ELSE () ENDIF in
-	startnode_for declarations arg x
-      | Par (_,_,_) as s -> 
+	startnode_for lc declarations arg x
+      | Par (_,_,_,lc) as s -> 
 	let () = IFDEF DEBUG THEN print_endline ("Building a par stmt" ^ Dot.dot_stmt s) ELSE () ENDIF in
-	startnode_par declarations arg x
-      | Block _ -> startnode_block declarations arg x
+	startnode_par lc declarations arg x
+      | Block (_,lc) -> startnode_block lc declarations arg x
       | _ -> raise (Internal_compiler_error "Got an unknown type stmt in the start node"))
   | Empty -> []
   | Squarenode (x,y) -> 
@@ -186,15 +188,16 @@ let rec decompile_cfg declarations arg = function
       (try
 	 let nname = Hashtbl.find fcall_map x in
 	 (match x with
-	   | Assign (a,y) -> 
+	   | Assign (a,y,lc) -> 
 	     (match y with
-	       | FCall y -> (match y with Call (_,y) -> (Assign (a, (FCall(Call (nname,y))))))
-	       | _ -> raise (Internal_compiler_error "Fcall_map assign rvalue not of type Fcall!!"))
-	   | _  -> raise (Internal_compiler_error "Fcall_map hashtbl not of type Assign!!"))
+	       | FCall y -> (match y with Call (_,y,lc) -> (Assign (a, (FCall(Call (nname,y,lc))),lc)))
+	       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Fcall_map assign rvalue not of type Fcall!!")))
+	   | _  -> raise (Internal_compiler_error ("Fcall_map hashtbl not of type Assign!!")))
        with
 	 | Not_found -> 
 	   (match x with
-	     | Assign (a,y) -> (match y with | FCall _ -> raise (Internal_compiler_error "Right hand side FCall, yet new name not found in the hashtbl") | _ -> x)
+	     | Assign (a,y,lc) -> (match y with | FCall _ -> 
+	       raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Right hand side FCall, yet new name not found in the hashtbl")) | _ -> x)
 	     | _ -> x)) in
     (* First we need to add the vardecl if there are any !! *)
     let () = add_var_decls declarations stmt in
@@ -204,12 +207,16 @@ let rec decompile_cfg declarations arg = function
   | Backnode _ -> []
   | Conditionalnode (x,y,z) -> 
     (* Need to find out, which one to do*)
+    let lc = (match x with 
+      | LessThanEqual (_,_,lc) | LessThan (_,_,lc)
+      | GreaterThanEqual (_,_,lc) | GreaterThan (_,_,lc)
+      | EqualTo (_,_,lc) -> lc) in
     (match arg with
-      | CASE -> conditional_case declarations arg x y z
-      | LOOP -> conditional_loop declarations arg x y z
+      | CASE -> conditional_case lc declarations arg x y z
+      | LOOP -> conditional_loop lc declarations arg x y z
       | _ -> raise (Internal_compiler_error "Conditional_Loop input arg not CASE/LOOP"))
 
-and decompile_loop declarations x = 
+and decompile_loop lc declarations x = 
   (* Now we should always get [S;C;O]*)
   let children_list = decompile_cfg declarations LOOP x in
   if not (List.length children_list = 3) then raise (Internal_compiler_error "For loop decompilation did not get 3 children") else ();
@@ -223,10 +230,10 @@ and decompile_loop declarations x =
   let end_expr = extract_loop_end_expr end_expr in
   let stride_expr = extract_loop_stride_expr stride_decl in
   (* Now return the loop construct *)
-  (lvar,ColonExpr(start_expr,end_expr,stride_expr),body)
+  (lvar,ColonExpr(start_expr,end_expr,stride_expr,lc),body)
 
 
-and conditional_case declarations arg expr tbranch fbranch = 
+and conditional_case lc declarations arg expr tbranch fbranch = 
   (* First do the true branch, it should always give a stmt list *)
   let tchildren = decompile_cfg declarations arg tbranch in
   (* Check that it is always of type stmt list *)
@@ -246,13 +253,13 @@ and conditional_case declarations arg expr tbranch fbranch =
 
   let other = List.filter (fun x -> match x with S x -> true | _ -> false ) fchildren in
   let ost = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-otherwise in otherwise list, case conditional"))) other in
-  let ret_list = if not (other = []) then [O((Otherwise (Block ost)))] else [] in
+  let ret_list = if not (other = []) then [O((Otherwise (Block (ost,lc))))] else [] in
   (* Now make the clause/otherwise list *)
   let toadd = List.filter (fun x -> (match x with C _ | O _ -> true | _ -> false)) fchildren in
-  (C (Clause (expr,(Block tchildren)))) :: (toadd  @ ret_list)
+  (C (Clause (expr,(Block (tchildren,lc))))) :: (toadd  @ ret_list)
     
     
-and conditional_loop declarations arg expr tbranch fbranch = 
+and conditional_loop lc declarations arg expr tbranch fbranch = 
   let () = IFDEF DEBUG THEN print_endline (Dot.dot_relexpr expr) ELSE () ENDIF in
   (* First do the true branch, it should always give a stmt list *)
   let tchildren = decompile_cfg declarations arg tbranch in
@@ -267,11 +274,11 @@ and conditional_loop declarations arg expr tbranch fbranch =
   (* Check that we really don't get anything back *)
   if not (fchildren = []) then raise (Internal_compiler_error "We got something back from the loop conditionals false branch!!");
   (* Now build the Clause and the Otherwise *)
-  [(C (Clause (expr, (Block (List.filter (fun x -> (not (x = ostmt))) tchildren)))));(O (Otherwise ostmt))]
+  [(C (Clause (expr, (Block (List.filter (fun x -> (not (x = ostmt))) tchildren,lc)))));(O (Otherwise ostmt))]
 
 
 (* This is the function to carry out when the start node is holding a casedef type *)
-and startnode_case declarations arg x = 
+and startnode_case lc declarations arg x = 
   (* First call build children list with Case as the arg *)
   let children_list = decompile_cfg declarations CASE x in
   (* Next make the Casedef stmt *)
@@ -282,36 +289,36 @@ and startnode_case declarations arg x =
   if not (List.length otherwise = 1) then raise (Internal_compiler_error "CaseDef, no otherwise specified") else ();
   if not (List.length clause_list >= 1) then raise (Internal_compiler_error "CaseDef, no clause specified") else ();
   (* Now build the Casedef and add it to the rest of the children from the previous call *)
-  (S (CaseDef (Case (clause_list,(List.hd otherwise))))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
+  (S (CaseDef (Case (clause_list,(List.hd otherwise)),lc))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
 
 (* This is the function to carry out when the start node is holding a casedef type *)
-and startnode_for declarations arg x = 
+and startnode_for lc declarations arg x = 
   (* First call build children list with Case as the arg *)
-  let (x,y,z) = decompile_loop declarations x in
+  let (x,y,z) = decompile_loop lc declarations x in
   (* Now add it to the rest of the children *)
-  (S (For (x,y,z))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
+  (S (For (x,y,z,lc))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
 
-and startnode_par declarations arg x = 
+and startnode_par lc declarations arg x = 
   (* First call build children list with Case as the arg *)
-  let (x,y,z) = decompile_loop declarations x in
+  let (x,y,z) = decompile_loop lc declarations x in
   (* Now add it to the rest of the children *)
-  (S (Par (x,y,z))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
+  (S (Par (x,y,z,lc))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
 
-and startnode_block declarations arg x = 
+and startnode_block lc declarations arg x = 
   (* First get the children list *)
   let children_list = decompile_cfg declarations BLOCK x in
   (* Now remove the S's from the List*)
   let no_s_children_list = List.map (fun x -> match x with S x -> x 
-    | _ -> raise (Internal_compiler_error "While decompiling block stmt, got a non \"S\" type ")) children_list in
+    | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "While decompiling block stmt, got a non \"S\" type "))) children_list in
   (* Now pop the endnode and make the rest of the children *)
-  (S (Block no_s_children_list)) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
+  (S (Block (no_s_children_list,lc))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
 
 
 let rec decompile_filter_params = function
   | Squarenode (stmt,cfg) -> 
     (match stmt with 
-      | VarDecl x -> x
-      | _ -> raise (Internal_compiler_error "Inputs/Outputs not of type VarDecl!!")) :: decompile_filter_params cfg
+      | VarDecl (x,lc) -> x
+      | _ -> raise (Internal_compiler_error ("Inputs/Outputs not of type VarDecl!!"))) :: decompile_filter_params cfg
   | Empty -> []
   | _ -> raise (Internal_compiler_error "Inputs/Outputs not declared in a square node!!")
 
@@ -322,21 +329,22 @@ let decompile_topnode = function
     let outputs = decompile_filter_params (List.nth cfg_list 1) in
     (* put inputs and outputs in the declarations list *)
     let declarations = ref (inputs@outputs) in
+    let () = IFDEF DEBUG THEN List.iter (fun x -> print_endline ("In decls: " ^ (Dot.get_typed_symbol x))) !declarations ELSE() ENDIF in
     let body = decompile_cfg declarations BLOCK (List.nth cfg_list 2) in
     let body_list = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-block in the Topnode"))) body in
     if name = "main" || name = "Main" then
-      DefMain(Filter((Symbol name), inputs, outputs, (Block body_list)))
+      DefMain(Filter((Symbol (name, (0,0))), inputs, outputs, (Block (body_list,(0,0)))), (0,0))
     else 
       begin
 	(* First change the name of the filter *)
 	counter := !counter + 1;
 	(* Put the name in the hash map *)
-	let name = Symbol (name ^ (string_of_int !counter)) in
+	let name = Symbol (name ^ (string_of_int !counter), (0,0)) in
 	(* Debugging adding to the hashtbl *)
 	let () = IFDEF DEBUG THEN print_endline ("Adding to hashtbl: " ^ Dot.dot_stmt fcall) ELSE () ENDIF in
 	Hashtbl.add fcall_map fcall name;
 	let body_list = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-block in the Topnode"))) body in
-	Def(Filter(name, inputs, outputs, (Block body_list)))
+	Def(Filter(name, inputs, outputs, (Block (body_list, (0,0)))), (0,0))
       end
   | Null -> raise (Internal_compiler_error "Got a Null type while decompiling topnode to AST")
 

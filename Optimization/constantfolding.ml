@@ -19,14 +19,14 @@ struct
     Hashtbl.iter (fun x y -> ll := ((x,y) :: !ll)) tbl
 
   let get_symbol = function
-    | Symbol x -> x
+    | Symbol (x,_) -> x
 
   let get_addressed_symbol = function
-    | AddressedSymbol (x,_,_) -> get_symbol x
+    | AddressedSymbol (x,_,_,_) -> get_symbol x
 
   let get_typed_symbol = function
-    | SimTypedSymbol (x,y) -> get_symbol y
-    | ComTypedSymbol (x,y) -> get_addressed_symbol y
+    | SimTypedSymbol (x,y,_) -> get_symbol y
+    | ComTypedSymbol (x,y,_) -> get_addressed_symbol y
 
 
   let get_value = function
@@ -73,8 +73,8 @@ struct
     else Top ttype
 
   let rec get_simexpr_const = function
-    | Const (x,y) -> VConst (x,y)
-    | VarRef x -> 
+    | Const (x,y,_) -> VConst (x,y)
+    | VarRef (x,_) -> 
       (try 
 	 let lc = ref [] in
 	 list_from_hash lc consts;
@@ -84,7 +84,7 @@ struct
 	 Hashtbl.find consts (get_symbol x)
        with | Not_found -> raise (Error (("VarRef consts: Var " ^ (get_symbol x)) ^ " not defined before use")))
   (* Try floding expressions and see if you get a constant *)
-    | AddrRef x -> 
+    | AddrRef (x,_) -> 
       (try 
 	 let lc = ref [] in
 	 list_from_hash lc consts;
@@ -92,35 +92,35 @@ struct
 	   ELSE () ENDIF in
 	 Hashtbl.find consts (get_addressed_symbol x)
        with | Not_found -> raise ( Error ((" AddrRef consts: Var " ^ (get_addressed_symbol x)) ^ " not defined before use")))
-    | Plus (x,y) ->
+    | Plus (x,y,_) ->
       let lvalue = get_simexpr_const x in
       let rvalue = get_simexpr_const y in
       process lvalue rvalue Int.add Float.add
-    | Minus (x,y) -> process (get_simexpr_const x) (get_simexpr_const y) Int.sub Float.sub
-    | Times (x,y) -> process (get_simexpr_const x) (get_simexpr_const y) Int.mul Float.mul
-    | Div (x,y) -> process (get_simexpr_const x) (get_simexpr_const y) Int.div Float.div
-    | Pow (x,y) -> process (get_simexpr_const x) (get_simexpr_const y) Int.pow Float.pow
-    | Cast (d,y) -> 
+    | Minus (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.sub Float.sub
+    | Times (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.mul Float.mul
+    | Div (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.div Float.div
+    | Pow (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.pow Float.pow
+    | Cast (d,y,_) -> 
       let ret = get_simexpr_const y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
-    | Brackets x | Opposite x -> get_simexpr_const x
-    | ColonExpr (x,y,z) -> raise (Error ("Colon expressions not allowed in expressions "))
+    | Brackets (x,_) | Opposite (x,_) -> get_simexpr_const x
+    | ColonExpr (x,y,z,_) -> raise (Error ("Colon expressions not allowed in expressions "))
     | _ -> Top DataTypes.None
 (* These are for polyhedrons *)
   and get_vardecl_consts = function
-    | ComTypedSymbol (x,y) -> 
+    | ComTypedSymbol (x,y,_) -> 
       let () = get_dim_consts y in
       VConst (x,"NULL")
-    | SimTypedSymbol (x,_) -> VConst (x,"NULL")
+    | SimTypedSymbol (x,_,_) -> VConst (x,"NULL")
   and get_dim_consts = function
-    | AddressedSymbol (_,y,z) -> 
+    | AddressedSymbol (_,y,z,_) -> 
       let () = get_angledim_consts y in
       let () = get_dimspec_consts z in ()
   and get_angledim_consts = function
     | h::t -> get_angledimexpr_const h ; get_angledim_consts t
     | [] -> ()
   and get_angledimexpr_const = function
-    | AngleDimExpr x -> 
+    | AngleDimExpr x ->
       (match x with 
 	| DimSpecExpr x ->  
 	  let ret = get_simexpr_const x in
@@ -156,7 +156,7 @@ struct
     | AllTypedSymbol x -> 
     (* Check that dimensions of the addressed symbol are constants *)
       (match x with
-	| ComTypedSymbol (_,y) -> get_dim_consts y
+	| ComTypedSymbol (_,y,_) -> get_dim_consts y
 	|  _ -> ()
       );
       Hashtbl.add consts (get_typed_symbol x) rvalue 
@@ -171,37 +171,37 @@ struct
 (* Depends upon the simple type inference engine *)
 (* Return a list of DataTypes.t *)
   let get_lvalue_type_2 = function
-    | AllTypedSymbol (SimTypedSymbol (x,_) | ComTypedSymbol(x,_)) -> x
-    | AllAddressedSymbol (AddressedSymbol (x,_,_)) 
+    | AllTypedSymbol (SimTypedSymbol (x,_,_) | ComTypedSymbol(x,_,_)) -> x
+    | AllAddressedSymbol (AddressedSymbol (x,_,_,_)) 
     | AllSymbol x -> match (Hashtbl.find consts (get_symbol x)) with VConst (x,_) -> x | Top x -> x
   let rec get_lvalue_type = function
     | h::t -> get_lvalue_type_2 h :: get_lvalue_type t
     | [] -> []
 
   let rec get_stmt_const = function
-    | VarDecl x -> 
+    | VarDecl (x,_) -> 
       let sym = (get_typed_symbol x) in
       Hashtbl.add consts sym (get_vardecl_consts x)
   (*FIXME: you are not checking that the assignment is of equal sized
     dimensions, do that --> Done in the type inference engine *)
-    | Assign (x,y) ->
+    | Assign (x,y,_) ->
       let rvalue =  get_expr_const (get_lvalue_type x) y in
       (* let () = print_endline "assigning to lvalues " in *)
       get_assign_lvalue_const 0 rvalue x
-    | Escape x -> ()
+    | Escape (x,_) -> ()
     | Noop -> ()
     | _ -> raise (Error ("Unexpected statement encountered after rewrites!!"))
 
 
   let rec get_dvars = function
-    | Block x -> get_bvars x
+    | Block (x,_) -> get_bvars x
     | _ -> []
   and get_bvars = function
     | h::t -> get_stmt_vars h @ get_bvars t
     | [] -> []
   and get_stmt_vars = function
-    | VarDecl x -> [get_typed_symbol x]
-    | Assign (x,_) -> get_stmt2_vars x
+    | VarDecl (x,_) -> [get_typed_symbol x]
+    | Assign (x,_,_) -> get_stmt2_vars x
     | _ -> []
 
 (* FIXME: We also need to get the dimensions so that even those can be
@@ -212,8 +212,8 @@ struct
       (match h with
 	| AllTypedSymbol x -> 
 	  let dimlist = (match x with
-	    | SimTypedSymbol (_,_) -> []
-	    | ComTypedSymbol (_ ,y) -> (List.map (fun r -> get_dim_vars r)) (match y with AddressedSymbol (_,_,diml) -> diml)) in
+	    | SimTypedSymbol (_,_,_) -> []
+	    | ComTypedSymbol (_,y,_) -> (List.map (fun r -> get_dim_vars r)) (match y with AddressedSymbol (_,_,diml,_) -> diml)) in
 	  (List.flatten dimlist) @ [get_typed_symbol x]
 	| _ -> [])
     | [] -> []
@@ -227,14 +227,14 @@ struct
     | DimSpecExpr x -> get_alldim_decs decs x
 
   and get_alldim_decs decs = function
-    | Const (x,y) -> ()
-    | VarRef x -> decs := (get_symbol x) :: !decs
-    | AddrRef x -> decs := (get_addressed_symbol x) :: !decs
-    | Plus (x,y) | Minus (x,y) | Times (x,y) | Div (x,y) 
-    | Pow (x,y) -> let () = get_alldim_decs decs x in get_alldim_decs decs y
-    | Cast (d,y) -> get_alldim_decs decs y
-    | Brackets x | Opposite x -> get_alldim_decs decs x
-    | ColonExpr (x,y,z) -> raise (Error ("Colon expressions not allowed in expressions "))
+    | Const (x,y,_) -> ()
+    | VarRef (x,_) -> decs := (get_symbol x) :: !decs
+    | AddrRef (x,_) -> decs := (get_addressed_symbol x) :: !decs
+    | Plus (x,y,_) | Minus (x,y,_) | Times (x,y,_) | Div (x,y,_) 
+    | Pow (x,y,_) -> let () = get_alldim_decs decs x in get_alldim_decs decs y
+    | Cast (d,y,_) -> get_alldim_decs decs y
+    | Brackets (x,_) | Opposite (x,_) -> get_alldim_decs decs x
+    | ColonExpr (x,y,z,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ "Colon expressions not allowed in expressions "))
     | _ -> raise ( Error (" Unkown expression used while declaring the addressed symbol "))
 
   let rec remove_from_consts = function
@@ -399,31 +399,32 @@ struct
     | [] -> []
 
   let rec simple_epxr_const v = function
-    | Const (x,y) -> VConst (x,y)
-    | VarRef x -> 
+    | Const (x,y,_) -> VConst (x,y)
+    | VarRef (x,lc) -> 
       (try 
 	 let lc = ref [] in
 	 list_from_hash lc v;
 	 let () = IFDEF DEBUG THEN (List.iter (fun (x,y) -> print_endline (("key: " ^ x) ^ ("value : " ^ (match y with VConst (_,y) -> y | _ -> "Top")))) !lc)
 	   ELSE () ENDIF in
 	 Hashtbl.find v (get_symbol x)
-       with | Not_found -> raise (Internal_compiler_error (("simple_epxr_const: Var " ^ (get_symbol x)) ^ " not defined before use")))
+       with | Not_found -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ 
+							      ("simple_epxr_const: Var " ^ (get_symbol x)) ^ " not defined before use")))
   (* Try floding expressions and see if you get a constant *)
-    | AddrRef x -> Hashtbl.find v (get_addressed_symbol x)
-    | Plus (x,y) ->
+    | AddrRef (x,_) -> Hashtbl.find v (get_addressed_symbol x)
+    | Plus (x,y,_) ->
       (* This is wrong, since we are calling the original function, but are not *)
       let lvalue = simple_epxr_const v x in
       let rvalue = simple_epxr_const v y in
       process lvalue rvalue Int.add Float.add
-    | Minus (x,y) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.sub Float.sub
-    | Times (x,y) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.mul Float.mul
-    | Div (x,y) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.div Float.div
-    | Pow (x,y) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.pow Float.pow
-    | Cast (d,y) -> 
+    | Minus (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.sub Float.sub
+    | Times (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.mul Float.mul
+    | Div (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.div Float.div
+    | Pow (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.pow Float.pow
+    | Cast (d,y,_) -> 
       let ret = simple_epxr_const v y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
-    | Brackets x | Opposite x -> simple_epxr_const v x
-    | ColonExpr (x,y,z) -> raise (Internal_compiler_error ("ColonExpr detected after all rewrites!!"))
+    | Brackets (x,_) | Opposite (x,_) -> simple_epxr_const v x
+    | ColonExpr (x,y,z,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "ColonExpr detected after all rewrites!!"))
     | _ -> Top DataTypes.None
 
   let get_dim_spec_expr v = function
@@ -434,10 +435,10 @@ struct
     | [] -> []
 
   let rec get_typed_sym_dim v = function
-    | SimTypedSymbol (_,x) -> []
-    | ComTypedSymbol (_,x) -> 
+    | SimTypedSymbol (_,x,_) -> []
+    | ComTypedSymbol (_,x,_) -> 
       (try
-	 match x with AddressedSymbol (_,x,y) -> ((get_dimlist_1 v x) @ (get_dimlist_2 v y))
+	 match x with AddressedSymbol (_,x,y,_) -> ((get_dimlist_1 v x) @ (get_dimlist_2 v y))
        with 
 	 | Not_found -> raise (Internal_compiler_error "Could not find variable get_typed_sym_dim"))
   and get_dimlist_1 v = function
@@ -457,9 +458,9 @@ struct
 	    | Squarenode (x,_) ->
 	      (* let () = print_endline ("Stmt is: " ^ (Dot.dot_stmt x)) in *)
 	      (match x with
-		| VarDecl x -> if name = (get_typed_symbol x) then get_dims list v x
+		| VarDecl (x,_) -> if name = (get_typed_symbol x) then get_dims list v x
 		  else get_vardecl_dims list name v t
-		| Assign (x,_) -> let d = ref false in get_ass_list d list name v x; if (not !d) then get_vardecl_dims list name v t else ()
+		| Assign (x,_,_) -> let d = ref false in get_ass_list d list name v x; if (not !d) then get_vardecl_dims list name v t else ()
 		| _ -> get_vardecl_dims list name v t)
 	    | _ -> get_vardecl_dims list name v t))
     | [] -> ()
@@ -481,11 +482,11 @@ struct
 	  (match x with 
 	    | Squarenode (x,_) -> 
 	      (match x with
-		| Assign (x,y) as assign -> 
+		| Assign (x,y,_) as assign -> 
 		  if assign = fcall then 
 		    let () = IFDEF DEBUG THEN print_endline ("Found the calling site, it is: " ^ (Dot.dot_stmt assign)) ELSE () ENDIF in
 		    let args = (match y with
-		      | FCall x -> (match  x with Call (_,y) -> y)
+		      | FCall x -> (match  x with Call (_,y,_) -> y)
 		      | _ -> []) in
 		    let argsn = (get_fcaldim_consts nodes v args) in
 		    let res = (get_result_consts nodes v x) in
@@ -523,7 +524,7 @@ struct
 	 let to_rem_list = ref [] in
 	 let torem = ref 0 in
 	 get_vardecl_dims  dim_list (get_addressed_symbol x) v nodes;
-	 remove_from_dim_list  torem to_rem_list (match x with AddressedSymbol (_,_,y) -> y);
+	 remove_from_dim_list  torem to_rem_list (match x with AddressedSymbol (_,_,y,_) -> y);
 	 let arg_list = (rem_from_dim !to_rem_list 0 !dim_list) in
 	 let () = IFDEF DEBUG THEN print_endline ("Dims found: " ^ (string_of_int (List.length arg_list))) ELSE () ENDIF in
 	 (arg_val, arg_list)
@@ -567,7 +568,7 @@ struct
 		  dereferences the 1D vector.*)
 	       let to_rem_list = ref [] in
 	       let torem = ref 0 in
-	       remove_from_dim_list  torem to_rem_list (match x with AddressedSymbol (_,_,y) -> y ) ;
+	       remove_from_dim_list  torem to_rem_list (match x with AddressedSymbol (_,_,y,_) -> y ) ;
 	       rem_from_dim !to_rem_list 0 !dim_list
 	   ) in
 	 (arg_val,arg_list) :: get_fcaldim_consts nodes v t;
@@ -598,8 +599,8 @@ struct
    calculus. But, this needs to change if we want to add that as well
 *)
   let get_it = function
-    | Const (x,y) -> ("NULL", VConst (x,y))
-    | VarRef x -> ((get_symbol x), (Top DataTypes.Int32))
+    | Const (x,y,_) -> ("NULL", VConst (x,y))
+    | VarRef (x,_) -> ((get_symbol x), (Top DataTypes.Int32))
   (* Try floding expressions and see if you get a constant *)
     | _ -> raise (Error "We currently do not support higher order dependent types")
 
@@ -633,17 +634,17 @@ struct
     | h::t ->
       let (arg_val,arg_list) = List.nth mconsts counter in
       (match h with
-	| VarDecl x -> 
+	| VarDecl (x,_) -> 
 	  (match x with
-	    | SimTypedSymbol (_,x) -> 
-	      if arg_list <> [] then raise (Error (("Argument " ^ (get_symbol x)) ^ " not of type scalar"));
+	    | SimTypedSymbol (_,x,lc) -> 
+	      if arg_list <> [] then raise (Error ((Reporting.get_line_and_column lc) ^ ("Argument " ^ (get_symbol x)) ^ " not of type scalar"));
 	      Hashtbl.add consts (get_symbol x) arg_val
-	    | ComTypedSymbol (_,x) -> 
+	    | ComTypedSymbol (_,x,lc) -> 
 	      (match x with
-		| AddressedSymbol (x,_,y) ->
+		| AddressedSymbol (x,_,y,lc) ->
 		  let dim_list = resolve_dims y in
 		  if List.length dim_list <> List.length arg_list
-		  then raise (Error (((("Argument " ^ (get_symbol x)) ^ " length not equal: ") ^ 
+		  then raise (Error ((((Reporting.get_line_and_column lc) ^ ("Argument " ^ (get_symbol x)) ^ " length not equal: ") ^ 
 					(((string_of_int (List.length dim_list)) ^ " ") ^ (string_of_int (List.length arg_list))))));
 		(* Now set the consts of dim_list has a string tuple or check that consts are equal *)
 		  check_and_set arg_list 0 (get_symbol x) dim_list;
@@ -757,84 +758,77 @@ struct
       | Not_found -> raise (Internal_compiler_error (s ^ " const_folding: not found in consts hashtbl"))
 
   let fold_symbol consts = function
-    | Symbol x -> 
-      (* let () =  *)
-      (* IFDEF DEBUG THEN *)
-      (* 	print_endline ("trying to resolve value of symbol: " ^ x ) *)
-      (* 	ELSE () *)
-      (* 	END *)
-      (* in *)
-      get_const consts x
+    | Symbol (x,_) -> get_const consts x
 
   let rec fold_simple_expr consts = function
-    | VarRef x as m -> 
+    | VarRef (x,lc) as m -> 
       (match (fold_symbol consts x) with
-	| VConst (x,y) -> Const (x,y)
+	| VConst (x,y) -> Const (x,y,lc)
 	| _ -> m)
-    | AddrRef x ->
-      let value = (match x with AddressedSymbol (x,_,_) -> fold_symbol consts x) in
+    | AddrRef (x,lc) ->
+      let value = (match x with AddressedSymbol (x,_,_,_) -> fold_symbol consts x) in
       (match value with
-	| VConst (x,y) -> Const (x,y)
-	| _ -> AddrRef (fold_addressed_symbol consts x))
-    | Brackets x -> 
+	| VConst (x,y) -> Const (x,y,lc)
+	| _ -> AddrRef (fold_addressed_symbol consts x, lc))
+    | Brackets (x,lc) ->
       (match (fold_simple_expr consts x) with
-	| Const (x,y) as t -> t
-	| _ as s -> Brackets(s))
-    | Cast (d,y) -> Cast(d,(fold_simple_expr consts y))
-    | Opposite x -> Opposite(fold_simple_expr consts x)
-    | Plus (x,y) ->
+	| Const (x,y,lc) as t -> t
+	| _ as s -> Brackets(s,lc))
+    | Cast (d,y,lc) -> Cast(d,(fold_simple_expr consts y),lc)
+    | Opposite (x,lc) -> Opposite(fold_simple_expr consts x,lc)
+    | Plus (x,y,lc) ->
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
-	| (Const(x,y), Const(d,z)) -> 
+	| (Const(x,y,_), Const(d,z,_)) -> 
 	  let valu = Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.add Float.add in
 	  (match valu with
-	    | VConst (x,y) -> Const(x,y)
-	    | _ -> Plus(lvalue,rvalue))
-	| _ -> Plus(lvalue,rvalue))
+	    | VConst (x,y) -> Const(x,y,lc)
+	    | _ -> Plus(lvalue,rvalue,lc))
+	| _ -> Plus(lvalue,rvalue,lc))
 	
-    | Minus (x,y) -> 
+    | Minus (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
-	| (Const(x,y), Const(d,z)) -> 
+	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.sub Float.sub) with
-	    | VConst (x,y) -> Const(x,y)
-	    | _ -> Minus(lvalue,rvalue))
-	| _ -> Minus(lvalue,rvalue))
+	    | VConst (x,y) -> Const(x,y,lc)
+	    | _ -> Minus(lvalue,rvalue,lc))
+	| _ -> Minus(lvalue,rvalue,lc))
 
-    | Times (x,y) -> 
+    | Times (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
-	| (Const(x,y), Const(d,z)) -> 
+	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.mul Float.mul) with
-	    | VConst (x,y) -> Const(x,y)
-	    | _ -> Times(lvalue,rvalue))
-	| _ -> Times(lvalue,rvalue))
+	    | VConst (x,y) -> Const(x,y,lc)
+	    | _ -> Times(lvalue,rvalue,lc))
+	| _ -> Times(lvalue,rvalue,lc))
 
-    | Div (x,y) -> 
+    | Div (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
-	| (Const(x,y), Const(d,z)) -> 
+	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.div Float.div) with
-	    | VConst (x,y) -> Const(x,y)
-	    | _ -> Div(lvalue,rvalue))
-	| _ -> Div(lvalue,rvalue))
+	    | VConst (x,y) -> Const(x,y,lc)
+	    | _ -> Div(lvalue,rvalue,lc))
+	| _ -> Div(lvalue,rvalue,lc))
 
-    | Pow (x,y) -> 
+    | Pow (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
-	| (Const(x,y), Const(d,z)) -> 
+	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.pow Float.pow) with
-	    | VConst (x,y) -> Const(x,y)
-	    | _ -> Pow(lvalue,rvalue))
-	| _ -> Pow(lvalue,rvalue))
+	    | VConst (x,y) -> Const(x,y,lc)
+	    | _ -> Pow(lvalue,rvalue,lc))
+	| _ -> Pow(lvalue,rvalue,lc))
 
-    | Const (x,y) as s -> s
-    | ColonExpr (x,y,z) -> raise (Internal_compiler_error "const_folding: Colon_expr after rewrites!!")
+    | Const (x,y,lc) as s -> s
+    | ColonExpr (x,y,z,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "const_folding: Colon_expr after rewrites!!"))
     | _ as s -> s
 
   and fold_expr consts = function
@@ -842,11 +836,11 @@ struct
     | _ as s -> s
 
   and fold_relexpr consts = function
-    | LessThan (x,y) -> LessThan ((fold_simple_expr consts x), (fold_simple_expr consts y))
-    | LessThanEqual (x,y) -> LessThanEqual ((fold_simple_expr consts x), (fold_simple_expr consts y))
-    | GreaterThan (x,y) -> GreaterThan ((fold_simple_expr consts x), (fold_simple_expr consts y))
-    | GreaterThanEqual (x,y) -> GreaterThanEqual ((fold_simple_expr consts x), (fold_simple_expr consts y))
-    | EqualTo (x,y) -> EqualTo ((fold_simple_expr consts x), (fold_simple_expr consts y))
+    | LessThan (x,y,lc) -> LessThan ((fold_simple_expr consts x), (fold_simple_expr consts y), lc)
+    | LessThanEqual (x,y,lc) -> LessThanEqual ((fold_simple_expr consts x), (fold_simple_expr consts y), lc)
+    | GreaterThan (x,y,lc) -> GreaterThan ((fold_simple_expr consts x), (fold_simple_expr consts y),lc)
+    | GreaterThanEqual (x,y,lc) -> GreaterThanEqual ((fold_simple_expr consts x), (fold_simple_expr consts y),lc)
+    | EqualTo (x,y,lc) -> EqualTo ((fold_simple_expr consts x), (fold_simple_expr consts y),lc)
 
   and fold_angle_dim_list consts = function
     | h::t -> fold_angledim_expr consts h :: fold_angle_dim_list consts t
@@ -873,16 +867,16 @@ struct
      not be folded to a constant, so we will atleast try folding the
      accesses to this addressed symbol to constants *)
   and fold_addressed_symbol consts = function
-    | AddressedSymbol (x,y,z) -> 
+    | AddressedSymbol (x,y,z,lc) -> 
       let angle_dim_list = fold_angle_dim_list consts y in
       let dimspec_list = fold_dimspec_list consts z in
-      AddressedSymbol(x,angle_dim_list,dimspec_list)
+      AddressedSymbol(x,angle_dim_list,dimspec_list,lc)
 
   let fold_var_decl consts = function
-    | ComTypedSymbol (x,y) -> 
+    | ComTypedSymbol (x,y,lc) -> 
       let s = fold_addressed_symbol consts y in
-      ComTypedSymbol(x,s)
-    | SimTypedSymbol (x,y) as s -> s
+      ComTypedSymbol(x,s,lc)
+    | SimTypedSymbol (x,y,lc) as s -> s
 
   let rec fold_assign_decl consts = function
     | AllTypedSymbol x -> AllTypedSymbol (fold_var_decl consts x)
@@ -891,16 +885,16 @@ struct
   let rec fold_stmt consts = function
     (* If it is an addressed symbol then make the non-constant dimensions constants in here*)
     (* assignment remains NULL string*)
-    | VarDecl x -> VarDecl (fold_var_decl consts x)
-    | Assign (x,y) as s -> 
+    | VarDecl (x,lc) -> VarDecl (fold_var_decl consts x,lc)
+    | Assign (x,y,lc) as s -> 
       (* Put this stmt in the hashtbl if this stmt has type FCall in lvalue *)
       let put = (match y with | FCall _ -> true | _ -> false) in
       let rvalue = fold_expr consts y in
       (* Fold the constants here on the lavalue side as well*)
       let lvalue = List.map (fun x -> fold_assign_decl consts x) x in
-      let ret = Assign (lvalue,rvalue) in
+      let ret = Assign (lvalue,rvalue,lc) in
       if put then let () = Hashtbl.add fcall_map s ret in ret else ret
-    | Escape x -> Escape x
+    | Escape (x,lc) -> Escape (x,lc)
     | Noop -> Noop
     | _ -> raise (Internal_compiler_error "const_folding: Unexpected statement encountered after rewrites!!")
 

@@ -64,8 +64,11 @@ struct
 
 
   (* the overall ast *)
+  type line = int
+  type column = int
+
   type symbol =
-      Symbol of string
+      Symbol of string * (line * column)
 
   type index = int
 
@@ -75,20 +78,20 @@ struct
   type simpleExpr = 
     | TStar
     | TStarStar
-    | Plus of simpleExpr * simpleExpr
-    | Minus of simpleExpr * simpleExpr
-    | Times of simpleExpr * simpleExpr
-    | Div of simpleExpr * simpleExpr
-    | Pow of simpleExpr * simpleExpr
-    | Const of DataTypes.t * value
-    | VarRef of symbol
-    | AddrRef of addressedSymbol
-    | Brackets of simpleExpr
-    | Cast of DataTypes.t * simpleExpr
-    | ColonExpr of simpleExpr * simpleExpr * simpleExpr
-    | Opposite of simpleExpr
+    | Plus of simpleExpr * simpleExpr * (line * column)
+    | Minus of simpleExpr * simpleExpr * (line * column)
+    | Times of simpleExpr * simpleExpr * (line * column)
+    | Div of simpleExpr * simpleExpr * (line * column)
+    | Pow of simpleExpr * simpleExpr * (line * column)
+    | Const of DataTypes.t * value * (line * column)
+    | VarRef of symbol * (line * column)
+    | AddrRef of addressedSymbol * (line * column)
+    | Brackets of simpleExpr * (line * column)
+    | Cast of DataTypes.t * simpleExpr  * (line * column)
+    | ColonExpr of simpleExpr * simpleExpr * simpleExpr * (line * column)
+    | Opposite of simpleExpr * (line * column)
   and addressedSymbol =
-      AddressedSymbol of symbol * angledim list * dimspec list
+      AddressedSymbol of symbol * angledim list * dimspec list * (line * column)
   and dimSpecExpr =
     | DimSpecExpr of simpleExpr
   and angledim =
@@ -96,20 +99,21 @@ struct
   and dimspec =
     | BracDim of dimSpecExpr list
   and typedSymbol =
-    | SimTypedSymbol of DataTypes.t * symbol (* Type Symbol *)
-    | ComTypedSymbol of DataTypes.t * addressedSymbol
+    | SimTypedSymbol of DataTypes.t * symbol * (line * column) (* Type Symbol *)
+    | ComTypedSymbol of DataTypes.t * addressedSymbol * (line * column)
 
   type callArgument = 
     | CallAddrressedArgument of addressedSymbol
     | CallSymbolArgument of symbol
-  and filterCall = Call of symbol * callArgument list
+
+  and filterCall = Call of symbol * callArgument list * (line * column)
 
   type relExpr = 
-    | LessThan of simpleExpr * simpleExpr
-    | LessThanEqual of simpleExpr * simpleExpr
-    | GreaterThan of simpleExpr * simpleExpr
-    | GreaterThanEqual of simpleExpr * simpleExpr
-    | EqualTo of simpleExpr * simpleExpr
+    | LessThan of simpleExpr * simpleExpr * (line * column)
+    | LessThanEqual of simpleExpr * simpleExpr * (line * column)
+    | GreaterThan of simpleExpr * simpleExpr * (line * column)
+    | GreaterThanEqual of simpleExpr * simpleExpr * (line * column)
+    | EqualTo of simpleExpr * simpleExpr * (line * column)
 
   type allsym =
     | AllAddressedSymbol of addressedSymbol
@@ -118,13 +122,13 @@ struct
 
 
   type stmt = 
-    | Assign of allsym list * expr (*a=10*)
-    | VarDecl of typedSymbol (*create *)
-    | CaseDef of case
-    | Escape of string
-    | Block of stmt list
-    | Par of symbol * simpleExpr * stmt
-    | For of symbol * simpleExpr * stmt
+    | Assign of allsym list * expr * (line * column) (*a=10*)
+    | VarDecl of typedSymbol * (line * column) (*create *)
+    | CaseDef of case * (line * column)
+    | Escape of string * (line * column)
+    | Block of stmt list * (line * column)
+    | Par of symbol * simpleExpr * stmt * (line * column)
+    | For of symbol * simpleExpr * stmt * (line * column)
     | Noop
   and expr =
     | FCall of filterCall
@@ -140,9 +144,9 @@ struct
   type filter = Filter of symbol * typedSymbol list * typedSymbol list * stmt
 
   type toplevelStmt = 
-    | Def of filter
-    | DefMain of filter
-    | TopEscape of string
+    | Def of filter * (line * column)
+    | DefMain of filter * (line * column)
+    | TopEscape of string * (line * column)
 
   type ast = 
     | Program of toplevelStmt list
