@@ -3,9 +3,13 @@ buggy_test in u out yu {
   yu = erw+1
 }
 
+zeros out O[N] for i in 0:N-1 O[i] = 0
+
 main entry
 {
   var J = 10
   var qwe = buggy_test (J)
+  var A[10] = zeros()
+  var T[J] = A
   
 }

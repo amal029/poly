@@ -38,6 +38,7 @@ main Main
   for i in 0:((K-J)-1) for j in 0:9 {inter[i][j] = 20.0}
   for i in 0:((K-J)-1) for j in 0:9 {inter[i][j] = 20.0}
   for i in 0:M-1 for j in 0:N-1 Result[i,j] = Centroids[i][j]
+  for i in 0:M-1 for j in 0:N-1 Result[i,j] = Centroids[i][j]
   for k in M-1:0:(-1) for p in 0:N-1 Result[k,p] = Centroids[k][p]
   for y in 0:2 {
     var per = 0
