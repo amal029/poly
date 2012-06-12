@@ -1,21 +1,21 @@
-read_input_data out O[N] par i in 0:N-1 O[i] = (int8)0
+read_input_data out O[N][M] par i in 0:N-1 par j in 0:M-1 O[i,j] = (int8)0
+
+gray in yin out yout, uout, vout
+{
+  yout = (int8)yin
+  uout = 128
+  vout = 128
+}
 
 clamp in fin out iout
 {
     case 
-    (fin < 0.0)     {iout = 0}
-    (fin > 255.0)   {iout = 255}
-    otherwise      {iout = (int8)fin}
+    (fin < 0.0)     iout = (int8)0
+    (fin > 255.0)   iout = (int8)255
+    otherwise      iout = (int8)fin
 }
 
-gray in yin out yout, uout, vout
-{
-    yout = yin
-    uout = 128
-    vout = 128
-}
-
-extrapolate in source1, degenarate1, source2, degenerate2, source3, degenerate3, alpha 
+extrapolate in source1, degenerate1, source2, degenerate2, source3, degenerate3, alpha 
   out result1, result2, result3
 {
     var intermediate = ((1.0 - ((alpha / 255.0) - 1.0))
@@ -45,7 +45,7 @@ yuvtorgb in yin,  uin,  vin out rout, gout, bout
 {
     var ydash = ((float32) yin - 16.0) / 219.0
     var udash = ((float32) uin - 128.0) / 224.0
-    var vdash = ((float32) vin) - 128.0) / 224.0
+    var vdash = (((float32) vin) - 128.0) / 224.0
     var interr = (255.0 * (ydash + (1.402 * vdash)))
     var interg = (255.0 * (ydash - (0.344136 * udash) - (0.714136 * vdash)))
     var interb = (255.0 * (ydash + (1.772 * udash)))
@@ -78,8 +78,8 @@ gray_yuvtorgb
 in
     origy[height][width]
 out
-    greyr[height][width]
-    greyg[height][width]
+    greyr[height][width],
+    greyg[height][width],
     greyb[height][width]
 {
   var greyy
@@ -88,48 +88,50 @@ out
 
   par i in 0:height-1
    par j in 0:width-1 {
-    (greyy, greyu, greyv) = gray (origy) 
+    (greyy, greyu, greyv) = gray (origy[i][j]) 
     (greyr[i][j], greyg[i,j], greyb[i][j]) = yuvtorgb (greyy,greyu,greyv) 
    }
 }
 
-MAIN
+ENTER
 in
     origy[height][width],
-    origu[height/2][width/2],
-    origv[height/2][width/2]
+    origu[height2][width2],
+    origv[height2][width2]
 out
     saty[height][width],
-    satu[height/2][width/2],
-    satv[height/2][width/2]
+    satu[height2][width2],
+    satv[height2][width2]
 {
         var alpha = 0.5
         
-	 (var greyr[height][width], var grayg[height][width], var grayb[height][width]) = gray_yuvtorgb (origy) 
+	 (var grayr[height][width], var grayg[height][width], var grayb[height][width]) = gray_yuvtorgb (origy) 
 
-	 var origy[height][width]
-	 var origr[height][width]
-	 var origg[height][width]
+	 var origb[height][width] = read_input_data()
+	 var origr[height][width] = read_input_data()
+	 var origg[height][width] = read_input_data()
 
-	  par i in o:height-1
+	  par i in 0:height-1
 	   par j in 0:width-1
 	    (origr[i][j], origg[i][j], origb[i][j]) = yuvtorgb (origy[i,j],origu[(i/2),(j/2)],origv[(i/2),(j/2)]) 
 
-	 (var satr, var satg, var satb) = extrapolate (origr,greyr,origg,greyg,origb,greyb,alpha)
-	 (saty,satu,satv) = rgbtoyuv (satr,satg,satb) 
-
+	  for i in 0:height-1
+	   for j in 0:width-1 {
+	    (var satr, var satg, var satb) = extrapolate (origr[i,j],grayr[i,j],origg[i,j],grayg[i,j],origb[i,j],grayb[i,j],alpha)
+	    (saty[i,j],satu[i/2][j/2],satv[i/2][j/2]) = rgbtoyuv (satr,satg,satb) 
+	   }
 }
 
 main entry
 {
     var height = 720
-    var weight = 1280
+    var width = 1280
     int8 origy[height][width] = read_input_data()
-    int8 origu[height][width] = read_intpu_data()
-    int8 origv[height][width] = read_intpu_data()
+    int8 origu[height][width] = read_input_data()
+    int8 origv[height][width] = read_input_data()
     int8 saty[(height/2)][(width/2)] = read_input_data()
-    int8 satu[(height/2)][(width/2)] = read_intpu_data()
-    int8 satv[(height/2)][(width/2)] = read_intpu_data()
-
-    (var saty[height][width], var satu[height/2][width/2], var satv[height/2][width/2]) = MAIN (origy,origu,origv) 
+    int8 satu[(height/2)][(width/2)] = read_input_data()
+    int8 satv[(height/2)][(width/2)] = read_input_data()
+      
+    (saty, satu, satv) = ENTER (origy,origu,origv) 
 }

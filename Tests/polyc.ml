@@ -24,7 +24,7 @@ try
     (* Debugging the generated cfg *)
     if !dot then
       let () = print_endline ".....Printing the cfg dot file in directory output..." in
-      let () = Dot.build_program_dot cfg "output/output.dot" in () else ();
+      (* let () = Dot.build_program_dot cfg "output/output.dot" in *) () else ();
     let () = print_endline "Step 5...Performing constant propogation..." in
     let tbl = Constantfolding.Constantpropogation.propogate Language.CFG.Null cfg in
     if !dot then
@@ -33,7 +33,7 @@ try
       let () = FileUtil.mkdir "output" ~parent:true in
       let () = FileUtil.mkdir "output1" ~parent:true in
       let () = print_endline ".....Printing the cfg dot file in directory output..." in
-      let () = Dot.build_program_dot cfg "output/output.dot" in ()
+      (* let () = Dot.build_program_dot cfg "output/output.dot" in *) ()
     else ();
     let () = print_endline "Step 6....Performing constant folding..." in
     let cfg1 = Constantfolding.Constantfolding.fold tbl cfg in
@@ -41,11 +41,11 @@ try
       let () = Dot.build_program_dot cfg1 "output1/output1.dot" in ()
     else ();
     let () = print_endline "Step 7....First order dependent type inference..." in
-    let cfg = Type_inference.First_order.infer_filternode false cfg1 in
+    let cfgt = Type_inference.First_order.infer_filternode false cfg1 in
     (* If decompile option is given then just decompile to andrew lang*)
     if !decompile_flag then
       let () = print_endline "Step 8....Decompiling to AST......" in
-      let ast = DecompiletoAST.decompile cfg in
+      let ast = DecompiletoAST.decompile cfgt in
       let () = print_endline "Step 9....Decompiling to stg-lang......" in
       let andrew_ast = DecompiletoAndrewLang.get_andrew_program ast in
       (* First we need to remove the "/" *)

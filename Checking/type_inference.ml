@@ -142,7 +142,8 @@ struct
       (*Now match the filter signature with the arg_types and also if
 	everything unifies then just give back the output list *)
 	if (List.length args) <> (List.length arg_types) then
-	  raise (Error ("Filter arguments and signature do not unify " ^ (get_symbol x) ^ ", size of args and input parameters not equal"))
+	  raise (Error ((Reporting.get_line_and_column lc) ^ 
+			   "Filter arguments and signature do not unify " ^ (get_symbol x) ^ ", size of args and input parameters not equal"))
 	else 
 	  (* fix this make a hashmap *)
 	  (* If the args has a concrete type then they should match,
@@ -158,7 +159,7 @@ struct
 	    (match (p,y) with
 	      (* Case when either the parameter is None of the argument is none, should never happen *)
 	      | (_,DataTypes.None) | (DataTypes.None,_)-> 
-		raise (Error ("Filter arguments and signature do not unify one of them is not defined yet " ^ (get_symbol x)))
+		raise (Error ((Reporting.get_line_and_column lc) ^ "Filter arguments and signature do not unify one of them is not defined yet " ^ (get_symbol x)))
 	      (* Case when argument is poly and the parameter is poly, happens when a polymorphic function is applied to
 	      another polymorphic function *)
 	      | (DataTypes.Poly _ , DataTypes.Poly _) -> 
@@ -172,7 +173,7 @@ struct
 		   (match binding with 
 		     | DataTypes.Poly _ -> if (not (binding = y)) then 
 			 let () =  print_types binding y in
-			 raise (Error ("Filter arguments and signature do not unify " ^ (get_symbol x)))
+			 raise (Error ((Reporting.get_line_and_column lc) ^ "Filter arguments and signature do not unify " ^ (get_symbol x)))
 		     | _ -> () (*Case when the binding is a concrete type *));
 		   (* Set the argument type to the concrete type of the parameter of the called function
 		   then propogate it to all *)
@@ -203,7 +204,7 @@ struct
 		      declarations := List.map (resolve_all_decs_types p y) !declarations;
 		      call_decs := List.map (resolve_all_decs_types p y) !call_decs; 
 		    | _ -> let () = print_types p y in 
-			   raise (Error ("Filter arguments and signature do not unify " ^ (get_symbol x)))) 
+			   raise (Error ((Reporting.get_line_and_column lc) ^ "Filter arguments and signature do not unify " ^ (get_symbol x)))) 
 	    );
 	    counter := !counter + 1;
 	  ) arg_types args; (* args are the filter begin called type signature *)
@@ -212,13 +213,13 @@ struct
 	    match p with
 	      | DataTypes.Poly _ as s -> (try Hashtbl.find tbl s with Not_found -> 
 		let () = print_types s s in
-		raise (Error ("Filter arguments and signature do not unify " ^ (get_symbol x))))
+		raise (Error ((Reporting.get_line_and_column lc) ^ "Filter arguments and signature do not unify " ^ (get_symbol x))))
 	      | DataTypes.None -> 
-		raise (Error ("Filter arguments and signature do not unify, data type output is None: " ^ (get_symbol x)))
+		raise (Error ((Reporting.get_line_and_column lc) ^ "Filter arguments and signature do not unify, data type output is None: " ^ (get_symbol x)))
 	      | _ as s -> s) ret in
 	  let () = List.iter (fun p -> match p with (* DataTypes.Poly _ *) | DataTypes.None -> 
 	    let () = print_types p p in
-	    raise (Error ("Filter arguments and signature do not unify " ^ (get_symbol x)))
+	    raise (Error ((Reporting.get_line_and_column lc) ^ "Filter arguments and signature do not unify " ^ (get_symbol x)))
 	    | _ -> ()) rr in rr
       with 
 	| Not_found -> raise (Error ((Reporting.get_line_and_column (get_symbol_lc x)) ^ ("Filter " ^ (get_symbol x)) ^ " is unbound"))
@@ -233,8 +234,8 @@ struct
 
   let rec infer_simp_expr declarations = function
     | Const (x,_,_) -> x
-    | Plus (x,y,_) | Minus (x,y,_) | Times (x,y,_) 
-    | Div (x,y,_) | Pow (x,y,_) -> 
+    | Plus (x,y,lc) | Minus (x,y,lc) | Times (x,y,lc) 
+    | Div (x,y,lc) | Pow (x,y,lc) -> 
       let ltype = infer_simp_expr declarations x in
       let rtype = infer_simp_expr declarations y in
       if (unify_types ltype rtype) then ltype
@@ -245,7 +246,7 @@ struct
 	(match (ltype,rtype) with
 	  | (DataTypes.None, _) | (_,DataTypes.None) -> 
 	    let () = print_types ltype rtype in
-	    raise (Error "Mathematical operation branches do not unify one of them is none")
+	    raise (Error ((Reporting.get_line_and_column lc) ^ "Mathematical operation branches do not unify one of them is none"))
 	  | (DataTypes.Poly _, DataTypes.Poly _) ->
 	    (* let rights = (get_used_decs !declarations y) in *)
 	    (* List.iter (fun x -> *)
@@ -272,7 +273,7 @@ struct
 	    (* ) rights; ltype (\*right becomes left *\) *)
 	  | (_,_) -> 
 	    let () = print_types ltype rtype in
-	    raise (Error "Mathematical operation branches do not unify"))
+	    raise (Error ((Reporting.get_line_and_column lc) ^ "Mathematical operation branches do not unify")))
     | VarRef (x,_) -> 
 	if (exists !declarations (get_symbol x)) then
 	  (get_typed_type (get !declarations (get_symbol x)))
@@ -323,11 +324,11 @@ struct
       (* let  () = print_string ("Checking FCALL ") in *)
       infer_filtercall declarations x
 
-  let propogate_constraints declarations ltype rtype =
+  let propogate_constraints lc declarations ltype rtype =
     match (ltype,rtype) with
       | (DataTypes.None, _) | (_,DataTypes.None) -> 
 	let () = print_types ltype rtype in
-	raise (Error "Mathematical operation branches do not unify one of them is none")
+	raise (Error ((Reporting.get_line_and_column lc) ^ "Mathematical operation branches do not unify one of them is none"))
       | (DataTypes.Poly _, DataTypes.Poly _) ->
 	declarations := List.map (resolve_all_decs_types rtype ltype) !declarations;
 	ltype (*right becomes left *)
@@ -339,39 +340,39 @@ struct
 	ltype (*right becomes left *)
       | (_,_) -> 
 	let () = print_types ltype rtype in
-	raise (Error "Mathematical operation branches do not unify")
+	raise (Error ((Reporting.get_line_and_column lc) ^ "Mathematical operation branches do not unify"))
 	  
   let infer_relexpr declarations = function
-    | LessThan (x,y,_) -> 
+    | LessThan (x,y,lc) -> 
       let lexpr_type = (infer_simp_expr declarations x) in
       let rexpr_type = (infer_simp_expr declarations y) in
       if (unify_types lexpr_type rexpr_type) then ()
       else
-	let _ = propogate_constraints declarations lexpr_type rexpr_type in ()
-    | LessThanEqual (x,y,_) -> 
+	let _ = propogate_constraints lc declarations lexpr_type rexpr_type in ()
+    | LessThanEqual (x,y,lc) -> 
       let lexpr_type = (infer_simp_expr declarations x) in
       let rexpr_type = (infer_simp_expr declarations y) in
       if (unify_types lexpr_type rexpr_type) then ()
       else 
-	let _ = propogate_constraints declarations lexpr_type rexpr_type in ()
-    | GreaterThan (x,y,_) -> 
+	let _ = propogate_constraints lc declarations lexpr_type rexpr_type in ()
+    | GreaterThan (x,y,lc) -> 
       let lexpr_type = (infer_simp_expr declarations x) in
       let rexpr_type = (infer_simp_expr declarations y) in
       if (unify_types lexpr_type rexpr_type) then ()
       else 
-	let _ = propogate_constraints declarations lexpr_type rexpr_type in ()
-    | GreaterThanEqual (x,y,_) -> 
+	let _ = propogate_constraints lc declarations lexpr_type rexpr_type in ()
+    | GreaterThanEqual (x,y,lc) -> 
       let lexpr_type = (infer_simp_expr declarations x) in
       let rexpr_type = (infer_simp_expr declarations y) in
       if (unify_types lexpr_type rexpr_type) then ()
       else 
-	let _ = propogate_constraints declarations lexpr_type rexpr_type in ()
-    | EqualTo (x,y,_) -> 
+	let _ = propogate_constraints lc declarations lexpr_type rexpr_type in ()
+    | EqualTo (x,y,lc) -> 
       let lexpr_type = (infer_simp_expr declarations x) in
       let rexpr_type = (infer_simp_expr declarations y) in
       if (unify_types lexpr_type rexpr_type) then ()
       else 
-	let _ = propogate_constraints declarations lexpr_type rexpr_type in ()
+	let _ = propogate_constraints lc declarations lexpr_type rexpr_type in ()
 
   let get_new_typed_symbol declarations v = function
     | SimTypedSymbol (x,_,lc)
@@ -448,7 +449,7 @@ struct
       (*let () = set_curr_line_num s in*)
       let expr_type = infer_expr declarations y in
       if List.length x <> List.length expr_type then 
-	raise (Error "Simple: Input and output types do not unify")
+	raise (Error ((Reporting.get_line_and_column lc) ^ "Simple: Input and output types do not unify"))
       else 
 	Assign ( (infer_assign_lvalue_list declarations expr_type 0 x) , y, lc)
     | Block (x,lc) -> 
@@ -525,7 +526,8 @@ struct
 		  (* Propogate a concrete type from lvalue to the rvalue *)
 		  declarations := List.map (resolve_all_decs_types expr_type (get_typed_type x)) !declarations;
 		| _ -> let () = print_types (get_typed_type x) expr_type in
-		       raise (Error (("types do not unify for assignment to " ^ (get_typed_symbol x))))) in 
+		       raise (Error ((Reporting.get_line_and_column (get_typed_symbol_lc x)) ^ 
+					("types do not unify for assignment to " ^ (get_typed_symbol x))))) in 
 	      (* add the declaration to the declarations list *)
 	      let () = add_to_declarations x declarations in s
 	    else
@@ -534,7 +536,7 @@ struct
 		  (declarations := List.map (resolve_all_decs_types (get_typed_type x) expr_type) !declarations; s)
 		else
 		  let () = print_types (get_typed_type x) expr_type in
-		  raise (Error (("types do not unify for assignment to " ^ (get_typed_symbol x))))
+		  raise (Error ((Reporting.get_line_and_column (get_typed_symbol_lc x)) ^ ("types do not unify for assignment to " ^ (get_typed_symbol x))))
 	      end
 	  end
     | AllSymbol x as s ->
@@ -555,14 +557,14 @@ struct
 		    (* Propogate a concrete type from lvalue to the rvalue *)
 		    declarations := List.map (resolve_all_decs_types expr_type (get_typed_type (get !declarations (get_symbol x)))) !declarations;
 		  | _ -> let () = print_types (get_typed_type (get !declarations (get_symbol x))) expr_type in
-			 raise (Error (("types do not unify for assignment to " ^ (get_symbol x))))) in s
+			 raise (Error ((Reporting.get_line_and_column (get_symbol_lc x)) ^ ("types do not unify for assignment to " ^ (get_symbol x))))) in s
 	      else
 		begin
 		  if (ispoly (get !declarations (get_symbol x))) then
 		    (declarations := List.map (resolve_all_decs_types  (get_typed_type (get !declarations (get_symbol x))) expr_type) !declarations; s)
 		  else 
 		    let () = print_types (get_typed_type (get !declarations (get_symbol x))) expr_type in
-		    raise (Error (("types do not unify for assignment to " ^ (get_symbol x))))
+		    raise (Error ((Reporting.get_line_and_column (get_symbol_lc x)) ^ ("types do not unify for assignment to " ^ (get_symbol x))))
 		end
 	    end 
       else raise (Error ((Reporting.get_line_and_column (get_symbol_lc x)) ^ ("Variable " ^ (get_symbol x)) ^ " is unbound"))
@@ -586,14 +588,16 @@ struct
 		    (* Propogate a concrete type from lvalue to the rvalue *)
 		    declarations := List.map (resolve_all_decs_types expr_type (get_typed_type (get !declarations (get_addressed_symbol x)))) !declarations;
 		  | _ -> let () = print_types (get_typed_type (get !declarations (get_addressed_symbol x))) expr_type in
-			 raise (Error (("types do not unify for assignment to " ^ (get_addressed_symbol x))))) in s
+			 raise (Error ((Reporting.get_line_and_column (get_addressed_symbol_lc x))^ 
+					  ("types do not unify for assignment to " ^ (get_addressed_symbol x))))) in s
 	      else
 		begin
 		  if (ispoly (get !declarations (get_addressed_symbol x))) then
 		    (declarations := List.map (resolve_all_decs_types  (get_typed_type (get !declarations (get_addressed_symbol x))) expr_type) !declarations; s)
 		  else 
 		    let () = print_types (get_typed_type (get !declarations (get_addressed_symbol x))) expr_type in
-		    raise (Error (("types do not unify for assignment to " ^ (get_addressed_symbol x))))
+		    raise (Error ((Reporting.get_line_and_column (get_addressed_symbol_lc x)) ^ 
+				     ("Types do not unify for assignment to " ^ (get_addressed_symbol x))))
 		end
 	    end
       else raise (Error ((Reporting.get_line_and_column (get_addressed_symbol_lc x)) ^ ("Variable " ^ (get_addressed_symbol x)) ^ " is unbound"))
@@ -609,7 +613,7 @@ struct
       (match x with
 	| VarRef (x,lc) -> [(SimTypedSymbol (DataTypes.Int32s,x,lc))]
 	| Const _ -> []
-	| _ -> raise (Error "Dimensions of addressed symbols in function parameters cannot be anything names of consts"))
+	| _ -> raise (Error ("Dimensions of addressed symbols in function parameters cannot be anything but names of consts")))
   let rec get_dimspec_list = function
     | h::t -> get_dimspec h @ get_dimspec_list t
     | [] -> []
@@ -987,13 +991,15 @@ struct
 	Simple.add_to_declarations x declarations
       else 
 	let () = print_types (get_first_order_type x) expr_type in
-	raise (Error ("First_order_type: Types do not unify for assignment to " ^ (Simple.get_typed_symbol x)))
+	raise (Error ((Reporting.get_line_and_column (Simple.get_typed_symbol_lc x)) ^ 
+			 "First_order_type: Types do not unify for assignment to " ^ (Simple.get_typed_symbol x)))
     | AllSymbol x ->
       if (Simple.exists !declarations (Simple.get_symbol x)) then
 	if (Simple.unify_types expr_type (get_first_order_type (Simple.get !declarations (Simple.get_symbol x)))) then ()
 	else 
 	  let () = print_types  (get_first_order_type (Simple.get !declarations (Simple.get_symbol x))) expr_type in
-	  raise (Error ("First_order_type: Types do not unify for assignment to " ^ (Simple.get_typed_symbol (Simple.get !declarations (Simple.get_symbol x)))))
+	  raise (Error ((Reporting.get_line_and_column (Simple.get_symbol_lc x)) ^ 
+			   "First_order_type: Types do not unify for assignment to " ^ (Simple.get_typed_symbol (Simple.get !declarations (Simple.get_symbol x)))))
       else raise (Error (("Variable " ^ (Simple.get_symbol x)) ^ " is unbound"))
     (* TODO: Drop the dimensions that are being dereferenced -- DONE*)
     | AllAddressedSymbol x ->
@@ -1007,7 +1013,9 @@ struct
 	if (Simple.unify_types expr_type (dim_type,dims)) then ()
 	else 
 	  let () = print_types (dim_type,dims) expr_type in
-	  raise (Error ("First_order_type: Types do not unify for assignment to " ^ (Simple.get_typed_symbol (Simple.get !declarations (Simple.get_addressed_symbol x)))))
+	  raise (Error ((Reporting.get_line_and_column (Simple.get_addressed_symbol_lc x)) ^ 
+			   "First_order_type: Types do not unify for assignment to " ^ 
+			   (Simple.get_typed_symbol (Simple.get !declarations (Simple.get_addressed_symbol x)))))
       else raise (Error (("Variable " ^ (Simple.get_addressed_symbol x)) ^ " is unbound"))
 	
   let get_vars = function
@@ -1044,11 +1052,12 @@ struct
       let nz =(infer_cfg declarations z) in 
       Conditionalnode(relexpr, ny, nz)
     | Backnode x as s -> s
-    | Empty as s -> s
+    | Empty as s -> let () = IFDEF DEBUG THEN print_endline "Reached the end" ELSE () ENDIF in s
     | Endnode (stmt,x,z) -> 
       (* FIXME: Need to get rid of all the declared variables like in constant propogation *)
       let dvars = get_dvars stmt in
       (* remove dvars from the declarations list *)
+      let () = IFDEF DEBUG THEN print_endline ("End node: " ^ Dot.dot_stmt stmt) ELSE () ENDIF in
       let () = IFDEF DEBUG THEN List.iter (fun x -> print_endline ("Will remove : " ^ Dot.get_typed_symbol x)) dvars ELSE() ENDIF in
       let () = remove_from_declarations declarations dvars in
       Endnode(stmt,(infer_cfg declarations x),z)
@@ -1103,11 +1112,10 @@ struct
       (* Give out the final type signature for this thing *)
       (* let ins = (get_ins_and_outs (List.nth (List.rev y) 0)) in *)
       let ins = (get_ins_and_outs (List.nth y 0)) in
-      let () = List.iter (fun x -> print_string ((match x with VarDecl (x,lc) -> Dot.dot_typed_symbol x | 
+      let () = List.iter (fun x -> print_string ((match x with VarDecl (x,lc) -> (Dot.dot_typed_symbol x) | 
       _ -> raise (Internal_compiler_error ("Found a non-square node for in/outs "))) ^ " ")) ins in
       let () = if ins <> [] then print_string " -> " in
-      let () = List.iter (fun x -> print_string ((match x with VarDecl (x,lc) -> Dot.dot_typed_symbol x | 
-      (* _ -> raise (Internal_compiler_error "Found a non-square node for in/outs ")))) (get_ins_and_outs (List.nth (List.rev y) 1)) in *)
+      let () = List.iter (fun x -> print_string ((match x with VarDecl (x,lc) -> (Dot.dot_typed_symbol x ^ " ") | 
       _ -> raise (Internal_compiler_error ("Found a non-square node for in/outs "))))) (get_ins_and_outs (List.nth y 1)) in
       let () = print_endline " " in
       ret

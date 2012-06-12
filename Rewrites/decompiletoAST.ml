@@ -167,6 +167,7 @@ let rec decompile_cfg declarations arg = function
     (* Now remove the edecs from the declarations *)
     let () = List.iter (fun r -> declarations := List.filter (fun x -> x <> r) !declarations) dvars in
     (* Now do your usual nigga.. *)
+    let () = IFDEF DEBUG THEN print_endline ("Going away from endnode: " ^ Dot.dot_stmt s) ELSE () ENDIF in
     let () = add_to_stack x in []
   | Startnode (stmt,x) -> 
     (* First determine the type of stmt this is *)
@@ -180,7 +181,8 @@ let rec decompile_cfg declarations arg = function
 	startnode_par lc declarations arg x
       | Block (_,lc) -> startnode_block lc declarations arg x
       | _ -> raise (Internal_compiler_error "Got an unknown type stmt in the start node"))
-  | Empty -> []
+  | Empty -> 
+    let () = IFDEF DEBUG THEN print_endline "reached empty node" ELSE () ENDIF in []
   | Squarenode (x,y) -> 
     (* We might need to change this expression name for the fcall *)
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_stmt x) ELSE () ENDIF in

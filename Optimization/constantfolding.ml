@@ -31,7 +31,7 @@ struct
 
   let get_value = function
     | VConst (_,x) -> x
-    | _ -> raise (Error ("Value Top undefined or not supported by the native architecure "))
+    | _ -> raise (Error ("Value Top undefined or not supported by the native architecure"))
 
   let is_int_type = function
     | DataTypes.Int8
@@ -74,7 +74,7 @@ struct
 
   let rec get_simexpr_const = function
     | Const (x,y,_) -> VConst (x,y)
-    | VarRef (x,_) -> 
+    | VarRef (x,lc) -> 
       (try 
 	 let lc = ref [] in
 	 list_from_hash lc consts;
@@ -82,16 +82,16 @@ struct
 	 let () = IFDEF DEBUG THEN (List.iter (fun (x,y) -> print_endline (("key: " ^ x) ^ (" = value : " ^ (match y with VConst (_,y) -> y | _ -> "Top")))) !lc)
 	   ELSE () ENDIF in
 	 Hashtbl.find consts (get_symbol x)
-       with | Not_found -> raise (Error (("VarRef consts: Var " ^ (get_symbol x)) ^ " not defined before use")))
+       with | Not_found -> raise (Error ((Reporting.get_line_and_column lc) ^ ("VarRef consts: Var " ^ (get_symbol x)) ^ " not defined before use")))
   (* Try floding expressions and see if you get a constant *)
-    | AddrRef (x,_) -> 
+    | AddrRef (x,lc) -> 
       (try 
 	 let lc = ref [] in
 	 list_from_hash lc consts;
 	 let () = IFDEF DEBUG THEN (List.iter (fun (x,y) -> print_endline (("key: " ^ x) ^ ("value : " ^ (match y with VConst (_,y) -> y | _ -> "Top")))) !lc)
 	   ELSE () ENDIF in
 	 Hashtbl.find consts (get_addressed_symbol x)
-       with | Not_found -> raise ( Error ((" AddrRef consts: Var " ^ (get_addressed_symbol x)) ^ " not defined before use")))
+       with | Not_found -> raise ( Error ((Reporting.get_line_and_column lc) ^ (" AddrRef consts: Var " ^ (get_addressed_symbol x)) ^ " not defined before use")))
     | Plus (x,y,_) ->
       let lvalue = get_simexpr_const x in
       let rvalue = get_simexpr_const y in
@@ -905,6 +905,7 @@ struct
       let ret = fold_cfg nodes x in
       Squarenode (s,ret)
     | Conditionalnode (x,y,z) as m -> 
+      let () = IFDEF DEBUG THEN print_endline ("Changing " ^ Dot.dot_relexpr x) ELSE () ENDIF in
       let nrel_expr = fold_relexpr (Hashtbl.find nodes m) x in
       let tbranch = (fold_cfg nodes y) in
       let fbranch = (fold_cfg nodes z) in
@@ -920,7 +921,7 @@ struct
       let cont = 
 	(try
 	   let counter = Hashtbl.find endnodes s in
-	   (* let () = print_endline ((" from hashtbl counter is :" ^ (string_of_int counter)) ^ (" for " ^ (Dot.dot_stmt x))) in *)
+	   let () = IFDEF DEBUG THEN print_endline ((" from hashtbl counter is :" ^ (string_of_int counter)) ^ (" for " ^ (Dot.dot_stmt stmt))) ELSE () ENDIF in
 	   if (counter - 1) <= 0 then true
 	   else
 	     let () = Hashtbl.replace endnodes s (counter-1) in
@@ -928,14 +929,16 @@ struct
 	 with 
 	   | Not_found -> 
 	     if (parents - 1) <= 0 then 
-	       (* let () = print_endline (("counter is for first time, **NOT ADDING**:" ^ (string_of_int parents)) ^ (" for " ^ (Dot.dot_stmt x))) in *)
+	       let () = IFDEF DEBUG THEN 
+		 print_endline (("counter is for first time, **NOT ADDING**:" ^ (string_of_int parents)) ^ (" for " ^ (Dot.dot_stmt stmt))) ELSE () ENDIF in
 	       true
 	     else 
-	       (* let () = print_endline (("counter is for first time, **ADDING**:" ^ (string_of_int parents)) ^ (" for " ^ (Dot.dot_stmt x))) in *)
+	       let () = IFDEF DEBUG THEN 
+		 print_endline (("counter is for first time, **ADDING**:" ^ (string_of_int parents)) ^ (" for " ^ (Dot.dot_stmt stmt))) ELSE () ENDIF in
 	       let () = Hashtbl.add endnodes s (parents-1) in false
 	) in
       if cont then
-	Endnode(stmt,(fold_cfg nodes x),parents)
+	let () = Hashtbl.remove endnodes s in Endnode(stmt,(fold_cfg nodes x),parents)
       else Empty
     | Backnode x -> Backnode (ref Empty)
     | Empty -> Empty
