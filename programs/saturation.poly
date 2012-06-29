@@ -121,15 +121,16 @@ out
 	    (saty[i,j],satu[i/2][j/2],satv[i/2][j/2]) = rgbtoyuv (satr,satg,satb) 
 	   }
 }
+where (height%2==0 && width%2 == 0)
 
-main entry
+main
 {
     var height = 720
     var width = 1280
     int8 origy[height][width] = read_input_data()
-    int8 origu[height][width] = read_input_data()
-    int8 origv[height][width] = read_input_data()
-    int8 saty[(height/2)][(width/2)] = read_input_data()
+    int8 origu[height/2][width/2] = read_input_data()
+    int8 origv[height/2][width/2] = read_input_data()
+    int8 saty[height][width] = read_input_data()
     int8 satu[(height/2)][(width/2)] = read_input_data()
     int8 satv[(height/2)][(width/2)] = read_input_data()
       

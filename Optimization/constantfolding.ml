@@ -99,6 +99,7 @@ struct
     | Minus (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.sub Float.sub
     | Times (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.mul Float.mul
     | Div (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.div Float.div
+    | Mod (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.rem Float.modulo
     | Pow (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.pow Float.pow
     | Cast (d,y,_) -> 
       let ret = get_simexpr_const y in
@@ -230,7 +231,7 @@ struct
     | Const (x,y,_) -> ()
     | VarRef (x,_) -> decs := (get_symbol x) :: !decs
     | AddrRef (x,_) -> decs := (get_addressed_symbol x) :: !decs
-    | Plus (x,y,_) | Minus (x,y,_) | Times (x,y,_) | Div (x,y,_) 
+    | Plus (x,y,_) | Minus (x,y,_) | Times (x,y,_) | Div (x,y,_) | Mod (x,y,_)
     | Pow (x,y,_) -> let () = get_alldim_decs decs x in get_alldim_decs decs y
     | Cast (d,y,_) -> get_alldim_decs decs y
     | Brackets (x,_) | Opposite (x,_) -> get_alldim_decs decs x
@@ -419,6 +420,7 @@ struct
     | Minus (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.sub Float.sub
     | Times (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.mul Float.mul
     | Div (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.div Float.div
+    | Mod (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.rem Float.modulo
     | Pow (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.pow Float.pow
     | Cast (d,y,_) -> 
       let ret = simple_epxr_const v y in
@@ -707,7 +709,7 @@ struct
     (* let () = propogate_top body in () *)
 
   let propogate_topnode prev_topnode = function
-    | Topnode (fcall, x,y) as s ->
+    | Topnode (fcall, x,_,y) as s ->
       let () = Hashtbl.clear consts in
       let () = Hashtbl.clear nodes in
       let () = print_string ("Filter: " ^ x ^ " " ) in
@@ -738,7 +740,8 @@ struct
   open Consts
   open Batteries_uni
 
-  exception Internal_compiler_error of string;;
+  exception Internal_compiler_error of string
+  exception Error of string
   let endnodes = Hashtbl.create (20)
   let fcall_map = Hashtbl.create (20)
 
@@ -817,6 +820,17 @@ struct
 	    | _ -> Div(lvalue,rvalue,lc))
 	| _ -> Div(lvalue,rvalue,lc))
 
+    | Mod (x,y,lc) -> 
+      let lvalue = fold_simple_expr consts x in
+      let rvalue = fold_simple_expr consts y in 
+      (match (lvalue,rvalue) with
+	| (Const(x,y,_), Const(d,z,_)) -> 
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.rem Float.modulo) with
+	    | VConst (x,y) -> Const(x,y,lc)
+	    | _ -> Mod(lvalue,rvalue,lc))
+	| _ -> Mod(lvalue,rvalue,lc))
+
+
     | Pow (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
@@ -841,6 +855,9 @@ struct
     | GreaterThan (x,y,lc) -> GreaterThan ((fold_simple_expr consts x), (fold_simple_expr consts y),lc)
     | GreaterThanEqual (x,y,lc) -> GreaterThanEqual ((fold_simple_expr consts x), (fold_simple_expr consts y),lc)
     | EqualTo (x,y,lc) -> EqualTo ((fold_simple_expr consts x), (fold_simple_expr consts y),lc)
+    | And (x,y,lc) -> And (fold_relexpr consts x, fold_relexpr consts y, lc)
+    | Or (x,y,lc) -> Or (fold_relexpr consts x, fold_relexpr consts y, lc)
+    | Rackets (x,lc) -> Rackets(fold_relexpr consts x, lc)
 
   and fold_angle_dim_list consts = function
     | h::t -> fold_angledim_expr consts h :: fold_angle_dim_list consts t
@@ -897,7 +914,7 @@ struct
     | Escape (x,lc) -> Escape (x,lc)
     | Noop -> Noop
     | _ -> raise (Internal_compiler_error "const_folding: Unexpected statement encountered after rewrites!!")
-
+      
   let rec fold_cfg nodes = function
     | Startnode (stmt,x) -> Startnode (stmt, (fold_cfg nodes x))
     | Squarenode (stmt,x) as m ->
@@ -947,20 +964,66 @@ struct
     | h::t -> fold_cfg nodes h :: fold_cfg_list nodes t
     | [] -> []
 
+  let fold_rel lc op = function
+    | (Const (d,lv,_), Const(d1,rv,_)) -> 
+      if d = d1 then
+	(match (op lv rv) with
+	    | true -> true
+	    | false -> false
+	    | _ -> raise (Error ((Reporting.get_line_and_column lc)^ "Noting but relexpressions allowed in constraints")))
+      else raise (Error ((Reporting.get_line_and_column lc) ^ "Constraint types do not unify"))
+    | _ -> raise (Error ((Reporting.get_line_and_column lc) ^ "Constraints cannot be resolved"))
+    
+  let check_me lc l r op = op l r
+
+  let rec fold_me = function
+    | LessThanEqual (x,y,lc) -> check_me lc (fold_rel lc (<=) (x,y)) true (&&)
+    | LessThan (x,y,lc) -> check_me lc (fold_rel lc (<) (x,y)) true (&&)
+    | EqualTo (x,y,lc) -> check_me lc (fold_rel lc (=) (x,y)) true (&&)
+    | GreaterThanEqual (x,y,lc) -> check_me lc (fold_rel lc (>=) (x,y)) true (&&)
+    | GreaterThan (x,y,lc) -> check_me lc (fold_rel lc (>) (x,y)) true (&&)
+    | And (x,y,lc) -> 
+      let ll = fold_me x in
+      let lr = fold_me y in 
+      check_me lc ll lr (&&)
+    | Or (x,y,lc) -> 
+      let ll = fold_me x in
+      let lr = fold_me y in
+      check_me lc ll lr (||)
+    | Rackets (x,_) -> fold_me x
+
+  let fold_constraints nodes = function
+    | None -> None
+    | Some x -> match fold_me (fold_relexpr nodes x) with | true -> None 
+	| false -> raise (Error ("Constraints cannot be satisfied"))
+
+  let get_consts_from_nodes nodes = function
+    | Squarenode _ as s -> Hashtbl.find nodes s
+    | Startnode _ -> raise (Internal_compiler_error "I am a startnode")
+    | Conditionalnode _ -> raise (Internal_compiler_error "I am a conditional node")
+    | Endnode _ ->raise (Internal_compiler_error "I am an endnode") 
+    | Empty -> raise (Internal_compiler_error "I am an empty node")
+    | Backnode _ ->raise (Internal_compiler_error "I am a backnode") 
+
   let fold_topnode nodes = function
-    | Topnode (f,name,y) -> 
+    | Topnode (f,name,r,y) -> 
       (* Just get the new f from the hashtbl *)
       let f = (try
 		 (match f with | Noop -> Noop 
 		   | _ -> Hashtbl.find fcall_map f)
 	with
 	  | Not_found -> raise (Internal_compiler_error ("Stmt: " ^ (Dot.dot_stmt f) ^ " replacement not found"))) in
-      Topnode(f,name,(fold_cfg_list nodes (List.rev y)))
+      (* Get the consts from the input or outputs *)
+      (match r with | Some _ -> 
+	let get_from = (match (List.hd y) with | Empty -> (List.nth y 1) | _ as s -> s) in
+	let c_consts = get_consts_from_nodes nodes get_from in
+	Topnode(f,name,(fold_constraints c_consts r), (fold_cfg_list nodes (List.rev y)))
+	| None -> Topnode(f,name,r,(fold_cfg_list nodes (List.rev y))))
     | Null -> raise (Internal_compiler_error "TopNode is null")
 
   let rec fold top_nodes = function
     | Filternode (x,y) -> 
-      let () = print_endline ("Filter: " ^ (match x with | Topnode (_,x,_) -> x | Null -> raise (Internal_compiler_error "Hit a Null, by mistake")) ^ "...Done") in
+      let () = print_endline ("Filter: " ^ (match x with | Topnode (_,x,_,_) -> x | Null -> raise (Internal_compiler_error "Hit a Null, by mistake")) ^ "...Done") in
       let topnode = fold_topnode (Hashtbl.find top_nodes x) x in
       let ll = fold_rest top_nodes y in
       Filternode (topnode,ll)

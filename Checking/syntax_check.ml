@@ -65,11 +65,15 @@ struct
       | SimExpr x -> check_sim_expr vars errors warns x
       (* | Main -> () *)
 
-  let check_relexpr vars errors warns = function
+  let rec check_relexpr vars errors warns = function
       | LessThan (x,y,_) | LessThanEqual (x,y,_) | GreaterThan (x,y,_) 
       | GreaterThanEqual (x,y,_) | EqualTo (x,y,_) -> 
 	(check_sim_expr vars errors warns x;
 	 check_sim_expr vars errors warns y)
+      | And (x,y,_) | Or (x,y,_) -> 
+	let () = check_relexpr vars errors warns x in 
+	let () = check_relexpr vars errors warns y in ()
+      | Rackets (x,_) -> check_relexpr vars errors warns x
 	  
   let rec check_scope_existence vs errors = function
     | h::t -> check_in_vs h errors vs; check_scope_existence vs errors t
@@ -148,8 +152,8 @@ struct
       | [] -> []
 	
   let rec check_tolevelstmt = function
-      | Def (x,lc) -> check_filter x
-      | DefMain (x,lc) -> check_filter x
+      | Def (x,_,lc) -> check_filter x
+      | DefMain (x,_,lc) -> check_filter x
       | _ -> () (* You can put anything in the escape code *)
 
   let rec check_ast = function

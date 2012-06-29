@@ -22,6 +22,7 @@ let value_xml x = Element ("Value",[],[PCData x])
 let rec simexpr_xml = function
   | Plus (x,y) -> Element("Plus",[],[(simexpr_xml x);(simexpr_xml y)])
   | Div (x,y) -> Element("Div",[],[(simexpr_xml x);(simexpr_xml y)])
+  | Mod (x,y) -> Element("Mod",[],[(simexpr_xml x);(simexpr_xml y)])
   | Times (x,y) -> Element("Times",[],[(simexpr_xml x);(simexpr_xml y)])
   | Pow (x,y)-> Element("Pow",[],[(simexpr_xml x);(simexpr_xml y)])
   | Minus (x,y) -> Element("Minus",[],[(simexpr_xml x);(simexpr_xml y)])

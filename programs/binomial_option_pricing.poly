@@ -47,7 +47,7 @@ compute_value_at_excercise_date in T[optN], S[optN], X[optN], M, Volatility, Ris
   }
 }
 
-main entry
+main
 {
   var N = 0
   var optN = 0

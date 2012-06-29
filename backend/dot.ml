@@ -23,6 +23,7 @@ let get_typed_symbol = function
 let rec dot_simpleexpr = function
   | TStar -> "*"
   | TStarStar -> "**"
+  | Mod (x,y,_) -> (dot_simpleexpr x ^ "%" ^ dot_simpleexpr y)
   | Plus (x,y,_)  -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
@@ -122,7 +123,7 @@ let rec dot_stmt = function
     " Par " ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
   | CaseDef (x,_) -> "case stmt"
 
-let dot_relexpr = function
+let rec dot_relexpr = function
   | LessThan (x,y,_) -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
@@ -143,6 +144,12 @@ let dot_relexpr = function
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " == " ) ^ rstring
+  | And (lx, rx, _) -> 
+    let ll = dot_relexpr lx in
+    let lr = dot_relexpr rx in
+    (ll ^ "&&" ^ lr)
+  | Or (lx, rx, _) -> ((dot_relexpr lx) ^ "||" ^ (dot_relexpr rx))
+  | Rackets (x,_) -> "(" ^ (dot_relexpr x) ^ ")"
 
 let get_tnode_id = function
   | Stmt_edge x -> (match x with (x,_,_) -> (match x with Edge_node_id x -> x | _ -> raise (Internal_compiler_error "Got an edge_subgraph when not expected")))
@@ -258,7 +265,7 @@ let rec dot_cfg ll = function
 let fcounter = ref 1
 
 let dot_topnode = function
-  | Topnode (fcall, name, cfg_list) -> 
+  | Topnode (fcall, name, r, cfg_list) -> 
     (* Debugging *)
     (* let () = print_endline ("Building new filter named************: " ^ name) in *)
     let cfg_dot_list = ref [] in 
@@ -268,7 +275,9 @@ let dot_topnode = function
     Hashtbl.clear visited_nodes;
     (* Dump the files separately *)
     fcounter := !fcounter + 1;
-    let subg = {strict = false; kind = Digraph; id = Some (Simple_id name); stmt_list = !cfg_dot_list} in
+    let rdot = (match r with | None -> "where ()" | Some x -> ("where" ^ dot_relexpr x)) in
+    let rdotstmt_node = Stmt_node ((Simple_id rdot,None),[]) in
+    let subg = {strict = false; kind = Digraph; id = Some (Simple_id name); stmt_list = (!cfg_dot_list@[rdotstmt_node])} in
     let () = print_file ((("output/" ^ name) ^ (string_of_int !fcounter)) ^ ".dot") subg in
     let () = print_file ((("output1/" ^ name) ^ (string_of_int !fcounter)) ^ ".dot") subg in
     let ret = {sub_id = Some id; sub_stmt_list = !cfg_dot_list} in

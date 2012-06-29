@@ -32,7 +32,7 @@ optimization: fcheck
 	            *.cmo -o optimizations.cma
 fcheck: 
 	# $(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -i constantfolding.ml
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" \
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
 	-I $(ERRORDIR) -I $(LANGDIR) $(LANGLIB) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -c constantfolding.ml
 
 clean:

@@ -2,6 +2,7 @@ COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml
 BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
 BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
+LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
 ERRORDIR=$(COMP_HOME)/Error
 LIBDIR=$(COMP_HOME)/lib
 LANGDIR=$(COMP_HOME)/Abstract
@@ -28,6 +29,7 @@ UNIXLIB=unix.cma
 STRLIB=str.cma
 ERRORLIB=error.cma
 FILEUTILS=fileutils.cma
+LLVMLIB=llvm_scalar_opts.cma llvm_bitwriter.cma llvm_analysis.cma
 CC=ocamlc
 SRC=polyc.ml
 TARGET=polyc
@@ -40,10 +42,10 @@ run:
 	./polyc $(FILE)
 
 compile:
-	$(CC) -I $(PARSEDIR) -I $(LANGDIR) -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) \
+	$(CC) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR) -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) \
 	-I $(OPTDIR) -I $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(REWRITES) $(ANALYSIS) \
 	$(OPTIMIZATIONS) -I $(CODEGENDIR) $(CODEGENLIB) \
-	-I $(LIBDIR) $(FILEUTILS) $(SRC) -o $(TARGET)
+	-I $(LIBDIR) $(FILEUTILS) $(LLVMLIB) -cclib -lstdc++ $(SRC) -o $(TARGET)
 
 clean:
 	rm -rf ../output ../output1 polyc *.cm* *mli

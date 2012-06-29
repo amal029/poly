@@ -20,7 +20,8 @@
 
 /* The tokens */
 /* Constant constructors */
-%token TPlus TMinus TTimes TDiv TPow TOP TCP TEqual TOB TCB TComma TLess TLessEqual TGreater TGreaterEqual TEqualEqual
+%token TPlus TMinus TTimes TDiv TPow TOP TCP TEqual TOB TCB TComma TLess TLessEqual TGreater TGreaterEqual TEqualEqual TMod
+%token And Or Where
 %token TLbrack TRbrack TColon TCase TEof TLShift TRShift TVar
 %token TMain TIn TOut TOtherwise TPar TFor
 %token TInt8 TInt16 TInt32 TInt64 TInt8s TInt16s TInt32s TInt64s TFloat8 TFloat32 TFloat64 TFloat16
@@ -33,7 +34,7 @@
 
 /* operator associative rules */
 %left TPlus TMinus
-%left TTimes TDiv 
+%left TTimes TDiv TMod
 %left TPow
 %left TOP TCP
 %nonassoc TUminus /* useful for difference between -2 and 1 - 2*/
@@ -54,8 +55,10 @@ toplevelstmtlist:
     | toplevelstmt {[$1]}
 
 toplevelstmt:
-    | filter {Language.Language.Def ($1, ln())}
-    | TMain filter {Language.Language.DefMain($2, ln())}
+    | filter {Language.Language.Def ($1, None, ln())}
+    | filter Where relExpr {Language.Language.Def ($1, Some $3, ln())}
+    | TMain stmt {Language.Language.DefMain(Language.Language.Filter(Language.Language.Symbol("main",ln()),[],[],$2), None, ln())}
+    | TMain stmt Where relExpr {Language.Language.DefMain(Language.Language.Filter(Language.Language.Symbol("main",ln()),[],[],$2), Some $4, ln())}
     | TEscapedCode {Language.Language.TopEscape ($1, ln())}
 ;
 
@@ -160,6 +163,9 @@ callargument:
 ;
 
 relExpr:
+    | relExpr Or relExpr {Language.Language.Or($1,$3,ln())}
+    | relExpr And relExpr {Language.Language.And($1,$3,ln())}
+    | TOP relExpr TCP {Language.Language.Rackets($2,ln())}
     | simpleExpr TLess simpleExpr {Language.Language.LessThan($1,$3, ln())}
     | simpleExpr TLessEqual simpleExpr {Language.Language.LessThanEqual($1,$3, ln())}
     | simpleExpr TGreater simpleExpr {Language.Language.GreaterThan($1,$3, ln())}
@@ -212,6 +218,7 @@ colonExpr:
 simpleExpr:
     | simpleExpr TPlus simpleExpr {Language.Language.Plus ($1, $3, ln())}
     | simpleExpr TMinus simpleExpr {Language.Language.Minus ($1, $3, ln())}
+    | simpleExpr TMod simpleExpr {Language.Language.Mod ($1, $3, ln())}
     | simpleExpr TTimes simpleExpr {Language.Language.Times ($1, $3, ln())}
     | simpleExpr TPow simpleExpr {Language.Language.Pow ($1, $3, ln())}
     | simpleExpr TDiv simpleExpr {Language.Language.Div ($1, $3, ln())}

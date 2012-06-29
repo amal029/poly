@@ -28,6 +28,7 @@ struct
     | Bool
     | Poly of string
 
+    
   let print_datatype = function
     | Int8 -> "Int8"
     | Int16 -> "Int16"
@@ -53,6 +54,45 @@ struct
   let floating            = [Float8; Float16; Float32; Float64];;
   let signed              = floating @ signedIntegral;;
   let numeric             = integral @ floating;;
+
+  let cmp_datatype (l,r) = 
+    if List.exists (fun x -> x = l) unsignedIntegral && List.exists (fun x -> x = r) signedIntegral then
+      "sext"
+    else if List.exists (fun x -> x = l) unsignedIntegral && List.exists (fun x -> x = r) floating then
+      "uitofp"
+    else if List.exists (fun x -> x = l) signedIntegral && List.exists (fun x -> x = r) floating then
+      "sitofp"
+    else if List.exists (fun x -> x = l) signedIntegral && List.exists (fun x -> x = r) unsignedIntegral then
+      "trunc"
+    else if List.exists (fun x -> x = l) floating && List.exists (fun x -> x = r) unsignedIntegral then
+      "fptoui"
+    else if List.exists (fun x -> x = l) floating && List.exists (fun x -> x = r) signedIntegral then
+      "fptosi"
+    (* Now rest of the crappy ones *)
+    else if (l = r) then "="
+    else 
+      begin
+	match (l,r) with
+	  | (Int8,_) -> "sext"
+	  | (_,Int8) -> "trunc"
+	  | (Int16, Int32) | (Int16,Int64) -> "zext"
+	  | (Int32, Int16) | (Int64,Int16) -> "trunc"
+	  | (Int32,Int64) -> "zext"
+	  | (Int64,Int32) -> "trunc"
+	  | (Int8s,_) -> "sext"
+	  | (_,Int8s) -> "trunc"
+	  | (Int16s,Int32s) | (Int16s,Int64s) -> "sext"
+	  | (Int32s,Int16s) | (Int64s,Int16s) -> "trunc"
+	  | (Int32s,Int64s) -> "sext"
+	  | (Int64s,Int32s) -> "trunc"
+	  | (Float8,_) -> "fpext"
+	  | (_,Float8) -> "fptrunc"
+	  | (Float16, Float32) | (Float16,Float64) -> "fpext"
+	  | (Float32, Float16) | (Float64,Float16) -> "fptrunc"
+	  | (Float32,Float64) -> "fpext"
+	  | (Float64,Float32) -> "fptrunc"
+      end
+      
 end
 ;;
 
@@ -82,6 +122,7 @@ struct
     | Minus of simpleExpr * simpleExpr * (line * column)
     | Times of simpleExpr * simpleExpr * (line * column)
     | Div of simpleExpr * simpleExpr * (line * column)
+    | Mod of simpleExpr * simpleExpr * (line * column)
     | Pow of simpleExpr * simpleExpr * (line * column)
     | Const of DataTypes.t * value * (line * column)
     | VarRef of symbol * (line * column)
@@ -114,6 +155,9 @@ struct
     | GreaterThan of simpleExpr * simpleExpr * (line * column)
     | GreaterThanEqual of simpleExpr * simpleExpr * (line * column)
     | EqualTo of simpleExpr * simpleExpr * (line * column)
+    | And of relExpr * relExpr * (line * column)
+    | Or of relExpr * relExpr * (line * column)
+    | Rackets of relExpr * (line * column)
 
   type allsym =
     | AllAddressedSymbol of addressedSymbol
@@ -144,8 +188,8 @@ struct
   type filter = Filter of symbol * typedSymbol list * typedSymbol list * stmt
 
   type toplevelStmt = 
-    | Def of filter * (line * column)
-    | DefMain of filter * (line * column)
+    | Def of filter * relExpr option * (line * column)
+    | DefMain of filter * relExpr option * (line * column)
     | TopEscape of string * (line * column)
 
   type ast = 
@@ -161,7 +205,7 @@ module FCFG =
 struct
   open Language
   type fcfg = 
-    | Node of stmt * filter * fcfg list
+    | Node of stmt * filter * relExpr option * fcfg list
 end
 
 module CFG =
@@ -175,7 +219,7 @@ struct
     | Backnode of cfg ref (* For loops (*pun intended*) *)
     | Empty
   and topnode = 
-    | Topnode of stmt * string * cfg list (* These are my statements within a filter and its name *)
+    | Topnode of stmt * string * relExpr option * cfg list (* These are my statements within a filter and its name *)
     | Null
   type filternode = 
     | Filternode of topnode * filternode list (* These are the connections to other filters' topnodes *)

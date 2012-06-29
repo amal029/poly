@@ -59,6 +59,7 @@ struct
     | Minus of simpleExpr * simpleExpr
     | Times of simpleExpr * simpleExpr
     | Div of simpleExpr * simpleExpr
+    | Mod of simpleExpr * simpleExpr
     | Pow of simpleExpr * simpleExpr
     | Const of DataTypes.t * value
     | Ref of rsymbol

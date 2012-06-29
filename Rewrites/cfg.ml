@@ -97,21 +97,21 @@ and build_clause_stmt t ostmt = function
   | Clause (x,y) -> Conditionalnode (x, (make_stmt [] y), (build_case_clause ostmt t) )
 
 
-let rec make_cfg e = function
+let rec make_cfg r e = function
   | Filter (x,y,z,w) -> 
     let (name,lc) = (match x with Symbol (x,lc) -> (x,lc)) in
     let inl = get_it lc y in
     let outl = get_it lc z in
     let node = make_stmt [] w in
-    Topnode (e, name, [inl;outl;node])
+    Topnode (e, name, r, [inl;outl;node])
 and get_it lc = function
   | h :: t -> Squarenode (VarDecl (h,lc), get_it lc t)
   | [] -> Empty
 
 let rec check_fcfg = function
-  | FCFG.Node (e,x,y) -> 
+  | FCFG.Node (e,x,r,y) -> 
     (* Me is a top node *)
-    let me = make_cfg e x in 
+    let me = make_cfg r e x in 
     (* These are all also top nodes for all the other filters *)
     let ll = check_fcfg_nodes y in
     Filternode (me, ll)

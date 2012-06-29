@@ -61,6 +61,7 @@ let rec replace_stars_simpleexpr declarations = function
   | Minus (x,y,lc) -> Minus (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
   | Times (x,y,lc) -> Times (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
   | Div (x,y,lc) -> Div (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
+  | Mod (x,y,lc) -> Mod (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
   | Pow (x,y,lc) -> Pow (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
   | Const _ | VarRef _ as s -> s
   | Brackets (x,lc) -> Brackets (replace_stars_simpleexpr declarations x, lc)
@@ -212,7 +213,9 @@ let rec decompile_cfg declarations arg = function
     let lc = (match x with 
       | LessThanEqual (_,_,lc) | LessThan (_,_,lc)
       | GreaterThanEqual (_,_,lc) | GreaterThan (_,_,lc)
-      | EqualTo (_,_,lc) -> lc) in
+      | EqualTo (_,_,lc) -> lc
+      | And(_,_,lc) | Or(_,_,lc) -> lc
+      | Rackets (_,lc) -> lc) in
     (match arg with
       | CASE -> conditional_case lc declarations arg x y z
       | LOOP -> conditional_loop lc declarations arg x y z
@@ -325,7 +328,7 @@ let rec decompile_filter_params = function
   | _ -> raise (Internal_compiler_error "Inputs/Outputs not declared in a square node!!")
 
 let decompile_topnode = function
-  | Topnode (fcall,name,cfg_list) -> 
+  | Topnode (fcall,name,r,cfg_list) -> 
     let () = IFDEF DEBUG THEN print_endline ("Filter: " ^ name) ELSE () ENDIF in
     let inputs = decompile_filter_params (List.nth cfg_list 0) in
     let outputs = decompile_filter_params (List.nth cfg_list 1) in
@@ -335,7 +338,7 @@ let decompile_topnode = function
     let body = decompile_cfg declarations BLOCK (List.nth cfg_list 2) in
     let body_list = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-block in the Topnode"))) body in
     if name = "main" || name = "Main" then
-      DefMain(Filter((Symbol (name, (0,0))), inputs, outputs, (Block (body_list,(0,0)))), (0,0))
+      DefMain(Filter((Symbol (name, (0,0))), inputs, outputs, (Block (body_list,(0,0)))), None, (0,0))
     else 
       begin
 	(* First change the name of the filter *)
@@ -346,7 +349,7 @@ let decompile_topnode = function
 	let () = IFDEF DEBUG THEN print_endline ("Adding to hashtbl: " ^ Dot.dot_stmt fcall) ELSE () ENDIF in
 	Hashtbl.add fcall_map fcall name;
 	let body_list = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-block in the Topnode"))) body in
-	Def(Filter(name, inputs, outputs, (Block (body_list, (0,0)))), (0,0))
+	Def(Filter(name, inputs, outputs, (Block (body_list, (0,0)))), None, (0,0))
       end
   | Null -> raise (Internal_compiler_error "Got a Null type while decompiling topnode to AST")
 

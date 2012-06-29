@@ -12,6 +12,7 @@ rule lexer = parse
   | '-'  {Parser.TMinus}
   | '*'  {Parser.TTimes}
   | '/'  {Parser.TDiv}
+  | '%' {Parser.TMod}
   | '^'  {Parser.TPow}
   | '('  {Parser.TOP}
   | ')'  {Parser.TCP}
@@ -34,6 +35,9 @@ rule lexer = parse
   | "par" {Parser.TPar}
   | "for" {Parser.TFor}
   | "var" {Parser.TVar}
+  | "&&" {Parser.And}
+  | "||" {Parser.Or}
+  | "where" {Parser.Where}
   | "main" {Parser.TMain}
   | "case" {Parser.TCase}
   | "int" {Parser.TInt32}

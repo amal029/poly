@@ -8,14 +8,14 @@ let nested_names = Stack.create();;
 let tbl = Hashtbl.create (25);;
 
 let get_tfs = function
-  | Def (t,lc) | DefMain (t,lc) -> 
+  | Def (t,r,lc) | DefMain (t,r,lc) -> 
     (match t with Filter (x,_,_,_) -> 
       match x with Symbol (x,lc) -> 
 	(try
 	   let _ = Hashtbl.find tbl x in
 	   raise (Error (("Filter: " ^ x) ^ " multiply defined" ^ Reporting.get_line_and_column lc))
 	 with
-	   | Not_found -> Hashtbl.add tbl x t))
+	   | Not_found -> Hashtbl.add tbl x (t,r)))
   | _ -> ()
 let rec get_filters = function
   | Program x -> get_fs x
@@ -30,10 +30,10 @@ let rec check_expr mystmt = function
   |  FCall x ->
     let (name,lc) = (match x with Call(x,_,_) -> match x with Symbol (x,lc) -> (x,lc)) in
     (try
-       let filter = (Hashtbl.find tbl name) in 
+       let (filter,r) = (Hashtbl.find tbl name) in 
        let ll = main filter in
        check_for_recursion name;
-       [FCFG.Node (mystmt, filter, ll)];
+       [FCFG.Node (mystmt, filter, r, ll)];
      with 
        | Not_found -> (failwith ((Reporting.get_line_and_column lc) ^ ("Filter: " ^ name) ^ (" not found"))))
   | _ -> []
@@ -58,12 +58,12 @@ and main = function
     ret (* return the checked list back *)
 
 let toplevelstmt = function
-  | DefMain (x,_) -> main x
+  | DefMain (x,r,_) -> main x
   | _ -> []
 
 
 let get_main m = function
-  | DefMain (x,_) -> m := Some x
+  | DefMain (x,r,_) -> m := Some (x,r)
   | _ -> ()
 
 let rec get_main_ref m = function
@@ -75,9 +75,11 @@ let rec check_ast = function
   | Program x as s -> get_filters s; 
     let m = ref None in
     get_main_ref m x;
-    let mm = match !m with None -> failwith "Main not defined" | Some x -> x in
+    let (mm,r) = match !m with 
+      | None -> failwith "Main not defined" 
+      | Some (x,r) -> (x,r) in
     let retl = check_program x in
-    FCFG.Node (Noop, mm, List.rev(retl))
+    FCFG.Node (Noop, mm, r, List.rev(retl))
 and check_program = function
   | h::t -> ((toplevelstmt h) @ (check_program t));
   | [] -> [] 

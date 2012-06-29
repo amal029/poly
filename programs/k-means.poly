@@ -155,7 +155,7 @@ TopLoop in Input[J][10], K out float Result[M][N][P][Q][R]
   for i in 0:P-1 for j in 0:Q-1 for k in 0:R-1 Result[*,*,i,j,k] = inter
 }
 
-main Main
+main
 {
   var J = 1100
   var K = 100

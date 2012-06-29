@@ -235,7 +235,7 @@ struct
   let rec infer_simp_expr declarations = function
     | Const (x,_,_) -> x
     | Plus (x,y,lc) | Minus (x,y,lc) | Times (x,y,lc) 
-    | Div (x,y,lc) | Pow (x,y,lc) -> 
+    | Div (x,y,lc) | Pow (x,y,lc) | Mod(x,y,lc) -> 
       let ltype = infer_simp_expr declarations x in
       let rtype = infer_simp_expr declarations y in
       if (unify_types ltype rtype) then ltype
@@ -342,7 +342,7 @@ struct
 	let () = print_types ltype rtype in
 	raise (Error ((Reporting.get_line_and_column lc) ^ "Mathematical operation branches do not unify"))
 	  
-  let infer_relexpr declarations = function
+  let rec infer_relexpr declarations = function
     | LessThan (x,y,lc) -> 
       let lexpr_type = (infer_simp_expr declarations x) in
       let rexpr_type = (infer_simp_expr declarations y) in
@@ -373,6 +373,15 @@ struct
       if (unify_types lexpr_type rexpr_type) then ()
       else 
 	let _ = propogate_constraints lc declarations lexpr_type rexpr_type in ()
+    | And (x,y,lc) -> 
+      let () = (infer_relexpr declarations x) in
+      let () = (infer_relexpr declarations y) in ()
+    | Or (x,y,lc) -> 
+      let () = (infer_relexpr declarations x) in
+      let () = (infer_relexpr declarations y) in ()
+    | Rackets (x,lc) ->  
+      let () = (infer_relexpr declarations x) in ()
+      
 
   let get_new_typed_symbol declarations v = function
     | SimTypedSymbol (x,_,lc)
@@ -661,8 +670,8 @@ struct
 	| Not_found -> raise (Internal_compiler_error "Filter re-build declarations don't have all the outputs")
 
   let infer_toplevelstmt = function
-    | Def (x,lc) -> Def (infer_filter x, lc)
-    | DefMain (x,lc) -> DefMain(infer_filter x, lc)
+    | Def (x,y,lc) -> Def (infer_filter x, y, lc)
+    | DefMain (x,y,lc) -> DefMain(infer_filter x, y, lc)
     | _ as s -> s
 
   let rec infer_toplevelstmt_list = function
@@ -765,7 +774,7 @@ struct
   let rec infer_simp_expr declarations = function
     | Const (x,_,_) -> (x,[])
     | Plus(x,y,lc) | Minus(x,y,lc) | Times (x,y,lc) | Div (x,y,lc)
-    | Pow(x,y,lc) ->
+    | Pow(x,y,lc) | Mod(x,y,lc) ->
       let lv = infer_simp_expr declarations x in
       let rv = infer_simp_expr declarations y in
       if (Simple.unify_types lv rv) then lv
@@ -804,7 +813,7 @@ struct
       else f
     | TStar | TStarStar -> raise (Internal_compiler_error "First_order_type erroneously reached TStar/TStarStar while doing type inference")
 
-  let infer_relexpr declarations = function
+  let rec infer_relexpr declarations = function
     | LessThan (x,y,lc) ->
       let lexpr_type = (infer_simp_expr declarations x) in
       let rexpr_type = (infer_simp_expr declarations y) in
@@ -830,6 +839,8 @@ struct
       let rexpr_type = (infer_simp_expr declarations y) in
       if (Simple.unify_types lexpr_type rexpr_type) then ()
       else raise (Error ((Reporting.get_line_and_column lc) ^ "Types do not unify in conditional expression"))
+    | And (x,y,_) | Or(x,y,_) -> let () = infer_relexpr declarations x in let () = infer_relexpr declarations y in ()
+    | Rackets (x,_) -> let () = infer_relexpr declarations x in ()
 	
   (*
     
@@ -1091,7 +1102,7 @@ struct
     | [] -> []
 
   let infer_topnode check = function
-    | Topnode (x,t,y) ->
+    | Topnode (x,t,constraints,y) ->
       let () = IFDEF DEBUG THEN print_endline ("Filter: " ^ t) ELSE () ENDIF in
       (* First look at the fcall_map and see if you are there, you have to be there whatever happens !! *)
       let filter_signature = 
@@ -1108,7 +1119,7 @@ struct
       let y = y @ [(List.nth temp 2)] in
       (* let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) (List.rev y))) in *)
       let () = print_string (("Filter " ^ t) ^ " : ") in
-      let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) y)) in
+      let ret = Topnode (x,t, constraints,(List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) y)) in
       (* Give out the final type signature for this thing *)
       (* let ins = (get_ins_and_outs (List.nth (List.rev y) 0)) in *)
       let ins = (get_ins_and_outs (List.nth y 0)) in

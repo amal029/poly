@@ -47,6 +47,7 @@ let rec get_andrew_simple_expr = function
   | Times (x,y,_) -> AndrewLang.AndrewLang.Times ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
   | Pow (x,y,_) -> AndrewLang.AndrewLang.Pow ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
   | Div (x,y,_) -> AndrewLang.AndrewLang.Div ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
+  | Mod (x,y,_) -> AndrewLang.AndrewLang.Mod ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
   | Const (x,y,_) -> AndrewLang.AndrewLang.Const ((get_andrew_primitive_datatype x),y)
   | VarRef (x,_) -> AndrewLang.AndrewLang.Ref (get_andrew_rsymbol x)
   | AddrRef (x,_) -> AndrewLang.AndrewLang.Ref (get_andrew_add_rsymbol x)
@@ -102,7 +103,7 @@ let decompile_typedsymbol = function
   | SimTypedSymbol (x,y,_) -> get_andrew_typed_symbol x y
   | ComTypedSymbol (x,y,_) -> get_andrew_typed_address_symbol x y
 
-let get_andrew_relexpr = function
+let rec get_andrew_relexpr = function
   | LessThan (x,y,_) -> AndrewLang.AndrewLang.LessThan ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
   | LessThanEqual (x,y,_) -> AndrewLang.AndrewLang.LessThanEqual ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
   | GreaterThanEqual (x,y,_) -> AndrewLang.AndrewLang.GreaterThanEqual ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
@@ -167,9 +168,9 @@ let get_andrew_filter = function
 						      (List.map (fun x -> decompile_typedsymbol x) z), get_andrew_stmt t)
 
 let get_andrew_toplevelstmt = function
-  | Def (x,_) -> 
+  | Def (x,_,_) -> 
     AndrewLang.AndrewLang.Def (get_andrew_filter x)
-  | DefMain (x,_) -> AndrewLang.AndrewLang.DefMain (get_andrew_filter x)
+  | DefMain (x,_,_) -> AndrewLang.AndrewLang.DefMain (get_andrew_filter x)
   | _ -> raise (Internal_compiler_error "I do not allow topescapes, they suck!!")
 
 let get_andrew_program = function

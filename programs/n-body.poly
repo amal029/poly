@@ -75,7 +75,7 @@ integrateovertime in naccell[3,N], bodies[4,N] out nbodies[4,N]
   }
 }
 
-main entry
+main
 {
   var naccel[3][1024] = zerost()
   var nbodies[4,1024] = zerost()
