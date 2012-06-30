@@ -394,7 +394,7 @@ let codegen_prototype name ins outs =
   let () = Array.iteri (fun i a -> set_value_name (args.(i)) a) (params f) in f
 
 let codegen_input_params the_function declarations inputs = 
-  let input_params = Array.sub 0 (Array.Length inputs) in
+  let input_params = Array.sub 0 (Array.length inputs) in
   Array.iteri
     (fun i ai ->
       (match inputs.(i) with
@@ -423,7 +423,6 @@ let llvm_topnode = function
     let () = func_name_counter := !func_name_counter + 1 in
     (* Added the new function name to the facll_name hashtbl *)
     let () = Hashtbl.add fcall_names name func_name in 
-    (* FIXME: You cannot take in any input or give out any output arguments *)
     let () = IFDEF DEBUG THEN print_endline (string_of_int (List.length cfg_list)) ELSE () ENDIF in
     (* You need to build the function prototype here *)
     let inputs = decompile_filter_params (List.nth cfg_list 0) in
