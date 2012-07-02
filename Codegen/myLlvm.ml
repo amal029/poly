@@ -22,13 +22,18 @@ let () = add_gvn the_fpm
 (* Simplify the control flow graph (deleting unreachable blocks, etc). *)
 let () =   add_cfg_simplification the_fpm
 (* Perform alias analysis *)
-let () = add_basic_alias_analysis the_fpm
-let () = add_type_based_alias_analysis the_fpm
+(* let () = add_basic_alias_analysis the_fpm *)
+(* let () = add_type_based_alias_analysis the_fpm *)
 (* Memory to register promotion *)
 let () = add_memory_to_register_promotion the_fpm
 
 (* Initialize the pass manager *)
 let _ =  PassManager.initialize the_fpm
+
+(* Putting the jit in*)
+let _ = Llvm_executionengine.initialize_native_target
+let exec_engine = Llvm_executionengine.ExecutionEngine.create the_module
+let () = Llvm_target.TargetData.add (Llvm_executionengine.ExecutionEngine.target_data exec_engine) the_fpm
 
 let fcall_names = Hashtbl.create 10
 let func_name_counter = ref 1
@@ -244,13 +249,14 @@ let codegen_fcall lc declarations = function
 	| Call (name,y,lc) -> 
 	  (* lookup name in fcall_names Hashtbl *)
 	  try
-	    ((Hashtbl.find fcall_names name),y,lc)
+	    ((Hashtbl.find fcall_names (get_symbol name)),y,lc)
 	  with 
-	    | Not_found -> raise (Internal_compiler_error (Reporting.get_line_and_column lc) ^ name ^ " not found in hashtbl for fcall names")) in
+	    | Not_found -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ get_symbol name ^ " not found in hashtbl for fcall names"))) in
     (* Now start building the llvm build_call *)
+    let () = IFDEF DEBUG THEN print_endline ("Found function: " ^ name) ELSE () ENDIF in
     let callee = (match lookup_function name the_module with
       | Some callee -> callee
-      | None -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ name " function not in llvm module"))) in
+      | None -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ name ^ " function not in llvm module"))) in
     let bargs = List.map (fun x -> codegen_callargs lc declarations x) args in (callee,bargs)
   | SimExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ended up with SimExpr when it shouldn't"))
 
@@ -268,7 +274,7 @@ let codegen_stmt f declarations = function
     (match expr with
       | SimExpr _ -> 
 	let rval = codegen_asssimexpr lc !declarations expr in
-	List.iter (fun x -> 
+	List.iter (fun x ->
 	  (match x with
 	    | AllTypedSymbol x -> 
 	      let () = codegen_typedsymbol f declarations x in
@@ -290,9 +296,11 @@ let codegen_stmt f declarations = function
 	    | AllSymbol x -> 
 	      (* lookup that the symbol is in the declarations list and get it *)
 	      let (_,alloca) = get !declarations (get_symbol x) in alloca
-	    | AllAddressedSymbol -> raise (Error ((Reporting.get_line_and_column lc)^ "complex types currently not supported in llvm IR generation")))) ll in
+	    | AllAddressedSymbol _ -> raise (Error ((Reporting.get_line_and_column lc)^ "complex types currently not supported in llvm IR generation")))) ll in
 	(* Now make the call *)
-	let _ =  build_call callee (Array.of_list (args@oargs)) "calltemp" builder in ())
+	(* let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) oargs ELSE () ENDIF in *)
+	let d =  build_call callee (Array.of_list (args@oargs)) "" builder in ())
+	(* let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ()) *)
   | VarDecl (x,lc) -> codegen_typedsymbol f declarations x
   | _ -> raise (Internal_compiler_error "Hit a bogus stmt while compiling to llvm")
 
@@ -373,7 +381,7 @@ let rec decompile_filter_params = function
   | Squarenode (stmt,cfg) -> 
     (match stmt with 
       | VarDecl (x,lc) -> x
-      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Inputs/Outputs not of type VarDecl!!"))) :: decompile_filter_params cfg
+      | _ -> raise (Internal_compiler_error ("Inputs/Outputs not of type VarDecl!!"))) :: decompile_filter_params cfg
   | Empty -> []
   | _ -> raise (Internal_compiler_error "Inputs/Outputs not declared in a square node!!")
 
@@ -381,9 +389,9 @@ let rec decompile_filter_params = function
 let codegen_prototype name ins outs =
   (* First we need to get the type of the inputs *)
   (* IMP: Inputs are always by copy and hence, can never be ptr type*)
-  let intypes = List.map (fun x -> get_llvm_primitive_type (get_exact_simexpr_type x) (get_typed_symbol_lc x)) ins in
+  let intypes = List.map (fun x -> ((get_llvm_primitive_type (get_typed_symbol_lc x) (get_exact_typed_type x)) context)) ins in
   (* IMP: The outputs are always by alloca, and hence are always of ptr type*)
-  let outtypes = List.map (fun x -> pointer_type (get_llvm_primitive_type (get_exact_simexpr_type x) (get_typed_symbol_lc x))) outs in
+  let outtypes = List.map (fun x -> pointer_type ((get_llvm_primitive_type (get_typed_symbol_lc x) (get_exact_typed_type x)) context)) outs in
   (* Build the function prototype *)
   let ft = function_type (void_type context) (Array.of_list (intypes@outtypes)) in
   let f = match (lookup_function name the_module) with
@@ -394,7 +402,8 @@ let codegen_prototype name ins outs =
   let () = Array.iteri (fun i a -> set_value_name (args.(i)) a) (params f) in f
 
 let codegen_input_params the_function declarations inputs = 
-  let input_params = Array.sub 0 (Array.length inputs) in
+  let () = IFDEF DEBUG THEN print_endline ("In codegen_input_params params length: " ^ (string_of_int (Array.length (params the_function)))) ELSE () ENDIF in
+  let input_params = Array.sub (params the_function) 0 (Array.length inputs) in
   Array.iteri
     (fun i ai ->
       (match inputs.(i) with
@@ -409,9 +418,11 @@ let codegen_input_params the_function declarations inputs =
     
 (* Just add the output params to the declarations, because they are pointer type*)
 let codegen_output_params the_function declarations input_size outputs = 
+  let () = IFDEF DEBUG THEN print_endline ("In codegen_output_params params length: " ^ (string_of_int (Array.length (params the_function)))) ELSE () ENDIF in
+  let () = IFDEF DEBUG THEN print_endline ("Input_size: " ^ (string_of_int input_size)) ELSE () ENDIF in
   let all_params = (params the_function) in
-  let output_params = Array.sub all_params input_size (Array.length all_params) in
-  Array.iteri (fun i ai -> add_to_declarations 
+  let output_params = Array.sub all_params input_size ((Array.length all_params) - input_size) in
+  Array.iteri (fun i ai ->
     (match outputs.(i) with
       | SimTypedSymbol _ as s -> add_to_declarations s ai declarations
       | ComTypedSymbol (_,_,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ "complex types currently not supported")))) output_params
@@ -443,7 +454,17 @@ let llvm_topnode = function
        (* Validate that the function is correct *)
        Llvm_analysis.assert_valid_function the_function;
      (* Do all the optimizations on the function *)
-     (* let _ = PassManager.run_function the_function the_fpm in () *)
+     let _ = PassManager.run_function the_function the_fpm in
+     (* Run the jit *)
+     if name = "main" then
+       (* Try loading the memory buffer file *)
+       let membuf = MemoryBuffer.of_file "/tmp/print.bc" in
+       (* Now read the bit code in *)
+       let m2 = Llvm_bitreader.get_module context membuf in 
+       (* Now add the module to the execution engine, just before we start executing*)
+       let () = Llvm_executionengine.ExecutionEngine.add_module m2 exec_engine in
+       let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in ()
+     else ()
      with
        | e -> delete_function the_function; raise e)
 
@@ -453,7 +474,10 @@ let rec llvm_filter_node = function
   | Filternode (topnode, ll) -> 
     let () = List.iter llvm_filter_node ll in 
     let () = llvm_topnode topnode in
-    let () = dump_module the_module in
-    if Llvm_bitwriter.write_bitcode_file the_module "output.ll" then ()
-    else raise (Error ("Could not write the llvm module to output.ll file"))
+    (match topnode with Topnode(_,n,_,_) -> 
+      if n = "main" then
+	let () = dump_module the_module in
+	if Llvm_bitwriter.write_bitcode_file the_module "output.ll" then ()
+	else raise (Error ("Could not write the llvm module to output.ll file"))
+      else ())
 

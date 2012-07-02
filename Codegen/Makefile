@@ -5,7 +5,7 @@ ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Error
 LANGDIR=$(COMP_HOME)/Abstract
 XMLLIB=xml-light.cma
 LANGLIB=language.cma
-LLVMLIB=llvm.cma
+LLVMLIB=llvm.cma llvm_executionengine.cma llvm_bitreader.cma
 ERRORLIB=error.cma
 OCMLOPTS=-a
 OCMALDEBUG=-g
@@ -16,12 +16,12 @@ all: backend.cma
 
 
 backend.cma: check
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR) -I	\
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
 	 $(XMLDIR) -I $(LLVMDIR) -I $(ERRORDIR) $(ERRORLIB) $(XMLLIB)	\
 	 $(LANGLIB) $(LLVMLIB) $(OCAMLDEBUG) $(OCMLOPTS) $(SRC) -o $@
 
 check: 
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR) -I	\
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
 	 $(XMLDIR) -I $(LLVMDIR) -I $(ERRORDIR) $(ERRORLIB) $(XMLLIB)	\
 	 $(LANGLIB) $(LLVMLIB) $(OCAMLDEBUG) -i $(SRC) 
 
