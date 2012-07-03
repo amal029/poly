@@ -1,0 +1,6 @@
+main
+{
+  var t = 30
+  var y = 20
+  int u = extern print (t, y)
+}

@@ -1,0 +1,15 @@
+test in m out t, z {t = m z=t}
+
+main
+{
+  var t = 10
+  var z = t
+  z = (z * (z * z))
+  case 
+  (z == 10) t = t+1
+  otherwise case (z==90) t=t+2 otherwise t=t-1
+  var e = 90
+  (var qw, var qwe) = test(e)
+  for i in 0:e-1 qw = qw + 1
+  for i in 0:e-1 qw = qw + 1
+}
