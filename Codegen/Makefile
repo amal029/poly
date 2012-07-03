@@ -15,13 +15,13 @@ CC=ocamlc
 all: backend.cma
 
 
-backend.cma: check
-	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
+backend.cma:
+	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR) -I	\
 	 $(XMLDIR) -I $(LLVMDIR) -I $(ERRORDIR) $(ERRORLIB) $(XMLLIB)	\
 	 $(LANGLIB) $(LLVMLIB) $(OCAMLDEBUG) $(OCMLOPTS) $(SRC) -o $@
 
 check: 
-	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
+	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR) -I	\
 	 $(XMLDIR) -I $(LLVMDIR) -I $(ERRORDIR) $(ERRORLIB) $(XMLLIB)	\
 	 $(LANGLIB) $(LLVMLIB) $(OCAMLDEBUG) -i $(SRC) 
 

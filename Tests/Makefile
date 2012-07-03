@@ -32,21 +32,23 @@ FILEUTILS=fileutils.cma
 LLVMLIB=llvm_scalar_opts.cma llvm_bitwriter.cma llvm_analysis.cma llvm_executionengine.cma llvm_target.cma
 CC=ocamlc
 SRC=polyc.ml
-TARGET=polyc
+TARGETC=polyc
 FIND=ocamlfind
 
-all: compile
+all: compiler
 
 run:
 	mkdir -p ../output
 	./polyc $(FILE)
 
-compile:
-	$(CC) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR) -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) \
-	-I $(OPTDIR) -I $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(REWRITES) $(ANALYSIS) \
-	$(OPTIMIZATIONS) -I $(CODEGENDIR) $(CODEGENLIB) \
-	-I $(LIBDIR) $(FILEUTILS) $(LLVMLIB) -cclib -lstdc++ $(SRC) -o $(TARGET)
+compiler:
+	$(CC) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR) -I		\
+	   $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
+	  -I $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN)	\
+	   $(REWRITES) $(ANALYSIS) $(OPTIMIZATIONS) -I $(CODEGENDIR)	\
+	   $(CODEGENLIB) -I $(LIBDIR) $(FILEUTILS) $(LLVMLIB) -cc g++	\
+	  -cclib -lstdc++ -ccopt -rdynamic -custom $(SRC) -o $(TARGETC)
 
 clean:
-	rm -rf ../output ../output1 polyc *.cm* *mli
+	rm -rf ../output ../output1 polyc polyi *.cm* *mli
 

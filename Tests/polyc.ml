@@ -5,9 +5,12 @@ try
   let version = ref false in
   let dot = ref false in
   let llvm = ref false in
+  let load_modules = ref [] in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag, " Decompile to stg-lang");
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
 		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file output.ll");
+		      (* Add the -l argument *)
+		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files (>= llvm-3.2)");
 		      ("-v", Arg.Set version, "  Get the compiler version")] (fun x -> file_name := x) usage_msg in
   if !version then print_endline "Poly compiler version alpha"
   else 
@@ -45,20 +48,20 @@ try
     else ();
     let () = print_endline "....First order dependent type inference..." in
     let cfgt = Type_inference.First_order.infer_filternode false cfg1 in
+    (* If decompile option is given then just decompile to andrew lang*)
+    (* First we need to remove the "/" *)
+    let r1 = (Str.regexp "/") in
+    let slist = Str.split r1 !file_name in
+    (* Now we need to split the last value using "."*)
+    let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
+    (* The first string should be my target name *)
+    let file_name = ((List.hd slist) ^ ".xml") in
     (* By default always produce llvm IR *)
     if !llvm then
       let () = print_endline ".....Generating LLVM IR..." in
-      let () = MyLlvm.llvm_filter_node cfgt in ()
+      let () = MyLlvm.compile !load_modules file_name cfgt in ()
     else ();
     if !decompile_flag then
-      (* If decompile option is given then just decompile to andrew lang*)
-      (* First we need to remove the "/" *)
-      let r1 = (Str.regexp "/") in
-      let slist = Str.split r1 !file_name in
-      (* Now we need to split the last value using "."*)
-      let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
-      (* The first string should be my target name *)
-      let file_name = ((List.hd slist) ^ ".xml") in
       let () = print_endline "....Decompiling to AST......" in
       let ast = DecompiletoAST.decompile cfgt in
       let () = print_endline "....Decompiling to stg-lang......" in
@@ -69,4 +72,5 @@ try
     let () = close_in in_chan in ()
 with
   | End_of_file -> exit 0
+  | Sys_error  _ -> print_endline usage_msg
   | _ as s -> raise s

@@ -81,10 +81,14 @@ let functioncall_xml = function
     let ins = (callinputlist_xml z) in
     Element("Call",[],([sym;outs;ins]))
 
+let extern_xml = function
+  | true -> ("extern","true")
+  | false -> ("extern","false")
+
 let rec stmt_xml = function
   | Escape x -> Element ("Escape",[],[PCData x])
   | CaseDef x -> Element("CaseDef",[],[(case_xml x)])
-  | FCall x -> Element("FCall",[],[(functioncall_xml x)])
+  | FCall (x,e) -> Element("FCall",[extern_xml e],[(functioncall_xml x)])
   | DeclAssign (x,y) -> Element("DeclAssign",[],[(typedsymbol_xml x);(simexpr_xml y)])
   | AggregateDeclAssign (x,y) -> Element("DeclAssignAggregateConst",[],(List.map (fun x -> value_xml x) y))
   | VarDecl x ->  Element("VarDecl",[],[(typedsymbol_xml x)])

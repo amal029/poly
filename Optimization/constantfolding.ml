@@ -488,7 +488,7 @@ struct
 		  if assign = fcall then 
 		    let () = IFDEF DEBUG THEN print_endline ("Found the calling site, it is: " ^ (Dot.dot_stmt assign)) ELSE () ENDIF in
 		    let args = (match y with
-		      | FCall x -> (match  x with Call (_,y,_) -> y)
+		      | FCall (x,e) -> if not e then (match  x with Call (_,y,_) -> y) else []
 		      | _ -> []) in
 		    let argsn = (get_fcaldim_consts nodes v args) in
 		    let res = (get_result_consts nodes v x) in

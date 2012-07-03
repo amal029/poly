@@ -128,7 +128,7 @@ let replace_stars_filtercall declarations = function
 
 let replace_stars_expr declarations = function
   | SimExpr x -> SimExpr (replace_stars_simpleexpr declarations x)
-  | FCall x -> FCall (replace_stars_filtercall declarations x)
+  | FCall (x,e) -> FCall ((replace_stars_filtercall declarations x),e)
 
 let replace_stars declarations = function
   | Assign (x,y,lc) -> 
@@ -193,7 +193,7 @@ let rec decompile_cfg declarations arg = function
 	 (match x with
 	   | Assign (a,y,lc) -> 
 	     (match y with
-	       | FCall y -> (match y with Call (_,y,lc) -> (Assign (a, (FCall(Call (nname,y,lc))),lc)))
+	       | FCall (y,e) -> (match y with Call (_,y,lc) -> (Assign (a, (FCall(Call (nname,y,lc),e)),lc)))
 	       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Fcall_map assign rvalue not of type Fcall!!")))
 	   | _  -> raise (Internal_compiler_error ("Fcall_map hashtbl not of type Assign!!")))
        with

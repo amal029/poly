@@ -96,7 +96,7 @@ let dot_filtercall = function
 let dot_expr = function
   | SimExpr x -> (dot_simpleexpr x)
   (* | Main -> "Main" *)
-  | FCall x -> dot_filtercall x
+  | FCall (x,extern) -> let t = dot_filtercall x in if extern then ("extern" ^ t) else t
 
 let rec dot_stmt = function
   | Assign (x,y,_) -> 
@@ -295,9 +295,7 @@ let rec dot_filternode = function
     let (topnode_subgraph, topnode_call_graph) = (match (dot_topnode topnode) with (x,y) -> (Edge_subgraph x,Edge_node_id y)) in
     let ret = {sub_id = Some (Simple_id (("Filter_node" ^ (string_of_int !counter)))); sub_stmt_list = [Stmt_edge (topnode_subgraph, filternode_subgraphs, []) ]} in
     let call_graph = {sub_id = Some (Simple_id (("Filter_node_call_graph" ^ (string_of_int !counter))));
-    		      sub_stmt_list = [Stmt_edge (topnode_call_graph, call_graphs, []) ]} in
-    (ret, call_graph)
-
+    		      sub_stmt_list = [Stmt_edge (topnode_call_graph, call_graphs, []) ]} in (ret, call_graph)
 
 let build_program_dot fnode filename =
   let (top_sub_graph, top_call_graph) = dot_filternode fnode in

@@ -25,6 +25,7 @@
 %token TLbrack TRbrack TColon TCase TEof TLShift TRShift TVar
 %token TMain TIn TOut TOtherwise TPar TFor
 %token TInt8 TInt16 TInt32 TInt64 TInt8s TInt16s TInt32s TInt64s TFloat8 TFloat32 TFloat64 TFloat16
+%token TExtern
 
 /* Constructors with an argument */
 %token <string> TInt
@@ -143,7 +144,9 @@ allsym:
 ;
 
 expr:
-    | fcall {Language.Language.FCall ($1)}
+    /*| fcall {Language.Language.FCall ($1)}*/
+    | fcall {Language.Language.FCall ($1,false)}
+    | TExtern fcall {Language.Language.FCall ($2,true)}
     | simpleExpr {Language.Language.SimExpr ($1)}
 ;
 

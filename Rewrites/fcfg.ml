@@ -27,15 +27,17 @@ let check_for_recursion g = Stack.iter (fun x -> if x = g
   then raise (Recursion (("Filter " ^ g) ^ (" has a path to itself")))) nested_names
 
 let rec check_expr mystmt = function
-  |  FCall x ->
+  |  FCall (x,extern) ->
     let (name,lc) = (match x with Call(x,_,_) -> match x with Symbol (x,lc) -> (x,lc)) in
     (try
        let (filter,r) = (Hashtbl.find tbl name) in 
        let ll = main filter in
        check_for_recursion name;
        [FCFG.Node (mystmt, filter, r, ll)];
-     with 
-       | Not_found -> (failwith ((Reporting.get_line_and_column lc) ^ ("Filter: " ^ name) ^ (" not found"))))
+     with
+       | Not_found -> 
+	 if extern then []
+	 else (failwith ((Reporting.get_line_and_column lc) ^ ("Filter: " ^ name) ^ (" not found"))))
   | _ -> []
 
 and check_stmt = function

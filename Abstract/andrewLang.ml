@@ -108,7 +108,7 @@ struct
     | DeclAssign of typedSymbol * simpleExpr
     | AggregateDeclAssign of typedSymbol * value list
     | CaseDef of case
-    | FCall of functionCall
+    | FCall of functionCall * bool
     | Escape of string
     | Par of symbol * dimspec * block
     | For of symbol * dimspec * block

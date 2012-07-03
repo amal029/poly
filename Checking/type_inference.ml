@@ -320,9 +320,10 @@ struct
 
        c.) or just force people to write things before they are invoked
        like in Ocaml -> for now I am taking this approach*)
-    | FCall x -> 
+    | FCall (x,e) -> 
       (* let  () = print_string ("Checking FCALL ") in *)
-      infer_filtercall declarations x
+      if not e then infer_filtercall declarations x
+      else []
 
   let propogate_constraints lc declarations ltype rtype =
     match (ltype,rtype) with
@@ -454,13 +455,17 @@ struct
     | VarDecl (x,lc) as s -> 
       (*let () = set_curr_line_num s in*)
       let () = add_to_declarations x declarations in s
-    | Assign (x,y,lc) -> 
-      (*let () = set_curr_line_num s in*)
-      let expr_type = infer_expr declarations y in
-      if List.length x <> List.length expr_type then 
-	raise (Error ((Reporting.get_line_and_column lc) ^ "Simple: Input and output types do not unify"))
-      else 
-	Assign ( (infer_assign_lvalue_list declarations expr_type 0 x) , y, lc)
+    | Assign (x,y,lc) as s -> 
+      let extern = (match y with
+	| FCall (_,e) -> e
+	| _ -> false) in
+      if extern then s
+      else
+	let expr_type = infer_expr declarations y in
+	if List.length x <> List.length expr_type then 
+	  raise (Error ((Reporting.get_line_and_column lc) ^ "Simple: Input and output types do not unify"))
+	else 
+	  Assign ( (infer_assign_lvalue_list declarations expr_type 0 x) , y, lc)
     | Block (x,lc) -> 
       (* let () = print_endline ("Checking block") in *)
       let vcopy = !declarations in 
@@ -468,7 +473,7 @@ struct
       let rett_stmts = replace_var_decls !declarations (Block (ll, lc)) in 
       declarations := (get_block_less_declarations !declarations vcopy);
       rett_stmts
-      (* We need to replace the var decls with the proper types in here *)
+    (* We need to replace the var decls with the proper types in here *)
     | CaseDef (x,lc) -> CaseDef (infer_casedef declarations x, lc)
     | Par (x,y,z,lc) -> 
       let _ = infer_simp_expr declarations y in (* we don't bother with colon expr return types *)
@@ -516,7 +521,7 @@ struct
     | [] -> []
   (* It is possible to propogate the type from the left to the right side, i.e., (get_typed_type x) => expr_type *)
   and infer_assign_lvalue declarations expr_type = function
-  (* Return back vardeclared or non-var declared symbols *)
+    (* Return back vardeclared or non-var declared symbols *)
     | AllTypedSymbol x as s -> 
       if (match_typed_symbol_type expr_type x) then
 	(add_to_declarations x declarations; s)
@@ -577,8 +582,8 @@ struct
 		end
 	    end 
       else raise (Error ((Reporting.get_line_and_column (get_symbol_lc x)) ^ ("Variable " ^ (get_symbol x)) ^ " is unbound"))
-	(* let ret = SimTypedSymbol (expr_type, x) in  *)
-	(* add_to_declarations ret declarations; AllTypedSymbol(ret) *)
+    (* let ret = SimTypedSymbol (expr_type, x) in  *)
+    (* add_to_declarations ret declarations; AllTypedSymbol(ret) *)
     | AllAddressedSymbol x as s -> 
       (* let () = print_endline (get_addressed_symbol x) in  *)
       if (exists !declarations (get_addressed_symbol x)) then 
@@ -610,9 +615,9 @@ struct
 		end
 	    end
       else raise (Error ((Reporting.get_line_and_column (get_addressed_symbol_lc x)) ^ ("Variable " ^ (get_addressed_symbol x)) ^ " is unbound"))
-      (* else (\* This means this is a declaration lets add it to the declarations list *\) *)
-      (* 	let ret = ComTypedSymbol (expr_type, x) in  *)
-      (* 	add_to_declarations ret declarations; AllTypedSymbol (ret) *)
+  (* else (\* This means this is a declaration lets add it to the declarations list *\) *)
+  (* 	let ret = ComTypedSymbol (expr_type, x) in  *)
+  (* 	add_to_declarations ret declarations; AllTypedSymbol (ret) *)
 
   (* This is called in the second pass, gets rid of all the variables,
      which are not used *)
@@ -901,7 +906,7 @@ struct
 
   let infer_expr declarations = function
     | SimExpr x -> [infer_simp_expr declarations x]
-    | FCall x -> [] (* check the comment above *)
+    | FCall (x,_) -> [] (* check the comment above *)
 	
   let rec is_there counter = function
     | h::t -> if counter = h then true else (is_there counter t)
@@ -956,10 +961,12 @@ struct
 	   i.e., upwards!! *)
 	let () = List.iter (fun r -> set_ass_decs declarations r) x in 
 	(* First get the declarations from the declarations list *)
-	let fargs = (match y with FCall x -> (match x with Call (_,x,lc) -> 
-	  List.map (fun x -> (match x with | CallAddrressedArgument x -> Simple.get_addressed_symbol x 
-	  | CallSymbolArgument x -> Simple.get_symbol x)) x) | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ 
-												      "Reached SimExpr after filtering for it"))) in
+	let fargs = (match y with 
+	  | FCall (x,e) -> if not e then (match x with Call (_,x,lc) -> 
+	    List.map (fun x -> (match x with | CallAddrressedArgument x -> Simple.get_addressed_symbol x 
+	      | CallSymbolArgument x -> Simple.get_symbol x)) x)
+	    else []
+	  | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Reached SimExpr after filtering for it"))) in
 	let fargdecs = List.map (fun x -> Simple.get !declarations x) fargs in
 	let fvardecsyms = List.map (fun x -> (match x with AllAddressedSymbol x -> Simple.get_addressed_symbol x
 	  | AllSymbol x -> Simple.get_symbol x | AllTypedSymbol x -> Simple.get_typed_symbol x)) x in

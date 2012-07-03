@@ -13,6 +13,8 @@ let builder = builder context
 
 (* Build the optimization passes *)
 let the_fpm = PassManager.create_function the_module
+(* This is the module pass line, which does link time opimizations *)
+let the_mpm = PassManager.create ()
 (* Do simple "peephole" optimizations and bit-twiddling optzn. *)
 let () = add_instruction_combination the_fpm
 (* reassociate expressions. *)
@@ -22,8 +24,8 @@ let () = add_gvn the_fpm
 (* Simplify the control flow graph (deleting unreachable blocks, etc). *)
 let () =   add_cfg_simplification the_fpm
 (* Perform alias analysis *)
-(* let () = add_basic_alias_analysis the_fpm *)
-(* let () = add_type_based_alias_analysis the_fpm *)
+let () = add_basic_alias_analysis the_fpm
+let () = add_type_based_alias_analysis the_fpm
 (* Memory to register promotion *)
 let () = add_memory_to_register_promotion the_fpm
 
@@ -31,14 +33,25 @@ let () = add_memory_to_register_promotion the_fpm
 let _ =  PassManager.initialize the_fpm
 
 (* Putting the jit in*)
-let _ = Llvm_executionengine.initialize_native_target
-let exec_engine = Llvm_executionengine.ExecutionEngine.create the_module
-let () = Llvm_target.TargetData.add (Llvm_executionengine.ExecutionEngine.target_data exec_engine) the_fpm
+(* let _ = Llvm_executionengine.initialize_native_target () *)
+(* let exec_engine =  *)
+(*   try  *)
+(*     Llvm_executionengine.ExecutionEngine.create_jit the_module 2 *)
+(*   with | s -> print_endline "Could not create jit"; raise s *)
+(* let () = Llvm_target.TargetData.add (Llvm_executionengine.ExecutionEngine.target_data exec_engine) the_fpm *)
 
 let fcall_names = Hashtbl.create 10
 let func_name_counter = ref 1
 
 let enode = ref Empty
+
+type arg =
+  | BLOCK
+  | LOOP
+  | CASE
+
+(* The user specified modules *)
+let user_modules = ref []
 
 let get_symbol = function
   | Symbol (x,_) -> x
@@ -242,22 +255,54 @@ let codegen_callargs lc declarations = function
   | CallAddrressedArgument _ -> raise (Error ((Reporting.get_line_and_column lc) ^ "complex types not yet supported in llvm backend"))
 
 let codegen_fcall lc declarations = function
-  | FCall x -> 
+  | FCall (x,e) -> 
     (* First lookup the name of the function *)
     let (name,args,lc) =
-      (match x with
-	| Call (name,y,lc) -> 
-	  (* lookup name in fcall_names Hashtbl *)
-	  try
-	    ((Hashtbl.find fcall_names (get_symbol name)),y,lc)
-	  with 
-	    | Not_found -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ get_symbol name ^ " not found in hashtbl for fcall names"))) in
+      if not e then
+	(match x with
+	  | Call (name,y,lc) -> 
+	    (* lookup name in fcall_names Hashtbl *)
+	    try
+	      ((Hashtbl.find fcall_names (get_symbol name)),y,lc)
+	    with 
+	      | Not_found -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ get_symbol name ^ " not found in hashtbl for fcall names")))
+      else 
+	(match x with 
+	  | Call (name,y,lc) -> (get_symbol name, y, lc)) in
     (* Now start building the llvm build_call *)
     let () = IFDEF DEBUG THEN print_endline ("Found function: " ^ name) ELSE () ENDIF in
-    let callee = (match lookup_function name the_module with
-      | Some callee -> callee
-      | None -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ name ^ " function not in llvm module"))) in
-    let bargs = List.map (fun x -> codegen_callargs lc declarations x) args in (callee,bargs)
+    if not e then
+      let callee = (match lookup_function name the_module with
+	| Some callee -> callee
+	| None -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ name ^ " function not in llvm module"))) in
+      let bargs = List.map (fun x -> codegen_callargs lc declarations x) args in (callee,bargs)
+    else 
+      (* Move through all the user loaded modules and get the callee and the bargs *)
+      let callee_l = List.filter (fun x -> match lookup_function name x with | Some _ -> true | None -> false) !user_modules in
+      if callee_l = [] then raise (Error((Reporting.get_line_and_column lc) ^ "No function named: " ^ name ^ " found in llvm modules"))
+      else if List.length callee_l <> 1 then raise (Error((Reporting.get_line_and_column lc) ^ "More than one module with same function declaration"))
+      else 
+	let callee = match (lookup_function name (List.hd callee_l)) with | Some x -> x
+	  | None -> raise (Error((Reporting.get_line_and_column lc) ^ "No function named: " ^ name ^ " found in llvm modules")) in
+	let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
+	(* Now declare the same named function with external linkage in this module *)
+	(* get the param types from the params *)
+	let () = IFDEF DEBUG THEN print_endline ("getting " ^ name ^ " param types") ELSE () ENDIF in
+	let param_types = Array.map (fun x -> type_of x) (params callee) in
+	let callee_attrs = (function_attr callee) in
+	let callee = (match lookup_function name the_module with
+	  | Some x -> x
+	  | None -> 
+	    let () = IFDEF DEBUG THEN print_endline ("building extern " ^ name ^ " declaration") ELSE () ENDIF in
+	    let eft = function_type (void_type context) param_types in
+	    let reft = declare_function name eft the_module in
+	    (* Also set the attributes for this function *)
+	    let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+	    reft) in
+	(* Set the linkage to external type *)
+	let () = set_linkage Linkage.External callee in
+	let () = IFDEF DEBUG THEN print_endline (match linkage callee with | Linkage.External -> "External" | _ -> "Some other linkage type") ELSE () ENDIF in
+	let bargs = List.map (fun x -> codegen_callargs lc declarations x) args in (callee,bargs)
   | SimExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ended up with SimExpr when it shouldn't"))
 
 let codegen_asssimexpr lc declarations = function
@@ -304,78 +349,150 @@ let codegen_stmt f declarations = function
   | VarDecl (x,lc) -> codegen_typedsymbol f declarations x
   | _ -> raise (Internal_compiler_error "Hit a bogus stmt while compiling to llvm")
 
+let get_vars = function
+  | VarDecl (x,_)  -> [x]
+  | Assign (x,_,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
+    (* | Block x -> List.flatten (List.map (fun x -> get_vars x) x) *)
+  | _ -> []
+
+let rec get_dvars = function
+  | Block (x,_) -> List.flatten (List.map (fun x -> get_vars x) x)
+  | For (x,y,z,lc) | Par (x,y,z,lc) -> 
+    let sym = (SimTypedSymbol (DataTypes.Int32s, x,lc)) in
+    sym :: (get_vars z)
+  | CaseDef (case,_) -> 
+    let (clause_list,other) = (match case with Case (x,y) -> (x,y)) in
+    let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x) -> x)) clause_list in
+    let other_stmt = (match other with Otherwise x -> x) in
+    (List.flatten (List.map (fun x -> get_vars x) clause_stmt_list)) @ (get_vars other_stmt)
+  | _ -> []
+    
+let rec remove_from_declarations declarations dvars = 
+  List.iter (fun r -> declarations := List.filter (fun (x,_) -> x <> r) !declarations) dvars
+
 (* Generate the body of the function block *)
-let rec codegen_cfg f declarations = function
+let rec codegen_cfg arg f declarations = function
   | Empty -> let () = IFDEF DEBUG THEN print_endline "hit an empty node" ELSE () ENDIF in ()
   | Startnode (stmt,x) -> 
     (match stmt with
       | CaseDef _ -> 
-	let () = IFDEF DEBUG THEN print_endline ("Hit a startnode") ELSE () ENDIF in
-	let () = codegen_cfg f declarations x in
+	let () = IFDEF DEBUG THEN print_endline ("Hit a case startnode") ELSE () ENDIF in
+	let () = codegen_cfg CASE f declarations x in
 	(* Now we need to continue with the enode!!*)
-	codegen_cfg f declarations !enode
+	codegen_cfg arg f declarations !enode
+      | For _ | Par _ -> 
+	let () = IFDEF DEBUG THEN print_endline ("Hit a loop startnode") ELSE () ENDIF in
+	let () = codegen_cfg LOOP f declarations x in
+	(* Now we need to continue with the enode!!*)
+	codegen_cfg arg f declarations !enode
       | _ -> 
-	let () = IFDEF DEBUG THEN print_endline ("Hit a startnode") ELSE () ENDIF in
-	codegen_cfg f declarations x)
+	let () = IFDEF DEBUG THEN print_endline ("Hit a block startnode") ELSE () ENDIF in
+	codegen_cfg arg f declarations x)
   | Squarenode (stmt,x) ->
     let () = IFDEF DEBUG THEN print_endline ("Hit a squarenode") ELSE () ENDIF in
     let () = codegen_stmt f declarations stmt in
-    codegen_cfg f declarations x
+    codegen_cfg arg f declarations x
   | Endnode (stmt,x,_) as s -> 
     (match stmt with
-      | CaseDef _ -> enode := s (* Set yourself up !! *)
+      | CaseDef _ | For _ | Par _ -> enode := s (* Set yourself up !! *)
       | _ -> 
 	let () = IFDEF DEBUG THEN print_endline ("Hit a endnode") ELSE () ENDIF in
-	codegen_cfg f declarations x)
-  | Backnode x -> raise (Error ("Loops currently not handeled in the LLVM backend"))
+	(* Remove the dvars from the declarations *)
+	let dvars = get_dvars stmt in
+	let () = remove_from_declarations declarations dvars in
+	codegen_cfg arg f declarations x)
+  | Backnode x -> () (* We don't need to do anything here at all!! *)
   | Conditionalnode (relexpr,tbranch,fbranch) ->
-    (* First insert the conditional *)
-    let cond_val = codegen_relexpr !declarations relexpr in
-    (* First get the current basic block and the parent function *)
-    let start_bb = insertion_block builder in
-    (* This might be some other basic block*)
-    let the_function = block_parent start_bb in
-    (* Now append the then basic block to the start_bb*)
-    let then_bb = append_block context "tbranch" the_function in
-    (* Position the builder to append to the true branch block *)
-    let () = position_at_end then_bb builder in
-    (* Next build the true branch *)
-    let () = codegen_cfg f declarations tbranch in
-    (* Now get the pointer to the current builder position for later
-       insertion of the unconditional branch statement*)
-    let ptr_then_bb = insertion_block builder in
-    (* Now build the Else block *)
-    let else_bb = append_block context "fbranch" the_function in
-    (* Now position the builder to insert into the else block*)
-    let () = position_at_end else_bb builder in
-    (* Now actually build the else branch until the end-node*)
-    let () = codegen_cfg f declarations fbranch in
-    (* Now get the pointer to the current builder position for later
-       insertion of the unconditional branch statement*)
-    let ptr_else_bb = insertion_block builder in
-    (* Now we need to build the continue part using the endnode in the
-       enode reference*)
-    (match !enode with
-      | Endnode (_,en,_) -> (* OK !! *)
-	(* First we need to insert the continue block *)
-	let cont_bb = append_block context "cond_cont" the_function in
-	(* Now we need to add all the branch statements *)
-	(* Adding the top most branch statment at start_bb *)
-	let () = position_at_end start_bb builder in 
-	let _ = build_cond_br cond_val then_bb else_bb builder in
-	(* Now build the unconditional jump from then branch to cont*)
-	let () = position_at_end ptr_then_bb builder in
-	let _ = build_br cont_bb builder in
-	(* Now build the unconditional jump from the else branch to cont *)
-	let () = position_at_end ptr_else_bb builder in
-	let _ = build_br cont_bb builder in
-	(* This is the position that will be passed onto the parent
-	   nodes *)
-	let () = position_at_end cont_bb builder in
-	let _ = insertion_block builder in
-	(* Now set enode to point to the next cfg node *)
-	enode := en
-      | _ -> raise (Internal_compiler_error "If stmt does not return its endnode "))
+    (match arg with
+	| CASE -> 
+	  (* First insert the conditional *)
+	  let cond_val = codegen_relexpr !declarations relexpr in
+	  (* First get the current basic block and the parent function *)
+	  let start_bb = insertion_block builder in
+	  (* This might be some other basic block*)
+	  let the_function = block_parent start_bb in
+	  (* Now append the then basic block to the start_bb*)
+	  let then_bb = append_block context "tbranch" the_function in
+	  (* Position the builder to append to the true branch block *)
+	  let () = position_at_end then_bb builder in
+	  (* Next build the true branch *)
+	  let () = codegen_cfg arg f declarations tbranch in
+	  (* Now get the pointer to the current builder position for later
+	     insertion of the unconditional branch statement*)
+	  let ptr_then_bb = insertion_block builder in
+	  (* Now build the Else block *)
+	  let else_bb = append_block context "fbranch" the_function in
+	  (* Now position the builder to insert into the else block*)
+	  let () = position_at_end else_bb builder in
+	  (* Now actually build the else branch until the end-node*)
+	  let () = codegen_cfg arg f declarations fbranch in
+	  (* Now get the pointer to the current builder position for later
+	     insertion of the unconditional branch statement*)
+	  let ptr_else_bb = insertion_block builder in
+	  (* Now we need to build the continue part using the endnode in the
+	     enode reference*)
+	  (match !enode with
+	    | Endnode (stmt,en,_) -> (* OK !! *)
+	      (* First we need to insert the continue block *)
+	      let cont_bb = append_block context "cond_cont" the_function in
+	      (* Now we need to add all the branch statements *)
+	      (* Adding the top most branch statment at start_bb *)
+	      let () = position_at_end start_bb builder in 
+	      let _ = build_cond_br cond_val then_bb else_bb builder in
+	      (* Now build the unconditional jump from then branch to cont*)
+	      let () = position_at_end ptr_then_bb builder in
+	      let _ = build_br cont_bb builder in
+	      (* Now build the unconditional jump from the else branch to cont *)
+	      let () = position_at_end ptr_else_bb builder in
+	      let _ = build_br cont_bb builder in
+	      (* This is the position that will be passed onto the parent
+		 nodes *)
+	      let () = position_at_end cont_bb builder in
+	      let _ = insertion_block builder in
+	      (* Now set enode to point to the next cfg node *)
+	      let dvars = get_dvars stmt in
+	      let () = remove_from_declarations declarations dvars in
+	      enode := en
+	    | _ -> raise (Internal_compiler_error "If stmt does not return its endnode "))
+	| LOOP -> 
+	  (* First get the current basic block and the parent function *)
+	  let start_bb = insertion_block builder in
+	  (* This might be some other basic block*)
+	  let the_function = block_parent start_bb in
+	  (* Now append the then basic block to the start_bb*)
+	  let loop = append_block context "loopbody" the_function in
+	  (* Position the builder to append to the true branch block *)
+	  let () = position_at_end loop builder in
+	  (* Next build the true branch *)
+	  let () = codegen_cfg arg f declarations tbranch in
+	  (* First insert the conditional *)
+	  let cond_val = codegen_relexpr !declarations relexpr in
+	  (* Now get the pointer to the current builder position for later
+	     insertion of the unconditional branch statement*)
+	  let ptr_loop_body = insertion_block builder in
+	  (* Now actually build the else branch until the end-node*)
+	  (* Nothing should ever be really built at all!! *)
+	  let () = codegen_cfg arg f declarations fbranch in
+	  (* Now build the loop end *)
+	  (match !enode with
+	    | Endnode (stmt,en,_) ->
+	      let loopend = append_block context "loopend" the_function in
+	      (* Now build the conditional branch *)
+	      let () = position_at_end ptr_loop_body builder in
+	      let _ = build_cond_br cond_val loop loopend builder in
+	      (* Now attach the branch instruction after start_bb*)
+	      let () = position_at_end start_bb builder in 
+	      let _ = build_br loop builder in
+	      (* Now position the pointer so that stuff can be inserted
+		 into loopend blocks *)
+	      let () = position_at_end loopend builder in
+	      let _ = insertion_block builder in 
+	      (* Remove the declared vars from the endnode *)
+	      let dvars = get_dvars stmt in
+	      let () = remove_from_declarations declarations dvars in
+	      enode := en
+	    | _ -> raise (Internal_compiler_error ("LOOP did not get a Endnode")))
+	| BLOCK -> raise (Internal_compiler_error ("Conditional node with BLOCK type")))
 
 let rec decompile_filter_params = function
   | Squarenode (stmt,cfg) -> 
@@ -438,7 +555,8 @@ let llvm_topnode = function
     (* You need to build the function prototype here *)
     let inputs = decompile_filter_params (List.nth cfg_list 0) in
     let outputs = decompile_filter_params (List.nth cfg_list 1) in
-    let the_function = codegen_prototype func_name inputs outputs in
+    let the_function = (if name = "main" then
+      codegen_prototype name inputs outputs else codegen_prototype func_name inputs outputs) in
     (* You need to build the function body here using the prototype you got before*)
     let bb = append_block context "entry" the_function in
     position_at_end bb builder;
@@ -449,35 +567,47 @@ let llvm_topnode = function
        let declarations = ref [] in
        let () = codegen_input_params the_function declarations (Array.of_list inputs) in 
        let () = codegen_output_params the_function declarations (List.length inputs) (Array.of_list outputs) in 
-       let () = codegen_cfg the_function declarations (List.nth cfg_list 2) in
+       let () = codegen_cfg BLOCK the_function declarations (List.nth cfg_list 2) in
        let _ = build_ret_void builder in
        (* Validate that the function is correct *)
        Llvm_analysis.assert_valid_function the_function;
      (* Do all the optimizations on the function *)
-     let _ = PassManager.run_function the_function the_fpm in
-     (* Run the jit *)
-     if name = "main" then
-       (* Try loading the memory buffer file *)
-       let membuf = MemoryBuffer.of_file "/tmp/print.bc" in
-       (* Now read the bit code in *)
-       let m2 = Llvm_bitreader.get_module context membuf in 
-       (* Now add the module to the execution engine, just before we start executing*)
-       let () = Llvm_executionengine.ExecutionEngine.add_module m2 exec_engine in
-       let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in ()
-     else ()
+     let _ = PassManager.run_function the_function the_fpm in the_function
      with
        | e -> delete_function the_function; raise e)
-
   | Null -> raise (Internal_compiler_error "Hit a Null fcall expression while producing llvm IR")
 
-let rec llvm_filter_node = function
+let rec llvm_filter_node filename = function
   | Filternode (topnode, ll) -> 
-    let () = List.iter llvm_filter_node ll in 
-    let () = llvm_topnode topnode in
-    (match topnode with Topnode(_,n,_,_) -> 
+    let () = List.iter (fun x -> llvm_filter_node filename x) ll in 
+    let the_function = llvm_topnode topnode in
+    (match topnode with Topnode(_,n,_,_) ->
       if n = "main" then
-	let () = dump_module the_module in
-	if Llvm_bitwriter.write_bitcode_file the_module "output.ll" then ()
-	else raise (Error ("Could not write the llvm module to output.ll file"))
+    	(* let () = dump_module the_module in *)
+    	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".ll") then ()
+    	else raise (Error ("Could not write the llvm module to output.ll file")) in ()
+      (* let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in () *)
       else ())
+
+let compile modules filename cfg = 
+  (* Set the modules that need to be loaded *)
+  (* Try loading the memory buffer file *)
+  (* Go through all the files and do it!!*)
+  let membufs = List.map (fun x -> MemoryBuffer.of_file x) modules in
+  (* Now read the bit code in *)
+  let modules = List.map (fun x -> Llvm_bitreader.get_module context x) membufs in 
+  (* let () = IFDEF DEBUG THEN List.iter (fun x -> dump_module x) modules ELSE () ENDIF in *)
+  (* TODO: Optimize the modules just parsed *)
+  (* let _ = List.map (fun x -> PassManager.run_module x the_mpm) modules in *)
+  (* (\* Now add the module to the execution engine, just before we start executing*\) *)
+  (* let () = List.iter(fun x -> Llvm_executionengine.ExecutionEngine.add_module x exec_engine) modules in *)
+  (* let () = Llvm_target.TargetData.add (Llvm_executionengine.ExecutionEngine.target_data exec_engine) the_mpm in *)
+  (* let () = IFDEF DEBUG THEN print_endline "***** PRINTING THE PRINT FUNCTION ******" ELSE () ENDIF in *)
+  (* let () = IFDEF DEBUG THEN dump_value (match Llvm_executionengine.ExecutionEngine.find_function "print" exec_engine with Some x -> x  *)
+  (*   | None -> raise (Internal_compiler_error ("Could not find function print, even after adding the module"))) ELSE () ENDIF in *)
+  (* Set the user ssupported modules *)
+  user_modules := modules;
+  let () = llvm_filter_node filename cfg in ()
+  (* (\* free the jit *\) *)
+  (* Llvm_executionengine.ExecutionEngine.dispose exec_engine *)
 

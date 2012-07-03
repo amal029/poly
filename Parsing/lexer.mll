@@ -9,6 +9,7 @@ rule lexer = parse
   | '\n' {let () = new_line lexbuf in lexer lexbuf}
   | '+'  {Parser.TPlus}
   | ':'  {Parser.TColon}
+  | "extern" {Parser.TExtern}
   | '-'  {Parser.TMinus}
   | '*'  {Parser.TTimes}
   | '/'  {Parser.TDiv}

@@ -61,7 +61,7 @@ struct
       | _ -> ()
 
   let check_expr vars errors warns = function
-      | FCall x -> check_filter_call vars errors warns x
+      | FCall (x,e) -> if not e then check_filter_call vars errors warns x
       | SimExpr x -> check_sim_expr vars errors warns x
       (* | Main -> () *)
 

@@ -150,7 +150,7 @@ let rec get_andrew_stmt = function
     [AndrewLang.AndrewLang.For((get_andrew_symbol x),d,(get_andrew_stmt z))]
   | Noop -> []
   | CaseDef (x,_) -> [AndrewLang.AndrewLang.CaseDef (get_andrew_case x)]
-  | Assign (x,y,_) -> (match y with | SimExpr s -> decompile_simple_assign x s | FCall f -> [AndrewLang.AndrewLang.FCall (get_andrew_function_call x f)])
+  | Assign (x,y,_) -> (match y with | SimExpr s -> decompile_simple_assign x s | FCall (f,e) -> [AndrewLang.AndrewLang.FCall ((get_andrew_function_call x f),e)])
 
 and get_andrew_case = function
   | Case (x,y) -> AndrewLang.AndrewLang.Case ((List.map (fun x -> get_andrew_clause x) x) , (get_andrew_otherwise y))

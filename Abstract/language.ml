@@ -175,7 +175,7 @@ struct
     | For of symbol * simpleExpr * stmt * (line * column)
     | Noop
   and expr =
-    | FCall of filterCall
+    | FCall of filterCall * bool
     | SimExpr of simpleExpr
   and case =
     | Case of caseClause list * otherwise
