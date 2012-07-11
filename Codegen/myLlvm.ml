@@ -40,6 +40,9 @@ let _ =  PassManager.initialize the_fpm
 (*   with | s -> print_endline "Could not create jit"; raise s *)
 (* let () = Llvm_target.TargetData.add (Llvm_executionengine.ExecutionEngine.target_data exec_engine) the_fpm *)
 
+let target_data = 
+Llvm_target.TargetData.create "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
+
 let fcall_names = Hashtbl.create 10
 let func_name_counter = ref 1
 
@@ -67,6 +70,10 @@ let get_data_types lc = function
   | DataTypes.Float8 | DataTypes.Float16 | DataTypes.Float32 | DataTypes.Float64 -> "float"
   | _ -> raise (Error ((Reporting.get_line_and_column lc) ^ " datatype not supported in LLVM IR"))
 
+let get_symbol_lc = function
+  | Symbol(_,lc) -> lc
+let get_addressed_symbol_lc = function
+  | AddressedSymbol(_,_,_,lc) -> lc
 let get_typed_symbol_lc = function
   | SimTypedSymbol (_,_,lc) -> lc
   | ComTypedSymbol (_,_,lc) -> lc
@@ -79,21 +86,63 @@ let get_exact_typed_type = function
   | SimTypedSymbol (x,_,lc) 
   | ComTypedSymbol (x,_,lc) -> x
 
-
 let create_entry_block_alloca f vn t = 
   let builder = builder_at context (instr_begin (entry_block f)) in
   build_alloca t vn builder
 
-let get_llvm_primitive_type lc = function
-  | DataTypes.Int8 | DataTypes.Int8s -> i8_type
-  | DataTypes.Int16 | DataTypes.Int16s -> i16_type
-  | DataTypes.Int32 | DataTypes.Int32s -> i32_type
-  | DataTypes.Int64 | DataTypes.Int64s -> i64_type
-  | DataTypes.Float8 
-  | DataTypes.Float16 
-  | DataTypes.Float32 -> float_type
-  | DataTypes.Float64 -> double_type
-  | _ -> raise (Error ((Reporting.get_line_and_column lc) ^ "DataType cannot be supported in llvm IR"))
+let create_entry_block_alloca_array f vn t size = 
+  let builder = builder_at context (instr_begin (entry_block f)) in
+  build_alloca t vn builder
+
+let drop_dimspec_expr counter_list counter = function
+  | DimSpecExpr x ->
+    (match x with
+      | TStarStar | TStar -> ()
+      | _ -> counter_list := counter :: !counter_list)
+
+let rec drop_dimspec_expr_list counter_list counter = function
+  | h::t -> drop_dimspec_expr counter_list counter h; drop_dimspec_expr_list counter_list (counter+1) t
+  | [] -> ()
+
+let to_drop_bracdim counter_list counter = function
+  | BracDim x -> drop_dimspec_expr_list counter_list counter x
+
+let rec to_drop_dims counter_list counter = function
+  | h::t -> 
+    let () = to_drop_bracdim counter_list counter h in
+    let () = IFDEF DEBUG THEN print_string "To drop" ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN List.iter (fun x -> print_endline ("," ^ (string_of_int x))) !counter_list ELSE () ENDIF in
+    to_drop_dims counter_list (counter+1) t
+  | [] -> ()
+
+let get_to_drop = function
+  | AddressedSymbol (_,_,x,_) -> let p = ref [] in to_drop_dims p 0 x; !p
+
+let get_brac_dims = function
+  | DimSpecExpr x ->
+    (match x with
+      | Const (x,y,_) ->
+	if (not (List.exists (fun r -> x = r) DataTypes.integral)) || ((int_of_string y) < 0) then
+	  let () = IFDEF DEBUG THEN print_endline ("Dim is: " ^ y) ELSE () ENDIF in
+	  raise (Error ("LLVM IR: Dimensions of array not of type unsignedIntegral, it is: " ^ y))
+	else y
+      | _ -> raise (Internal_compiler_error "LLVM IR hits non-const inside dimensions after constant folding!!"))
+
+let get_dims = function
+  | BracDim x -> List.map get_brac_dims x
+
+let get_first_order_type = function
+  | SimTypedSymbol (x,_,_) -> (x,[])
+    (* Remember we have gotten rid of all the angledim <> lists, so that
+       we inly have [] and [,,,][] expressions with drop semantics
+       left *)
+  | ComTypedSymbol (x,y,_) -> 
+      (* let () = IFDEF DEBUG THEN print_endline "get_first_order_type: got complex typed symbol" ELSE () ENDIF in *)
+    (x, List.flatten (List.map get_dims (match y with AddressedSymbol (_,_,y,_) -> y)))
+
+let rec drop todrop counter dims = function
+  | h::t -> if not (List.exists (fun x -> x = counter) todrop) then dims := h :: !dims; drop todrop (counter+1) dims t
+  | [] -> ()
 
 let get declarations s = 
   List.find (fun x -> (match x with (x,y) -> (get_typed_symbol x) = s)) declarations
@@ -107,24 +156,17 @@ let add_to_declarations s alloca declarations =
     raise (Error (((Reporting.get_line_and_column (get_typed_symbol_lc s)) ^ "Symbol "^ (get_typed_symbol s)) ^ " multiply defined" ))
   else declarations := (s,alloca) :: !declarations
 
-let codegen_typedsymbol f declarations = function
-  | SimTypedSymbol (x,y,lc) as s -> 
-    let datatype = get_llvm_primitive_type lc x in
-    let alloca = create_entry_block_alloca f (get_symbol y) (datatype context) in
-    (* Add the var decl to the declarations list *)
-    add_to_declarations s alloca declarations
-  | ComTypedSymbol (_,_,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ "complex types currently not supported"))
-    
-let rec get_exact_simexpr_type declarations = function
-  | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) 
-  | Div (x,_,_) | Times (x,_,_) | Mod (x,_,_) -> get_exact_simexpr_type declarations x
-  | Opposite (x,_) -> get_exact_simexpr_type declarations x
-  | Const (x,_,_) -> x
-  | Cast (x,_,_) -> x
-  | Brackets (x,_) -> get_exact_simexpr_type declarations x
-  | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_exact_typed_type x
-  | AddrRef (_,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ " complex types not yet supported"))
-  | _ -> raise (Internal_compiler_error ("Unsupported simple expr"))
+
+let get_llvm_primitive_type lc = function
+  | DataTypes.Int8 | DataTypes.Int8s -> i8_type
+  | DataTypes.Int16 | DataTypes.Int16s -> i16_type
+  | DataTypes.Int32 | DataTypes.Int32s -> i32_type
+  | DataTypes.Int64 | DataTypes.Int64s -> i64_type
+  | DataTypes.Float8 
+  | DataTypes.Float16 
+  | DataTypes.Float32 -> float_type
+  | DataTypes.Float64 -> double_type
+  | _ -> raise (Error ((Reporting.get_line_and_column lc) ^ "DataType cannot be supported in llvm IR"))
 
 let rec get_simexpr_type declarations = function
   | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) 
@@ -134,10 +176,20 @@ let rec get_simexpr_type declarations = function
   | Cast (x,_,lc) -> get_data_types lc x
   | Brackets (x,_) -> get_simexpr_type declarations x
   | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_typed_type x
-  | AddrRef (_,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ " complex types not yet supported"))
+  | AddrRef (x,_) -> let (x,_) = get declarations (get_addressed_symbol x) in get_typed_type x
   | _ -> raise (Internal_compiler_error ("Unsupported simple expr"))
 
-(* We need to know the exact type of every expression *)
+let rec get_exact_simexpr_type declarations = function
+  | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) 
+  | Div (x,_,_) | Times (x,_,_) | Mod (x,_,_) -> get_exact_simexpr_type declarations x
+  | Opposite (x,_) -> get_exact_simexpr_type declarations x
+  | Const (x,_,_) -> x
+  | Cast (x,_,_) -> x
+  | Brackets (x,_) -> get_exact_simexpr_type declarations x
+  | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_exact_typed_type x
+  | AddrRef (x,lc) -> let (x,_) = get declarations (get_addressed_symbol x) in get_exact_typed_type x
+  | _ -> raise (Internal_compiler_error ("Unsupported simple expr"))
+
 let rec codegen_simexpr declarations = function
   | Plus (x,y,lc) -> 
     (match get_simexpr_type declarations x with
@@ -193,12 +245,113 @@ let rec codegen_simexpr declarations = function
       | "uitofp" -> build_uitofp (codegen_simexpr declarations y) ((get_llvm_primitive_type lc ctype) context) "uitofptemp" builder
       | "fptosi" -> build_fptosi (codegen_simexpr declarations y) ((get_llvm_primitive_type lc ctype) context) "fptositemp" builder
       | "fptoui" -> build_fptoui (codegen_simexpr declarations y) ((get_llvm_primitive_type lc ctype) context) "fptouitemp" builder
-      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
+      | "zext" -> build_zext (codegen_simexpr declarations y) ((get_llvm_primitive_type lc ctype) context) "zext" builder
+      | "=" -> build_zext (codegen_simexpr declarations y) ((get_llvm_primitive_type lc ctype) context) "zext" builder
+      | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " got a wrong type!! " ^ s)))
   | Brackets (x,_) -> codegen_simexpr declarations x
-  | VarRef (x,lc) -> build_load (match get declarations (get_symbol x) with | (_,x) -> x) (get_symbol x) builder
-  | AddrRef (_,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ "complex types currently not supported"))
+  | VarRef (x,lc) -> 
+    (* Now this can also be an array type, in which case the pointer
+       needs to be sent back, not the value!! *)
+    (match (match (get declarations (get_symbol x)) with | (x,_) -> x) with 
+      | ComTypedSymbol _ ->
+	(* In this case we need to send back the pointer to the array!! *)
+	let findex = const_int (Llvm_target.intptr_type target_data) 0 in
+	build_in_bounds_gep (match get declarations (get_symbol x) with | (_,x)->x) [|findex;findex|] "tempgep" builder
+      | _ -> build_load (match get declarations (get_symbol x) with | (_,x) -> x) (get_symbol x) builder)
+  | AddrRef (x,lc) as s ->
+    (* We need to make getelementptr instructions here do them in order not the reverse *)
+    let array_llvaue = (match get declarations (get_addressed_symbol x) with | (_,x) -> x) in
+    let _ = (match get declarations (get_addressed_symbol x) with | (x,_) -> match x with ComTypedSymbol (x,_,_) ->x
+      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^" not of a complex type"))) in
+    (* Now we need to build the indices array !! *)
+    (* We know that the very first index should always be 0, because it
+       should point to the address of the pointer pointing to the array
+       itself*)
+    (* Need to get the intptr_type from the target data *)
+    let findex = const_int (get_llvm_primitive_type lc (get_exact_simexpr_type declarations s) context) 0 in
+    (* Now we need to get the codegen for the index variables *)
+    (* We should just use the indices that we need to drop and use them instead of this one!!*)
+    (* let indices = get_to_drop x in *)
+    let indices = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in 
+								     List.map (fun x -> codegen_simexpr declarations x) x
+      | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
+    let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
+    let itypes = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in 
+								     List.map (fun x -> get_exact_simexpr_type declarations x) x
+      | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
+    let () = IFDEF DEBUG THEN dump_value array_llvaue ELSE () ENDIF in
+    let ret = build_in_bounds_gep array_llvaue (Array.of_list [findex;findex]) "tempgep" builder in
+    (* let ret = build_in_bounds_gep array_llvaue (Array.of_list (findex::indices)) "tempgep" builder in *)
+    (* Then we need to sign extend the thing to ptr type *)
+    let indices = List.map2 (fun x y ->
+      (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
+    	| "sext" -> build_sext y (Llvm_target.intptr_type target_data) "sexttemp" builder
+    	| _ -> y)) itypes indices in
+    let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
+    (* We have to do this one after the other!! *)
+    let ret = ref ret in
+    let counter = ref (List.length indices) in
+    let () = List.iter (fun x -> 
+      (ret := build_in_bounds_gep !ret [|x|] "tempgep" builder;
+       counter := !counter - 1 ;
+       (* If we have more than one index then you need a 0,0 ret as well*)
+       if !counter = 0 then ()
+       else
+	 (* Build the extra 0,0 address referencing *)
+	 ret := build_in_bounds_gep !ret (Array.of_list [findex;findex]) "tempgep" builder)) indices in 
+    !ret
+  | TStar | TStarStar -> raise (Error "TStar and TStartStar currently not supported in LLVM IR generation")
   | _ -> raise (Internal_compiler_error "Bogus simple expression hit while producing LLVM IR" )
 
+let get_exact_addressed_symbol_llvm_type ptype = function
+  | AddressedSymbol (name,_,[BracDim x],lc) -> 
+    (* We only have dimspecexpr list*)
+    (* We know that all dimspecexpr are just const types *)
+    (* We need to reverse the list and keep on building the array_type recursively*)
+    let x = List.map (fun (DimSpecExpr x) -> x) x in
+    let atype = ref ptype in
+    let slist = List.rev x in
+    let () = List.iter (fun x -> (match x with | Const (_,value,_) -> atype := array_type !atype (int_of_string value)
+      | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist 
+    in !atype
+  | _ -> raise (Internal_compiler_error "get_addressed_symbol_llvm_type went wrong")
+
+
+let get_addressed_symbol_llvm_type ptype = function
+  | AddressedSymbol (name,_,[BracDim x],lc) -> 
+    (* We only have dimspecexpr list*)
+    (* We know that all dimspecexpr are just const types *)
+    (* We need to reverse the list and keep on building the array_type recursively*)
+    let x = List.map (fun (DimSpecExpr x) -> x) x in
+    let atype = ref ptype in
+    let slist = List.rev (List.tl x) in
+    let () = List.iter (fun x -> (match x with | Const (_,value,_) -> atype := array_type !atype (int_of_string value)
+      | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist 
+    in (!atype, List.hd x)
+  | _ -> raise (Internal_compiler_error "get_addressed_symbol_llvm_type went wrong")
+
+let codegen_typedsymbol f declarations = function
+  | SimTypedSymbol (x,y,lc) as s -> 
+    let datatype = get_llvm_primitive_type lc x in
+    let alloca = create_entry_block_alloca f (get_symbol y) (datatype context) in
+    (* Add the var decl to the declarations list *)
+    add_to_declarations s alloca declarations
+  | ComTypedSymbol (x,y,lc) as s -> (* raise (Error ((Reporting.get_line_and_column lc) ^ "complex types currently not supported")) *)
+    (* Produce and array type alloca *)
+    (* This is my primitive data-type *)
+    let datatype = get_llvm_primitive_type lc x in
+    (* Now we need to find if this primitive data-type needs to be extended
+       to arrays or matrices inductively*)
+    let (datatype1,size) = get_addressed_symbol_llvm_type (datatype context) y in
+    let datatype = get_exact_addressed_symbol_llvm_type (datatype context) y in
+    (* Data type may be a primitmive type if it is a vector type *)
+    (* Now alloca the array on the stack *)
+    let size = (match size with Const _ -> codegen_simexpr !declarations size 
+      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Arrays first dim not of type const"))) in
+    let alloca = create_entry_block_alloca_array f (get_addressed_symbol y) datatype size in
+    add_to_declarations s alloca declarations
+    
+(* We need to know the exact type of every expression *)
 let rec codegen_relexpr declarations = function
   | LessThan (x,y,lc) -> 
     let lhs = codegen_simexpr declarations x in
@@ -250,12 +403,70 @@ let rec codegen_relexpr declarations = function
     build_and lhs rhs "ortemp" builder
   | Rackets (x,lc) -> codegen_relexpr declarations x
 
-let codegen_callargs lc declarations = function
-  | CallSymbolArgument x -> build_load (match get declarations (get_symbol x) with | (_,x) -> x) (get_symbol x) builder
-  | CallAddrressedArgument _ -> raise (Error ((Reporting.get_line_and_column lc) ^ "complex types not yet supported in llvm backend"))
+let get_num_indices = function
+  | AddressedSymbol (_,_,x,_) -> match (List.hd x) with BracDim x -> List.length x
+
+let codegen_callargs defmore lc declarations = function
+  | CallSymbolArgument x ->
+    let alloca = (match get declarations (get_symbol x) with | (_,x) -> x) in 
+    (match (match get declarations (get_symbol x) with | (x,_) -> x) with
+      | ComTypedSymbol (x,y,lc) as s -> 
+	(* In this case we need to send back the pointer to the array!! *)
+	let findex = const_int ((get_llvm_primitive_type lc x) context) 0 in
+	(* We send the element pointer pointing to the first element if
+	   it is a vector type*)
+	(* We need to get the pointer to the very first element of this thing*)
+	if not defmore then
+	  let indices = Array.make 2 findex in
+	  (* Make a list of 0 of size primitive array type *)
+	  build_in_bounds_gep alloca indices "tempgep" builder
+	else
+	  let x = y in
+	  let indices = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in 
+									      List.map (fun x -> codegen_simexpr declarations (Const (DataTypes.Int32s,"0",lc))) x
+	    | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
+	  let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
+	  let itypes = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in 
+									     List.map (fun x -> get_exact_simexpr_type declarations x) x
+	    | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
+	  let () = IFDEF DEBUG THEN dump_value alloca ELSE () ENDIF in
+	  let ret = build_in_bounds_gep alloca (Array.of_list [findex;findex]) "tempgep" builder in
+	  (* Then we need to sign extend the thing to ptr type *)
+	  let indices = List.map2 (fun x y ->
+	    (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
+    	      | "sext" -> build_sext y (Llvm_target.intptr_type target_data) "sexttemp" builder
+    	      | _ -> y)) itypes indices in
+	  let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
+	  (* We have to do this one after the other!! *)
+	  let ret = ref ret in
+	  let counter = ref (List.length indices) in
+	  let () = List.iter (fun x -> 
+	    (ret := build_in_bounds_gep !ret [|x|] "tempgep" builder;
+	     counter := !counter - 1 ;
+	     (* If we have more than one index then you need a 0,0 ret as well*)
+	     if !counter = 0 then ()
+	     else
+	       (* Build the extra 0,0 address referencing *)
+	       ret := build_in_bounds_gep !ret (Array.of_list [findex;findex]) "tempgep" builder)) indices in 
+	  !ret
+      | _ -> build_load alloca (get_symbol x) builder)
+  | CallAddrressedArgument x -> 
+    (* If we are dropping all the elements then we need to send a load
+       rather than the pointer itself, because that is what the function
+       expects!*)
+    let dec_type = get_first_order_type (match (get declarations (get_addressed_symbol x)) with (x,_) -> x) in
+    let to_drop = (get_to_drop x) in
+    if ((List.length to_drop) > (List.length (snd (dec_type)))) then
+      raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "LLVM IR: dropping more dimensions then the size of the polytope"))
+    else
+      let actual_dims = ref [] in
+      (drop to_drop 0 actual_dims (snd dec_type));
+      let pointer = codegen_simexpr declarations (AddrRef (x,(get_addressed_symbol_lc x))) in
+      if (List.length !actual_dims) = 0 then build_load pointer "pointercall" builder
+      else pointer
 
 let codegen_fcall lc declarations = function
-  | FCall (x,e) -> 
+  | FCall (x,e) ->
     (* First lookup the name of the function *)
     let (name,args,lc) =
       if not e then
@@ -275,7 +486,7 @@ let codegen_fcall lc declarations = function
       let callee = (match lookup_function name the_module with
 	| Some callee -> callee
 	| None -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ name ^ " function not in llvm module"))) in
-      let bargs = List.map (fun x -> codegen_callargs lc declarations x) args in (callee,bargs)
+      let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in (callee,bargs)
     else 
       (* Move through all the user loaded modules and get the callee and the bargs *)
       let callee_l = List.filter (fun x -> match lookup_function name x with | Some _ -> true | None -> false) !user_modules in
@@ -302,7 +513,7 @@ let codegen_fcall lc declarations = function
 	(* Set the linkage to external type *)
 	let () = set_linkage Linkage.External callee in
 	let () = IFDEF DEBUG THEN print_endline (match linkage callee with | Linkage.External -> "External" | _ -> "Some other linkage type") ELSE () ENDIF in
-	let bargs = List.map (fun x -> codegen_callargs lc declarations x) args in (callee,bargs)
+	let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in (callee,bargs)
   | SimExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ended up with SimExpr when it shouldn't"))
 
 let codegen_asssimexpr lc declarations = function
@@ -327,25 +538,51 @@ let codegen_stmt f declarations = function
 	      let _ = build_store rval alloca builder in ()
 	    | AllSymbol x -> 
 	      (* lookup that the symbol is in the declarations list and get it *)
-	      let (_,alloca) = get !declarations (get_symbol x) in
-	      let _ = build_store rval alloca builder in ()
-	    | AllAddressedSymbol _ -> raise (Error ((Reporting.get_line_and_column lc)^ "complex types currently not supported in llvm IR generation")))) ll
-      | FCall _ as s -> 
+	      let (x,alloca) = get !declarations (get_symbol x) in
+	      (match x with
+		| ComTypedSymbol _ ->
+		  raise (Error((Reporting.get_line_and_column (get_typed_symbol_lc x))^ " direct assignment to arrays currently not supported :-("))
+		| _ -> let _ = build_store rval alloca builder in ())
+	    | AllAddressedSymbol x -> 
+	      (* This is similar to simple-expr codegen for AddrRef*)
+	      let tempaddref = AddrRef(x,(get_addressed_symbol_lc x)) in
+	      let assaddrval = codegen_simexpr !declarations tempaddref in
+	      let _ = build_store rval assaddrval builder in ())) ll
+      | FCall (_,e) as s -> 
 	let (callee,args) = codegen_fcall lc !declarations s in
+	let () = IFDEF DEBUG THEN (List.iter (fun x -> dump_value x) args) ELSE () ENDIF in
 	(* The assignments types are all alloca types just get the actual alloca *)
 	let oargs = List.map (fun x ->
 	  (match x with
 	    | AllTypedSymbol x -> 
 	      let () = codegen_typedsymbol f declarations x in
-	      let (_,alloca) = get !declarations (get_typed_symbol x) in alloca
+	      let (r,alloca) = get !declarations (get_typed_symbol x) in 
+	      (* We need to pass in the very first element of the pointer *)
+	      (match r with
+		| SimTypedSymbol _ -> alloca
+		| ComTypedSymbol(x,y,lc) as s -> 
+		  (* let findex = const_int (Llvm_target.intptr_type target_data) 0 in *)
+		  let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in
+		  build_in_bounds_gep alloca (Array.of_list [findex]) "otempgep" builder)
 	    | AllSymbol x -> 
 	      (* lookup that the symbol is in the declarations list and get it *)
-	      let (_,alloca) = get !declarations (get_symbol x) in alloca
-	    | AllAddressedSymbol _ -> raise (Error ((Reporting.get_line_and_column lc)^ "complex types currently not supported in llvm IR generation")))) ll in
+	      let (r,alloca) = get !declarations (get_symbol x) in
+	      (match r with
+		| SimTypedSymbol _ ->  alloca
+		| ComTypedSymbol(x,y,lc) -> 
+		  let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in
+		  (* let findex = const_int (Llvm_target.intptr_type target_data) 0 in *)
+		  build_in_bounds_gep alloca (Array.of_list [findex]) "otempgep" builder)
+	    | AllAddressedSymbol x -> 
+	      (* rval itself might be pointers as well *)
+	      (* These will also be pointer types ofcourse !! *)
+	      (* This is similar to simple-expr codegen for AddrRef*)
+	      let tempaddref = AddrRef(x,(get_addressed_symbol_lc x)) in
+	      codegen_simexpr !declarations tempaddref)) ll in
 	(* Now make the call *)
-	(* let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) oargs ELSE () ENDIF in *)
-	let d =  build_call callee (Array.of_list (args@oargs)) "" builder in ())
-	(* let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ()) *)
+	let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) oargs ELSE () ENDIF in
+	let d =  build_call callee (Array.of_list (args@oargs)) "" builder in
+	let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ())
   | VarDecl (x,lc) -> codegen_typedsymbol f declarations x
   | _ -> raise (Internal_compiler_error "Hit a bogus stmt while compiling to llvm")
 
@@ -505,10 +742,34 @@ let rec decompile_filter_params = function
 (* For now only the name of the function will be present here *)
 let codegen_prototype name ins outs =
   (* First we need to get the type of the inputs *)
-  (* IMP: Inputs are always by copy and hence, can never be ptr type*)
-  let intypes = List.map (fun x -> ((get_llvm_primitive_type (get_typed_symbol_lc x) (get_exact_typed_type x)) context)) ins in
+  (* IMP: Inputs are always by copy and hence, can never be ptr type, except in case of arrays being passed in as inputs!! *)
+  (* First check if this is a complex type *)
+  let intypes = List.map (fun x -> 
+    (match x with 
+      | ComTypedSymbol (x,y,lc) as s -> 
+	(* This is a special case, it needs to be a pointer type!! *)
+	(* Just do as you did for comtypedsymbol*)
+	let datatype = get_llvm_primitive_type lc x in
+	(* Now we need to find if this primitive data-type needs to be extended
+	   to arrays or matrices inductively*)
+	let (datatype,size) = get_addressed_symbol_llvm_type (datatype context) y in
+	pointer_type datatype
+	(* Now make the pointer to this type *)
+	(* pointer_type (get_llvm_primitive_type (get_typed_symbol_lc s) (get_exact_typed_type s) context) *)
+      | SimTypedSymbol _ -> (get_llvm_primitive_type (get_typed_symbol_lc x) (get_exact_typed_type x) context))) ins in
   (* IMP: The outputs are always by alloca, and hence are always of ptr type*)
-  let outtypes = List.map (fun x -> pointer_type ((get_llvm_primitive_type (get_typed_symbol_lc x) (get_exact_typed_type x)) context)) outs in
+  let outtypes = List.map (fun x -> 
+    match x with
+      | ComTypedSymbol (x,y,lc) as s -> 
+	(* (\* This is a special case, it needs to be a pointer type!! *\) *)
+	(* (\* Just do as you did for comtypedsymbol*\) *)
+	let datatype = get_llvm_primitive_type lc x in
+	(* (\* Now we need to find if this primitive data-type needs to be extended *)
+	(*    to arrays or matrices inductively*\) *)
+	let datatype = get_exact_addressed_symbol_llvm_type (datatype context) y in
+	pointer_type datatype
+	(* pointer_type ((get_llvm_primitive_type (get_addressed_symbol_lc y) (get_exact_typed_type s)) context) *)
+      | SimTypedSymbol _ -> pointer_type ((get_llvm_primitive_type (get_typed_symbol_lc x) (get_exact_typed_type x)) context)) outs in
   (* Build the function prototype *)
   let ft = function_type (void_type context) (Array.of_list (intypes@outtypes)) in
   let f = match (lookup_function name the_module) with
@@ -524,14 +785,22 @@ let codegen_input_params the_function declarations inputs =
   Array.iteri
     (fun i ai ->
       (match inputs.(i) with
-	| SimTypedSymbol (x,y,lc) as s -> 
-	  let datatype = get_llvm_primitive_type lc x in
-	  let alloca = create_entry_block_alloca the_function (get_symbol y) (datatype context) in
+	| SimTypedSymbol (x,y,lc) as s ->
+	  let datatype = type_of ai in
+	  let alloca = create_entry_block_alloca the_function (get_symbol y) datatype in
 	  (* Store the incoming value into the alloc structure *)
 	  let _ = build_store ai alloca builder in
 	  (* Add the var decl to the declarations list *)
 	  add_to_declarations s alloca declarations
-	| ComTypedSymbol (_,_,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ "complex types currently not supported")))) input_params 
+	| ComTypedSymbol (x,y,lc) as s ->
+	  (* Set the attributes as readonly *)
+	  let () = (match classify_type (type_of ai) with | TypeKind.Pointer -> add_param_attr ai  Attribute.Byval | _ -> ()) in
+	  let datatype = type_of ai in
+	  let alloca = create_entry_block_alloca the_function (get_addressed_symbol y) datatype in
+	  (* Store the incoming value into the alloc structure *)
+	  let _ = build_store ai alloca builder in
+	  (* Add the var decl to the declarations list *)
+	  add_to_declarations s alloca declarations)) input_params
     
 (* Just add the output params to the declarations, because they are pointer type*)
 let codegen_output_params the_function declarations input_size outputs = 
@@ -540,9 +809,17 @@ let codegen_output_params the_function declarations input_size outputs =
   let all_params = (params the_function) in
   let output_params = Array.sub all_params input_size ((Array.length all_params) - input_size) in
   Array.iteri (fun i ai ->
+    (* TODO: Check if this works for array types !! *)
     (match outputs.(i) with
       | SimTypedSymbol _ as s -> add_to_declarations s ai declarations
-      | ComTypedSymbol (_,_,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ "complex types currently not supported")))) output_params
+      | ComTypedSymbol (x,y,lc) as s -> 
+	(* In this case we need to make a pointer pointer by using alloca *)
+	(* let datatype = type_of ai in *)
+	(* let alloca = create_entry_block_alloca the_function (get_addressed_symbol y) datatype in *)
+	(* (\* Store the incoming value into the alloc structure *\) *)
+	(* let _ = build_store ai alloca builder in *)
+	(* Add the var decl to the declarations list *)
+	add_to_declarations s ai declarations)) output_params
 
 let llvm_topnode = function
   | Topnode (fcall,name,_,cfg_list) -> 
@@ -572,7 +849,7 @@ let llvm_topnode = function
        (* Validate that the function is correct *)
        Llvm_analysis.assert_valid_function the_function;
      (* Do all the optimizations on the function *)
-     let _ = PassManager.run_function the_function the_fpm in the_function
+     (* let _ = PassManager.run_function the_function the_fpm in the_function *)
      with
        | e -> delete_function the_function; raise e)
   | Null -> raise (Internal_compiler_error "Hit a Null fcall expression while producing llvm IR")
@@ -583,8 +860,8 @@ let rec llvm_filter_node filename = function
     let the_function = llvm_topnode topnode in
     (match topnode with Topnode(_,n,_,_) ->
       if n = "main" then
-    	(* let () = dump_module the_module in *)
-    	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".ll") then ()
+    	let () = dump_module the_module in
+    	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".bc") then ()
     	else raise (Error ("Could not write the llvm module to output.ll file")) in ()
       (* let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in () *)
       else ())

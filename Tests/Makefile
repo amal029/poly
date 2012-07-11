@@ -46,7 +46,7 @@ compiler:
 	   $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
 	  -I $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN)	\
 	   $(REWRITES) $(ANALYSIS) $(OPTIMIZATIONS) -I $(CODEGENDIR)	\
-	   $(CODEGENLIB) -I $(LIBDIR) $(FILEUTILS) $(LLVMLIB) -cc g++	\
+	   $(CODEGENLIB) -I $(LIBDIR) $(FILEUTILS) $(LLVMLIB) -cc gcc	\
 	  -cclib -lstdc++ -ccopt -rdynamic -custom $(SRC) -o $(TARGETC)
 
 clean:

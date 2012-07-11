@@ -4,12 +4,21 @@ main
 {
   var t = 10
   var z = t
+  /* print t and z*/
+  int dummy = extern p2 (t,z)
   z = (z * (z * z))
-  case 
-  (z == 10) t = t+1
+  /* print z*/
+  dummy = extern p1 (z)
+  case (z == 10) t = t+1
   otherwise case (z==90) t=t+2 otherwise t=t-1
+  /* print t*/
+  dummy = extern p1 (t)
   var e = 90
   (var qw, var qwe) = test(e)
+  /* print qw and qwe */
+  dummy = extern p2(qw,qwe)
   for i in 0:e-1 qw = qw + 1
-  for i in 0:e-1 qw = qw + 1
+  /* print dummy after the for loop*/
+  dummy = extern p1 (qw)
+  dummy = extern p1 (dummy)
 }
