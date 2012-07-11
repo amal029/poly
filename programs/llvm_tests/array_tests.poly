@@ -1,0 +1,28 @@
+zeros out T[M] par i in 0:M-1 T[i] = 0
+ones out T[M] par i in 0:M-1 T[i] = 1
+
+heroes out T[M][N] par i in 0:M-1 for j in 0:N-1 T[i][j] = 3
+
+main
+{
+  var size = 2
+  var Array[size] = zeros ()
+  /* print the array */
+  int ret = extern print_array (size,Array)
+  /* print the ret value */
+  ret = extern p1 (ret)
+  Array = ones()
+  var Vrray[size][size] = heroes()
+
+  /* print a 2D array */
+  ret = extern print_array2 (size,Vrray)
+  /* print the ret value */
+  ret = extern p1 (ret)
+  
+
+  /* /\* Set the array values to 1 *\/ */
+  /* /\* print the array *\/ */
+  ret = extern print_array (size,Array)
+  /* /\* print the ret value *\/ */
+  ret = extern p1 (ret)
+}
