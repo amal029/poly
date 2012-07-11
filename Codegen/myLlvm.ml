@@ -849,7 +849,7 @@ let llvm_topnode = function
        (* Validate that the function is correct *)
        Llvm_analysis.assert_valid_function the_function;
      (* Do all the optimizations on the function *)
-     (* let _ = PassManager.run_function the_function the_fpm in the_function *)
+     let _ = PassManager.run_function the_function the_fpm in the_function
      with
        | e -> delete_function the_function; raise e)
   | Null -> raise (Internal_compiler_error "Hit a Null fcall expression while producing llvm IR")
