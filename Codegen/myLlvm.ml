@@ -417,7 +417,7 @@ let codegen_callargs defmore lc declarations = function
 	   it is a vector type*)
 	(* We need to get the pointer to the very first element of this thing*)
 	if not defmore then
-	  let indices = Array.make 2 findex in
+	  let indices = Array.make 1 findex in
 	  (* Make a list of 0 of size primitive array type *)
 	  build_in_bounds_gep alloca indices "tempgep" builder
 	else
@@ -519,6 +519,7 @@ let codegen_fcall lc declarations = function
 let codegen_asssimexpr lc declarations = function
   | SimExpr x ->
     let r = codegen_simexpr declarations x in
+    let () = IFDEF DEBUG THEN print_endline "dumping the rvalue simexpr: " ELSE () ENDIF in
     let () = IFDEF DEBUG THEN dump_value r ELSE () ENDIF in r
   | FCall _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ended up with FCall when it shouldn't"))
 
@@ -528,11 +529,15 @@ let codegen_stmt f declarations = function
     let () = IFDEF DEBUG THEN print_endline "assigning" ELSE () ENDIF in
     (* add the declaration to the *)
     (match expr with
-      | SimExpr _ -> 
+      | SimExpr t ->
 	let rval = codegen_asssimexpr lc !declarations expr in
+	let rval = (match t with
+	  (* Need to load the value from the pointer just calculated*)
+	  | AddrRef _ -> build_load rval "loadgep" builder
+	  | _ -> rval) in
 	List.iter (fun x ->
 	  (match x with
-	    | AllTypedSymbol x -> 
+	    | AllTypedSymbol x ->
 	      let () = codegen_typedsymbol f declarations x in
 	      let (_,alloca) = get !declarations (get_typed_symbol x) in
 	      let _ = build_store rval alloca builder in ()
@@ -752,7 +757,7 @@ let codegen_prototype name ins outs =
 	let datatype = get_llvm_primitive_type lc x in
 	(* Now we need to find if this primitive data-type needs to be extended
 	   to arrays or matrices inductively*)
-	let (datatype,size) = get_addressed_symbol_llvm_type (datatype context) y in
+	let datatype = get_exact_addressed_symbol_llvm_type (datatype context) y in
 	pointer_type datatype
 	(* Now make the pointer to this type *)
 	(* pointer_type (get_llvm_primitive_type (get_typed_symbol_lc s) (get_exact_typed_type s) context) *)
@@ -794,13 +799,15 @@ let codegen_input_params the_function declarations inputs =
 	  add_to_declarations s alloca declarations
 	| ComTypedSymbol (x,y,lc) as s ->
 	  (* Set the attributes as readonly *)
-	  let () = (match classify_type (type_of ai) with | TypeKind.Pointer -> add_param_attr ai  Attribute.Byval | _ -> ()) in
-	  let datatype = type_of ai in
-	  let alloca = create_entry_block_alloca the_function (get_addressed_symbol y) datatype in
+	  let () = add_param_attr ai Attribute.Byval in
+	  (* let () = (match classify_type (type_of ai) with | TypeKind.Pointer -> add_param_attr ai  Attribute.Byval | _ -> ()) in *)
+	  (* let datatype = type_of ai in *)
+	  (* let alloca = create_entry_block_alloca the_function (get_addressed_symbol y) datatype in *)
 	  (* Store the incoming value into the alloc structure *)
-	  let _ = build_store ai alloca builder in
+	  (* let _ = build_store ai alloca builder in *)
 	  (* Add the var decl to the declarations list *)
-	  add_to_declarations s alloca declarations)) input_params
+	  (* add_to_declarations s alloca declarations *)
+	  add_to_declarations s ai declarations)) input_params
     
 (* Just add the output params to the declarations, because they are pointer type*)
 let codegen_output_params the_function declarations input_size outputs = 
