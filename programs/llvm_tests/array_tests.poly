@@ -7,6 +7,9 @@ read_set2 in R[M][M] out O[M][M] for i in 0:M-1 for j in 0:M-1 O[i][j] = R[i][j]
 heroes out T[M][N] par i in 0:M-1 for j in 0:N-1 T[i][j] = 0
 heroes2 out T[M][N] par i in 0:M-1 for j in 0:N-1 T[i][j] = 4
 
+rso in I out O O = I
+rso2 in I[M] out O[M] for i in 0:M-1 O[i] = I[i]
+
 main
 {
   var size = 2
@@ -36,4 +39,16 @@ main
   ret = extern print_array2 (size,Vrray)
   /* print the ret value */
   ret = extern p1 (ret)
+  
+  var NA[size] = ones()
+  var NAA[size] = zeros()
+  ret = extern print_array (size,NAA)
+  for i in 0:size-1 NAA[i] = rso (NA[i])
+  ret = extern print_array (size,NAA)
+  
+  var NA2[size][size] = heroes2()
+  var NAA2[size][size] = heroes()
+  ret = extern print_array2 (size,NAA2)
+  for i in 0:size-1 NAA2[i] = rso2(NA2[i])
+  ret = extern print_array2(size,NAA2)
 }
