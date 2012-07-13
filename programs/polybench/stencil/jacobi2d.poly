@@ -20,29 +20,33 @@ jacobi in M, N, TSTEPS out A[M][N], B[M][N]
  par t in 0:TSTEPS-1{
   for i in 2:M-1
    for j in 2:N-1
-    B[i][j] = 0.2*((A[i][j]+A[i][j-1]+A[i][j+1]+A[i-1][j]))
-  /* A[2:M-1,2:N-1] = B[2:M-1,2:N-1] */
-  par i in 2:M-1
-   par j in 2:N-1
-    A[i,j] = B[i,j]
- }
-}where M==N && M==TSTEPS
-
-seidel in M, N, TSTEPS out A[M][N]
-{
- A = init_seidel()
- par t in 0:TSTEPS-1
-  for i in 2:M-1
-   for j in 2:N-1
-    A[i][j] = ((A[i-1,j-1]+A[i-1,j]+A[i-1,j+1]+A[i,j-1]+A[i,j])+A[i,j+1]+
-       A[i+1,j-1]+A[i+1,j]+A[i+1,j+1])/9.0
-}where M==N && M==TSTEPS
-
-main
-{
+    B[i][j] = 0.2*(A[i][j]+A[i][j-1]+A[i][j+1]+A[i-1][j])
+  par i in 2:M-1					     
+   par j in 2:N-1					     
+    A[i,j] = B[i,j]					     
+ }							     
+}where M==N && M==TSTEPS				     
+							     
+seidel in M, N, TSTEPS out A[M][N]			     
+{							     
+ A = init_seidel()					     
+ par t in 0:TSTEPS-1					     
+  for i in 2:M-1					     
+   for j in 2:N-1					     
+    A[i][j] = ((A[i-1,j-1]+A[i-1,j]+A[i-1,j+1]+A[i,j-1]+ A[i ,j])+A[i,j+1]+
+       A[i+1,j-1]+A[i+1,j]+A[i+1,j+1])/9.0		     
+}where M==N && M==TSTEPS				     
+							     
+main							     
+{							     
  var TSTEPS=100
- var N = 100
- var M=100
- (var J1[M,N], var J2[M,N]) = jacobi (M,N,TSTEPS)
- var S[M,N] = seidel (M,N,TSTEPS)
-}
+ var N = 100						     
+ var M=100						     
+ (var J1[M,N], var J2[M,N]) = jacobi (M,N,TSTEPS)	     
+ /* var S[M,N] = seidel (M,N,TSTEPS)			      */
+ 
+ /* print the arrays */
+ int ret = extern print_float_array2 (M,N,J1)
+ ret = extern print_float_array2 (M,N,J2)
+ /* ret = extern print_float_array2 (M,N,S) */
+}							     
