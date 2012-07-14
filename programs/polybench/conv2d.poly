@@ -74,9 +74,11 @@ main
   var I[IXS][IYS] = init_IN(IXS)
   var O[IXS][IYS] = zeros()
   var K[KXS][KYS] = init_K()
+  int ret = extern start_timer()
   O = conv2d(I,K)
+  ret = extern print_time()
   /* print the output matrix */
-  int ret = extern print_float_array2(IXS,IYS,O)
+  ret = extern print_float_array2(IXS,IYS,O)
   /* int ret = extern print_float_array2(KXS,KYS,K) */
   /* int ret = extern print_float_array2(IXS,IYS,I) */
   /* print the return value*/
