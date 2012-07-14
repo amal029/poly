@@ -1,4 +1,10 @@
 #include<stdio.h>
+#include<math.h>
+#include<stdlib.h>
+#include<time.h>
+
+
+clock_t start, end;
 
 extern void pf1 (float a, int* ret){
   fprintf(stdout,"Got a single value: %f\n",a);
@@ -56,7 +62,7 @@ extern void print_float_array2 (int size, int size2, float A[size][size2], int *
     for(j=0;j<size2;++j)
       fprintf(stdout,"%f\t",A[i][j]);
   fprintf(stdout,"\n");
-  *ret = (i+j);
+  *ret = (i*j);
 }
 
 extern void print_float_array3 (int size, float A[size][size][size], int *ret){
@@ -66,5 +72,56 @@ extern void print_float_array3 (int size, float A[size][size][size], int *ret){
       for(k=0;k<size;++k)
       fprintf(stdout,"%f\t",A[i][j][k]);
   fprintf(stdout,"\n");
-  *ret = (i+j+k);
+  *ret = (i*j*k);
+}
+
+extern void fabs_add_point_5 (float sum, float *ret) {
+  *ret = fabsf(sum) + 0.5f;
+}
+
+extern void read_image (int size, float O[size][size], int *ret){
+  FILE *fp = NULL;
+  if ((fp = fopen("lena.raw","r")) == NULL){
+    *ret = 0;
+  }
+  unsigned char data[size*size];
+  *ret = fread(data,1,(sizeof(data)),fp);
+  fclose(fp);
+  /* fill in the Output array */
+  int counter = 0;
+  for (int i =0;i<size;++i){
+    int j=0;
+    for (;j<size;++j){
+      O[i][j] = data[i+j+counter];
+    }
+    counter += (j-1);
+  }
+  /* free (data); */
+}
+
+extern void read_image_o (int size, float O[size], int *ret){
+  FILE *fp = NULL;
+  if ((fp = fopen("lena.raw","r")) == NULL){
+    *ret = 0;
+  }
+  unsigned char data[size];
+  *ret = fread(data,1,(sizeof(data)),fp);
+  fclose(fp);
+  /* fill in the Output array */
+  for (int i =0;i<size;++i){
+    O[i] = (float)data[i];
+  }
+  /* free (data); */
+}
+
+extern void start_timer (int *ret){
+  start = clock();
+  *ret = 0;
+}
+
+extern void print_time (int *ret){
+  end = clock();
+  double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+  fprintf(stderr,"Time for function: %g\n",cpu_time_used);
+  *ret = 0;
 }

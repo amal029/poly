@@ -556,7 +556,9 @@ let codegen_fcall lc declarations = function
 	(* Set the linkage to external type *)
 	let () = set_linkage Linkage.External callee in
 	let () = IFDEF DEBUG THEN print_endline (match linkage callee with | Linkage.External -> "External" | _ -> "Some other linkage type") ELSE () ENDIF in
-	let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in (callee,bargs)
+	let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in
+	let () = IFDEF DEBUG THEN print_endline "found the external function delcaration" ELSE () ENDIF in
+	(callee,bargs)
   | SimExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ended up with SimExpr when it shouldn't"))
 
 let codegen_asssimexpr lc declarations = function
