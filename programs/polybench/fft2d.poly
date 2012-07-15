@@ -1,0 +1,211 @@
+getRealImagRow
+in C[NX][NY][RI]
+out Real[NX], Imag[NX]
+{
+ for x in 0:NX-1
+  for y in 0:NY-1{
+   Real[x] = C[x,y][0]
+   Imag[y] = C[x,y][1]
+  }
+} where (RI==2)
+
+getRealImagCol
+in C[NX][NY][RI]
+out Real[NY], Imag[NY]
+{
+ for i in 0:NX-1
+  for j in 0:NY-1{
+   Real[j] = C[i,j][0]
+   Imag[j] = C[i,j][1]
+  }
+} where (RI==2)
+
+FFT
+in dir, m, xi[nn], yi[nn]
+out ox[nn], oy[nn]
+{
+  /* Copies to temp matricies */
+  var x[nn]; var y[nn];
+  par i in 0:nn-1 {x[i] = xi[i] y[i] = yi[i]}
+
+  /* Do bit reversal */
+  var i2 = nn >> 1
+  var j = 0
+  var tx 
+  var ty 
+  for i in 0:(nn-2) {
+   case
+   (i < j) {
+    tx = x[i]
+    ty = y[i]
+    x[i] = x[j]
+    y[i] = y[j]
+    x[j] = tx
+    y[j] = ty
+   } otherwise {}
+   var k = (i2)
+   (k,j) = extern bit_shift_loop(k,j)
+   j = j + k
+  }
+  
+  /* Compute the FFT */
+  var i1 var t1 var t2 var z
+  var c1 = -1.0 var c2 = 0.0
+  var l2 = 1
+  var u1 var u2
+  for l1 in 0:m-1{
+   l1 = l2; l2 = l2 << 1
+   u1 = 1.0; u2 = 0.0
+   for j1 in 0:l1-1{
+    for i in j1:(nn-1):12{
+     i1 = i + l1
+     t1 = u1 * x[i1] - u2 * y[i1]
+     t2 = u1 * y[i1] + u2 * x[i1]
+     x[i1] = x[i] - t1
+     y[i1] = y[i] - t2
+     x[i] = x[i] + t1
+     y[i] = y[i] + t2
+    }
+    z = u1 * c1 - u2 * c2
+    u2 = u1 * c2 + u2 * c1
+    u1 = z
+   }
+   var temp = ((1.0-c1)/2.0)
+   c2 = extern mysqrt (temp)
+   case (dir == 1) c2 = -c2
+   otherwise {}
+   temp = ((1.0+c1)/2.0)
+   c1 = extern mysqrt (temp)
+  }
+  /*scaling for forward transform */
+  case (dir == 1) {
+   for i in 0:nn-1{
+    x[i] = x[i]*((float)(1/nn))
+    y[i] = y[i]*((float)(1/nn))
+   }
+  }otherwise{}
+  
+  /* Copy to outputs */
+  par i in 0:nn-1 {ox[i] = x[i] oy[i] = y[i]}
+}
+
+FFTC
+in dir, m, xi[nn], yi[nn]
+out ox[nn], oy[nn]
+{
+  /* Copies to temp matricies */
+  var x[nn]; var y[nn];
+  par i in 0:nn-1 {x[i] = xi[i] y[i] = yi[i]}
+
+  /* Do bit reversal */
+  var i2 = nn >> 1
+  var j = 0
+  var tx 
+  var ty 
+  for i in 0:(nn-2) {
+   case
+   (i < j) {
+    tx = x[i]
+    ty = y[i]
+    x[i] = x[j]
+    y[i] = y[j]
+    x[j] = tx
+    y[j] = ty
+   } otherwise {}
+   var k = (i2)
+   (k,j) = extern bit_shift_loop(k,j)
+   j = j + k
+  }
+  
+  /* Compute the FFT */
+  var i1 var t1 var t2 var z
+  var c1 = -1.0 var c2 = 0.0
+  var l2 = 1
+  var u1 var u2
+  for l1 in 0:m-1{
+   l1 = l2; l2 = l2 << 1
+   u1 = 1.0; u2 = 0.0
+   for j1 in 0:l1-1{
+    for i in j1:(nn-1):12{
+     i1 = i + l1
+     t1 = u1 * x[i1] - u2 * y[i1]
+     t2 = u1 * y[i1] + u2 * x[i1]
+     x[i1] = x[i] - t1
+     y[i1] = y[i] - t2
+     x[i] = x[i] + t1
+     y[i] = y[i] + t2
+    }
+    z = u1 * c1 - u2 * c2
+    u2 = u1 * c2 + u2 * c1
+    u1 = z
+   }
+   var temp = ((1.0-c1)/2.0)
+   c2 = extern mysqrt (temp)
+   case (dir == 1) c2 = -c2
+   otherwise {}
+   temp = ((1.0+c1)/2.0)
+   c1 = extern mysqrt (temp)
+  }
+  /*scaling for forward transform */
+  case (dir == 1) {
+   for i in 0:nn-1{
+    x[i] = x[i]*((float)(1/nn))
+    y[i] = y[i]*((float)(1/nn))
+   }
+  }otherwise{}
+  
+  /* Copy to outputs */
+  par i in 0:nn-1 {ox[i] = x[i] oy[i] = y[i]}
+}
+
+FFT2D
+in dir, int32s NX, int32s NY, float C[NX][NY][RI]
+out float OC[NX][NY][RI]
+{
+  /* Copy the input complex matrix into real and imag parts */
+  (float Real[NX], float Imag[NX]) = getRealImagRow (C)
+
+  /*get the power of 2 into m via a math function*/
+  int32s m
+  m = extern log_base_2(NX)
+  
+  (Real,Imag) = FFT(dir,m,Real,Imag)
+
+  /* Put it back into the complex number form */
+  for i in 0:NX-1 for j in 0:NY-1 {OC[i][j][0] = Real[i] OC[i][j][1] = Imag[i]}
+  
+  /* Do the same for column parts of the image */
+  /* Copy the input complex matrix into real and imag parts */
+  (var RealC[NY], var ImagC[NY]) = getRealImagCol (C)
+
+  /*get the power of 2 into m via a math function*/
+  m = extern log_base_2(NY)
+  
+  (RealC,ImagC) = FFTC(dir,m,RealC,ImagC)
+
+  /* Put it back into the complex number form */
+  for i in 0:NX-1 for j in 0:NY-1 {OC[i][j][0] = Real[j] OC[i][j][1] = Imag[j]}
+} where (RI==2)
+
+main
+{
+  var NX = 256
+  var NY = NX
+  var RI = 2
+  float Image[NX][NY][RI]
+  int ret
+  /* ret = extern read_image_fft(NX,NY,RI,Image) */
+  /* perform 2d FFT in forward direction */
+  var dir = 1
+  ret = extern start_timer()
+  Image = FFT2D(dir,NX,NY,Image)
+  ret = extern print_time()
+  /* Write FFTed image to a file */
+  /* ret = write_image_fft(dir,NX,NY,RI,Image) */
+  /* Perform 2d FFT in reverse direction*/
+  /* dir = -1 */
+  /* ret = extern start_timer() */
+  /* Image = FFT2D(dir,NX,NY,Image) */
+  /* ret = extern print_time() */
+  /* ret = write_image(dir,NX,NY,RI,Image) */
+}

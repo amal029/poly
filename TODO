@@ -48,3 +48,8 @@ In llvm generation code:
 1.) The assignment to an array type is not resolved properly!! It should
 be a pointer to the first element rather than the pointer to array of
 elements.
+
+IMPORTANT:
+
+1.) When we make a call the the same filter multiple times in the same
+place the compiler goes into recusion!!

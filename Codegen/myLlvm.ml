@@ -152,7 +152,10 @@ let rec drop todrop counter dims = function
   | [] -> ()
 
 let get declarations s = 
-  List.find (fun x -> (match x with (x,y) -> (get_typed_symbol x) = s)) declarations
+  try
+    List.find (fun x -> (match x with (x,y) -> (get_typed_symbol x) = s)) declarations
+  with
+    | Not_found -> raise (Internal_compiler_error ("Variable: " ^ s ^ " could not be found"))
 
 let exists declarations s = 
   List.exists (fun x -> (match x with (x,y) -> (get_typed_symbol x)) = s) declarations
@@ -176,7 +179,7 @@ let get_llvm_primitive_type lc = function
   | _ -> raise (Error ((Reporting.get_line_and_column lc) ^ "DataType cannot be supported in llvm IR"))
 
 let rec get_simexpr_type declarations = function
-  | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) 
+  | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) | Lshift(x,_,_) | Rshift(x,_,_)
   | Div (x,_,_) | Times (x,_,_) | Mod (x,_,_) -> get_simexpr_type declarations x
   | Opposite (x,_) -> get_simexpr_type declarations x
   | Const (x,_,lc) -> get_data_types lc x
@@ -187,7 +190,7 @@ let rec get_simexpr_type declarations = function
   | _ -> raise (Internal_compiler_error ("Unsupported simple expr"))
 
 let rec get_exact_simexpr_type declarations = function
-  | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) 
+  | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) | Lshift(x,_,_) | Rshift(x,_,_)
   | Div (x,_,_) | Times (x,_,_) | Mod (x,_,_) -> get_exact_simexpr_type declarations x
   | Opposite (x,_) -> get_exact_simexpr_type declarations x
   | Const (x,_,_) -> x
@@ -218,8 +221,19 @@ let rec codegen_simexpr declarations = function
       | "int" -> build_mul (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) "timestemp" builder
       | "float" -> build_fmul (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) "timesftemp" builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
+
+  | Lshift (x,y,lc) -> 
+    (match get_simexpr_type declarations x with
+      | "int" -> build_shl (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) "shltemp" builder
+      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
+
+  | Rshift (x,y,lc) -> 
+    (match get_simexpr_type declarations x with
+      | "int" -> build_lshr (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) "templshr" builder
+      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
+
   (* We need the exact type for building the division instruction *)
-  | Div (x,y,lc) -> 
+  | Div (x,y,lc) ->
     (match get_simexpr_type declarations x with
       | "int" -> 
 	let ret = build_sdiv (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) "divtemp" builder in

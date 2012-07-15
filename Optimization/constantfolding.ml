@@ -9,6 +9,8 @@ struct
   exception Internal_compiler_error of string ;;
   exception Error of string;;
   exception Nothing
+    
+  let (lsd) x y = raise (Internal_compiler_error ("Hit lsd by mistake"))
 
   let consts = Hashtbl.create (20)
   let nodes = Hashtbl.create (20)
@@ -101,6 +103,8 @@ struct
     | Div (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.div Float.div
     | Mod (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.rem Float.modulo
     | Pow (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.pow Float.pow
+    | Lshift (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) (lsl) (lsd)
+    | Rshift (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) (lsr) (lsd)
     | Cast (d,y,_) -> 
       let ret = get_simexpr_const y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
@@ -232,7 +236,7 @@ struct
     | VarRef (x,_) -> decs := (get_symbol x) :: !decs
     | AddrRef (x,_) -> decs := (get_addressed_symbol x) :: !decs
     | Plus (x,y,_) | Minus (x,y,_) | Times (x,y,_) | Div (x,y,_) | Mod (x,y,_)
-    | Pow (x,y,_) -> let () = get_alldim_decs decs x in get_alldim_decs decs y
+    | Pow (x,y,_) | Lshift (x,y,_) | Rshift (x,y,_) -> let () = get_alldim_decs decs x in get_alldim_decs decs y
     | Cast (d,y,_) -> get_alldim_decs decs y
     | Brackets (x,_) | Opposite (x,_) -> get_alldim_decs decs x
     | ColonExpr (x,y,z,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ "Colon expressions not allowed in expressions "))
@@ -422,6 +426,8 @@ struct
     | Div (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.div Float.div
     | Mod (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.rem Float.modulo
     | Pow (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.pow Float.pow
+    | Lshift (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) (lsl) (lsd)
+    | Rshift (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) (lsr) (lsd)
     | Cast (d,y,_) -> 
       let ret = simple_epxr_const v y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
@@ -840,6 +846,26 @@ struct
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Pow(lvalue,rvalue,lc))
 	| _ -> Pow(lvalue,rvalue,lc))
+
+    | Lshift (x,y,lc) -> 
+      let lvalue = fold_simple_expr consts x in
+      let rvalue = fold_simple_expr consts y in 
+      (match (lvalue,rvalue) with
+	| (Const(x,y,_), Const(d,z,_)) -> 
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsl) (Constantpropogation.lsd)) with
+	    | VConst (x,y) -> Const(x,y,lc)
+	    | _ -> Lshift(lvalue,rvalue,lc))
+	| _ -> Lshift(lvalue,rvalue,lc))
+
+    | Rshift (x,y,lc) -> 
+      let lvalue = fold_simple_expr consts x in
+      let rvalue = fold_simple_expr consts y in 
+      (match (lvalue,rvalue) with
+	| (Const(x,y,_), Const(d,z,_)) -> 
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsr) (Constantpropogation.lsd)) with
+	    | VConst (x,y) -> Const(x,y,lc)
+	    | _ -> Rshift(lvalue,rvalue,lc))
+	| _ -> Rshift(lvalue,rvalue,lc))
 
     | Const (x,y,lc) as s -> s
     | ColonExpr (x,y,z,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "const_folding: Colon_expr after rewrites!!"))

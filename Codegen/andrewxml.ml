@@ -25,6 +25,8 @@ let rec simexpr_xml = function
   | Mod (x,y) -> Element("Mod",[],[(simexpr_xml x);(simexpr_xml y)])
   | Times (x,y) -> Element("Times",[],[(simexpr_xml x);(simexpr_xml y)])
   | Pow (x,y)-> Element("Pow",[],[(simexpr_xml x);(simexpr_xml y)])
+  | Lshift (x,y)-> Element("Lshift",[],[(simexpr_xml x);(simexpr_xml y)])
+  | Rshift (x,y)-> Element("Rshift",[],[(simexpr_xml x);(simexpr_xml y)])
   | Minus (x,y) -> Element("Minus",[],[(simexpr_xml x);(simexpr_xml y)])
   | Const (x,y) -> Element("Const",[],[(DataTypes.datatype_xml x);(value_xml y)])
   | Ref x -> Element("Ref",[],[(rsymbol_xml x)])
@@ -64,12 +66,15 @@ and rsymbol_xml = function
   | RSym x -> Element("RSym",[],[symbol_xml x])
   | RASym x -> Element("RASym",[],[addressedSymbol_xml x])
 
-let relExpr_xml = function
+let rec relExpr_xml = function
   | LessThanEqual (x,y) -> Element("LessThanEqual",[],[(simexpr_xml x);(simexpr_xml y)])
   | LessThan (x,y) ->Element("LessThan",[],[(simexpr_xml x);(simexpr_xml y)])
   | GreaterThanEqual (x,y) -> Element("GreaterThanEqual",[],[(simexpr_xml x);(simexpr_xml y)])
   | GreaterThan (x,y) -> Element("GreaterThan",[],[(simexpr_xml x);(simexpr_xml y)])
   | EqualTo (x,y) -> Element("EqualTo",[],[(simexpr_xml x);(simexpr_xml y)])
+  | Rackets x -> Element("Brackets",[],[(relExpr_xml x)]) 
+  | And (x,y) -> Element("And",[],[(relExpr_xml x);(relExpr_xml y)]) 
+  | Or (x,y) -> Element("EqualTo",[],[(relExpr_xml x);(relExpr_xml y)]) 
 
 let callinputlist_xml x = Element ("CallInputList",[],(List.map (fun x -> rsymbol_xml x) x))
 let calloutputlist_xml x = Element ("CallOutputList",[],(List.map (fun x -> rsymbol_xml x) x))

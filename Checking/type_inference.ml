@@ -235,10 +235,19 @@ struct
   let rec infer_simp_expr declarations = function
     | Const (x,_,_) -> x
     | Plus (x,y,lc) | Minus (x,y,lc) | Times (x,y,lc) 
-    | Div (x,y,lc) | Pow (x,y,lc) | Mod(x,y,lc) -> 
+    | Div (x,y,lc) | Pow (x,y,lc) | Mod(x,y,lc) | Lshift(x,y,lc) 
+    | Rshift (x,y,lc) as s -> 
       let ltype = infer_simp_expr declarations x in
       let rtype = infer_simp_expr declarations y in
-      if (unify_types ltype rtype) then ltype
+      if (unify_types ltype rtype) then 
+	let () = (match s with 
+	  | Lshift _ | Rshift _ -> 
+	    (try
+	       ignore (List.find (fun x -> x = ltype) DataTypes.integral);
+	       ignore (List.find (fun x -> x = rtype) DataTypes.integral);
+	     with
+	       | Not_found -> raise (Error ((Reporting.get_line_and_column lc) ^ " lop of shift should be integral and rop should be one too!!")))
+	  | _ -> ()) in ltype
       else
 	(*If any one of the parts is poly then make it non poly??
 	  This should not be done for None  --> FIXME
@@ -779,28 +788,36 @@ struct
   let rec infer_simp_expr declarations = function
     | Const (x,_,_) -> (x,[])
     | Plus(x,y,lc) | Minus(x,y,lc) | Times (x,y,lc) | Div (x,y,lc)
-    | Pow(x,y,lc) | Mod(x,y,lc) ->
+    | Pow(x,y,lc) | Mod(x,y,lc) | Lshift(x,y,lc) | Rshift(x,y,lc) as s ->
       let lv = infer_simp_expr declarations x in
       let rv = infer_simp_expr declarations y in
-      if (Simple.unify_types lv rv) then lv
-      else 
+      if (Simple.unify_types lv rv) then
+	let () = (match s with 
+	  | Lshift _ | Rshift _ -> 
+	    (try
+	       ignore (List.find (fun x -> x = (match lv with (a,_) -> a)) DataTypes.integral);
+	       ignore (List.find (fun x -> x = (match rv with (a,_) -> a)) DataTypes.integral);
+	     with
+	       | Not_found -> raise (Error ((Reporting.get_line_and_column lc) ^ " lop of shift should be integral and rop should be one too!!")))
+	  | _ -> ()) in lv
+      else
 	let () = print_types lv rv in
 	raise (Error ((Reporting.get_line_and_column lc) ^ "First order dimensions do not unify in the mathematical operation"))
     | VarRef (x,lc) ->
-	if (Simple.exists declarations (Simple.get_symbol x)) then
-	  (get_first_order_type (Simple.get declarations (Simple.get_symbol x)))
-	else raise (Error ((Reporting.get_line_and_column lc) ^ ("Variable " ^ (Simple.get_symbol x)) ^ " is unbound"))
+      if (Simple.exists declarations (Simple.get_symbol x)) then
+	(get_first_order_type (Simple.get declarations (Simple.get_symbol x)))
+      else raise (Error ((Reporting.get_line_and_column lc) ^ ("Variable " ^ (Simple.get_symbol x)) ^ " is unbound"))
     | AddrRef (x,lc) ->
-	if (Simple.exists declarations (Simple.get_addressed_symbol x)) then
-	  let dec_type = (get_first_order_type (Simple.get declarations (Simple.get_addressed_symbol x))) in
-	  let to_drop = (get_to_drop x) in
-	  if ((List.length to_drop) > (List.length (snd (dec_type)))) then
-	    raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "First_order_type_inference: dropping more dimensions then the size of the polytope"))
-	  else
-	    let actual_dims = ref [] in
-	    (drop to_drop 0 actual_dims (snd dec_type));
-	    (fst (dec_type)), !actual_dims
-	else raise (Error ( (Reporting.get_line_and_column lc) ^ ("Variable " ^ (Simple.get_addressed_symbol x)) ^ " is unbound"))
+      if (Simple.exists declarations (Simple.get_addressed_symbol x)) then
+	let dec_type = (get_first_order_type (Simple.get declarations (Simple.get_addressed_symbol x))) in
+	let to_drop = (get_to_drop x) in
+	if ((List.length to_drop) > (List.length (snd (dec_type)))) then
+	  raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "First_order_type_inference: dropping more dimensions then the size of the polytope"))
+	else
+	  let actual_dims = ref [] in
+	  (drop to_drop 0 actual_dims (snd dec_type));
+	  (fst (dec_type)), !actual_dims
+      else raise (Error ( (Reporting.get_line_and_column lc) ^ ("Variable " ^ (Simple.get_addressed_symbol x)) ^ " is unbound"))
     | Brackets (x,lc) -> infer_simp_expr declarations x
     (*Be careful here: it is not the same as Simple case, because we
       need to get the current type and dimensions of the simple
@@ -846,7 +863,7 @@ struct
       else raise (Error ((Reporting.get_line_and_column lc) ^ "Types do not unify in conditional expression"))
     | And (x,y,_) | Or(x,y,_) -> let () = infer_relexpr declarations x in let () = infer_relexpr declarations y in ()
     | Rackets (x,_) -> let () = infer_relexpr declarations x in ()
-	
+							     
   (*
     
     TODO: MAYBE, we might need this type-checking, but simple type

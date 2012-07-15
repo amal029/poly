@@ -34,6 +34,7 @@
 %token <string> TSymbol
 
 /* operator associative rules */
+%left TRShift TLShift
 %left TPlus TMinus
 %left TTimes TDiv TMod
 %left TPow
@@ -145,8 +146,8 @@ allsym:
 
 expr:
     /*| fcall {Language.Language.FCall ($1)}*/
-    | fcall {Language.Language.FCall ($1,false)}
     | TExtern fcall {Language.Language.FCall ($2,true)}
+    | fcall {Language.Language.FCall ($1,false)}
     | simpleExpr {Language.Language.SimExpr ($1)}
 ;
 
@@ -225,6 +226,8 @@ simpleExpr:
     | simpleExpr TTimes simpleExpr {Language.Language.Times ($1, $3, ln())}
     | simpleExpr TPow simpleExpr {Language.Language.Pow ($1, $3, ln())}
     | simpleExpr TDiv simpleExpr {Language.Language.Div ($1, $3, ln())}
+    | simpleExpr TRShift simpleExpr {Language.Language.Rshift ($1, $3, ln())}
+    | simpleExpr TLShift simpleExpr {Language.Language.Lshift ($1, $3, ln())}
     | TOP simpleExpr TCP {Language.Language.Brackets ($2, ln())}
     | addrSymbol {Language.Language.AddrRef($1,ln())}
     | symbol {Language.Language.VarRef ($1, ln())}

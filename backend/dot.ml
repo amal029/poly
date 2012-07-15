@@ -44,6 +44,14 @@ let rec dot_simpleexpr = function
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " ^ " ) ^ rstring
+  | Lshift (x,y,_)  -> 
+    let lstring = dot_simpleexpr x in
+    let rstring = dot_simpleexpr y in
+    (lstring ^ " << " ) ^ rstring
+  | Rshift (x,y,_)  -> 
+    let lstring = dot_simpleexpr x in
+    let rstring = dot_simpleexpr y in
+    (lstring ^ " >> " ) ^ rstring
   | Const (x,y,_) -> ((DataTypes.print_datatype x) ^ " ") ^ y
   | VarRef (x,_) -> get_symbol x
   | AddrRef (x,_) -> get_addressed_string x

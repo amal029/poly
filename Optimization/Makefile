@@ -24,7 +24,7 @@ all: optimization
 
 
 optimization: fcheck
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR)		\
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR)		\
 	            $(BIGARRAYLIB) $(NUMSLIB) $(UNIXLIB) $(STRLIB) -I	\
 	            $(CAMOMILEDIR) $(CAMOMILELIBB) $(CAMOMILELIB)	\
 	            $(NUMSLIB) $(BIGARRAYLIB) -I $(BATTERIES)		\

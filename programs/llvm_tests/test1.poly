@@ -21,4 +21,17 @@ main
   /* print dummy after the for loop*/
   dummy = extern p1 (qw)
   dummy = extern p1 (dummy)
+  t = 2 t = t << 2
+  dummy = extern p1(t)
+  t = t >> 2
+  dummy = extern p1(t)
+  for i in 0:2 {
+   case 
+   (i < 1) {
+    t = t+1
+   }  
+   otherwise {}
+   var y = t
+   (y,t) = test (y)
+  }
 }

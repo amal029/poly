@@ -61,6 +61,8 @@ struct
     | Div of simpleExpr * simpleExpr
     | Mod of simpleExpr * simpleExpr
     | Pow of simpleExpr * simpleExpr
+    | Lshift of simpleExpr * simpleExpr
+    | Rshift of simpleExpr * simpleExpr
     | Const of DataTypes.t * value
     | Ref of rsymbol
     | Brackets of simpleExpr
@@ -101,6 +103,9 @@ struct
     | GreaterThan of simpleExpr * simpleExpr
     | GreaterThanEqual of simpleExpr * simpleExpr
     | EqualTo of simpleExpr * simpleExpr
+    | Rackets of relExpr
+    | And of relExpr * relExpr
+    | Or of relExpr * relExpr
 
   type stmt = 
     | Assign of rsymbol * simpleExpr (*a=10*)

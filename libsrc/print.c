@@ -122,6 +122,23 @@ extern void start_timer (int *ret){
 extern void print_time (int *ret){
   end = clock();
   double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-  fprintf(stderr,"Time for function: %g\n",cpu_time_used);
+  fprintf(stderr,"Time for function (ms): %g\n",(cpu_time_used*1000));
   *ret = 0;
+}
+
+extern void mysqrt (float temp, float *ret){
+  *ret = sqrtf(temp);
+}
+
+extern void log_base_2 (int NN, int *ret){
+  *ret = (int)log2((double)NN);
+}
+
+extern void bit_shift_loop (int k, int j, int *rk, int *rj){
+  *rk = k;
+  *rj = j;
+  while (*rk<=*rj){
+    *rj -= *rk;
+    *rk >>= 1;
+  }
 }

@@ -63,6 +63,8 @@ let rec replace_stars_simpleexpr declarations = function
   | Div (x,y,lc) -> Div (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
   | Mod (x,y,lc) -> Mod (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
   | Pow (x,y,lc) -> Pow (replace_stars_simpleexpr declarations x, replace_stars_simpleexpr declarations y, lc)
+  | Lshift (x,y,lc) -> Lshift(replace_stars_simpleexpr declarations x, (replace_stars_simpleexpr declarations y), lc)
+  | Rshift (x,y,lc) -> Rshift(replace_stars_simpleexpr declarations x, (replace_stars_simpleexpr declarations y), lc)
   | Const _ | VarRef _ as s -> s
   | Brackets (x,lc) -> Brackets (replace_stars_simpleexpr declarations x, lc)
   | AddrRef (x,lc) -> AddrRef (replace_stars_addr_symbol declarations x, lc)

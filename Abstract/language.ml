@@ -124,6 +124,8 @@ struct
     | Div of simpleExpr * simpleExpr * (line * column)
     | Mod of simpleExpr * simpleExpr * (line * column)
     | Pow of simpleExpr * simpleExpr * (line * column)
+    | Rshift of simpleExpr * simpleExpr * (line * column)
+    | Lshift of simpleExpr * simpleExpr * (line * column)
     | Const of DataTypes.t * value * (line * column)
     | VarRef of symbol * (line * column)
     | AddrRef of addressedSymbol * (line * column)

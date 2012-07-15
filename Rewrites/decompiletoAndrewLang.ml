@@ -46,6 +46,8 @@ let rec get_andrew_simple_expr = function
   | Minus (x,y,_) -> AndrewLang.AndrewLang.Minus ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
   | Times (x,y,_) -> AndrewLang.AndrewLang.Times ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
   | Pow (x,y,_) -> AndrewLang.AndrewLang.Pow ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
+  | Lshift (x,y,_) -> AndrewLang.AndrewLang.Lshift ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
+  | Rshift (x,y,_) -> AndrewLang.AndrewLang.Rshift ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
   | Div (x,y,_) -> AndrewLang.AndrewLang.Div ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
   | Mod (x,y,_) -> AndrewLang.AndrewLang.Mod ((get_andrew_simple_expr x), (get_andrew_simple_expr y))
   | Const (x,y,_) -> AndrewLang.AndrewLang.Const ((get_andrew_primitive_datatype x),y)
@@ -109,6 +111,9 @@ let rec get_andrew_relexpr = function
   | GreaterThanEqual (x,y,_) -> AndrewLang.AndrewLang.GreaterThanEqual ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
   | GreaterThan (x,y,_) -> AndrewLang.AndrewLang.GreaterThan ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
   | EqualTo (x,y,_) -> AndrewLang.AndrewLang.EqualTo ((get_andrew_simple_expr x),(get_andrew_simple_expr y))
+  | Rackets (x,_) -> AndrewLang.AndrewLang.Rackets(get_andrew_relexpr x)
+  | And (x,y,_) -> AndrewLang.AndrewLang.And (get_andrew_relexpr x, get_andrew_relexpr y)
+  | Or (x,y,_) -> AndrewLang.AndrewLang.Or (get_andrew_relexpr x, get_andrew_relexpr y)
 
 
 let get_andrew_call_list = function
