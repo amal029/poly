@@ -110,15 +110,15 @@ struct
       | h::t -> get_all_syms vars used h; get_all_symbols vars used t
       | [] -> ()
   and check_case vars errors warns = function
-      | Case (x,y) -> 
-	(match y with Otherwise x -> check_stmt vars errors warns x);
+      | Case (x,y,lc) -> 
+	(match y with Otherwise (x,_) -> check_stmt vars errors warns x);
 	check_caseclause_list vars errors warns x
   and check_caseclause_list vars errors warns = function
       | h::t -> check_clause vars errors warns h;  
 	check_caseclause_list vars errors warns t
       | [] -> ()
   and check_clause vars errors warns = function
-    | Clause (x,y) -> check_stmt vars errors warns y;
+    | Clause (x,y,_) -> check_stmt vars errors warns y;
 	check_relexpr vars errors warns x
 
   let rec print_probs = function

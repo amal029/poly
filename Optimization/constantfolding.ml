@@ -334,10 +334,9 @@ struct
     | Empty -> 
       let () = IFDEF DEBUG THEN print_endline "Reached the end of the graph, yipee!!" ELSE () ENDIF in () 
     (* Reached the end, basically of this graph branch *)
-  (* FIXME: You are not checking that the loop bounds do not exceed the dimensions of the matrix.
-     you are also not checking that strides are not manipulating the loop in such a way that it gives you
-     problems --> should be done after or during constant folding
-  *)
+    (* FIXME: You are not checking that the loop bounds do not exceed the dimensions of the matrix.
+       you are also not checking that strides are not manipulating the loop in such a way that it gives you
+       problems --> should be done after or during constant folding*)
     | Startnode (x,y) -> 
       let () = IFDEF DEBUG THEN print_endline ("Trace..in start node " ^ (Dot.dot_stmt x)) ELSE () ENDIF in
       propogate_cfg y
@@ -361,22 +360,23 @@ struct
 	       true
 	     else 
 	       (* let () = print_endline (("counter is for first time, **ADDING**:" ^ (string_of_int parents)) ^ (" for " ^ (Dot.dot_stmt x))) in *)
-	       let () = Hashtbl.add endnodes s (parents-1) in false
-	) in
+	       let () = Hashtbl.add endnodes s (parents-1) in false) in
       if cont then
 	let () = Hashtbl.add nodes s (Hashtbl.copy consts) in
 	(* let () = print_endline "Moving further into child" in *)
-      (* These need to be removed from the hashtbl consts *)
+	(* These need to be removed from the hashtbl consts *)
 	(* let () = print_endline ("Removing dvars from the block : " ^ (Dot.dot_stmt x)) in *)
 	let dvars = get_dvars x in
+	let () = IFDEF DEBUG THEN print_endline "Removing from consts : " ELSE () ENDIF in
+	let () = IFDEF DEBUG THEN List.iter (fun x -> print_endline x) dvars ELSE () ENDIF in
 	remove_from_consts dvars;
 	let () = propogate_cfg y in ()
       else ()
     | Conditionalnode (e,y,z) as s -> 
       (* Add the nodes and consts *)
       let () = IFDEF DEBUG THEN print_endline ("Trace in.... conditional node :" ^ Dot.dot_relexpr e) ELSE () ENDIF in
-      let () = propogate_cfg y in
       let () = Hashtbl.add nodes s (Hashtbl.copy consts) in
+      let () = propogate_cfg y in
       let () = IFDEF DEBUG THEN print_endline ("Trace2 in.... conditional node :" ^ Dot.dot_relexpr e) ELSE () ENDIF in
       let () = propogate_cfg z in  ()
     | Backnode x  ->
@@ -718,10 +718,11 @@ struct
     | Topnode (fcall, x,_,y) as s ->
       let () = Hashtbl.clear consts in
       let () = Hashtbl.clear nodes in
+      let () = Hashtbl.clear endnodes in
       let () = print_string ("Filter: " ^ x ^ " " ) in
-    (* y is the cfg list: inputs, outputs, and the body *)
+      (* y is the cfg list: inputs, outputs, and the body *)
       let () = propogate_cfg_list prev_topnode (List.nth y 0) (List.nth y 1) (List.nth y 2) fcall in 
-    (* Here consts and nodes should be full *)
+      (* Here consts and nodes should be full *)
       let () = Hashtbl.add top_nodes s (Hashtbl.copy nodes) in 
       let () = print_endline "...Done" in
       s
@@ -978,8 +979,7 @@ struct
 	     else 
 	       let () = IFDEF DEBUG THEN 
 		 print_endline (("counter is for first time, **ADDING**:" ^ (string_of_int parents)) ^ (" for " ^ (Dot.dot_stmt stmt))) ELSE () ENDIF in
-	       let () = Hashtbl.add endnodes s (parents-1) in false
-	) in
+	       let () = Hashtbl.add endnodes s (parents-1) in false) in
       if cont then
 	let () = Hashtbl.remove endnodes s in Endnode(stmt,(fold_cfg nodes x),parents)
       else Empty

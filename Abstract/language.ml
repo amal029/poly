@@ -180,11 +180,11 @@ struct
     | FCall of filterCall * bool
     | SimExpr of simpleExpr
   and case =
-    | Case of caseClause list * otherwise
+    | Case of caseClause list * otherwise * (line * column)
   and caseClause = 
-    | Clause of relExpr * stmt
+    | Clause of relExpr * stmt * (line * column)
   and otherwise = 
-    | Otherwise of stmt
+    | Otherwise of stmt * (line * column)
 
   (* Top level  *)
   type filter = Filter of symbol * typedSymbol list * typedSymbol list * stmt

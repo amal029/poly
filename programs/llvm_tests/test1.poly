@@ -31,7 +31,7 @@ main
     t = t+1
    }  
    otherwise {}
-   var y = t
-   (y,t) = test (y)
+   var y = 90
+   (y,t) = test (t)
   }
 }

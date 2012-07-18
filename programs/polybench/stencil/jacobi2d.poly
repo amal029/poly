@@ -42,11 +42,13 @@ main
  var TSTEPS=100
  var N = 100						     
  var M=100						     
+ int ret = extern start_timer()
  (var J1[M,N], var J2[M,N]) = jacobi (M,N,TSTEPS)
  /* var S[M,N] = seidel (M,N,TSTEPS) */
+ ret = extern print_time()
  
  /* print the arrays */
- int ret = extern print_float_array2 (M,N,J1)
- ret = extern print_float_array2 (M,N,J2)
+ /* ret = extern print_float_array2 (M,N,J1) */
+ /* ret = extern print_float_array2 (M,N,J2) */
  /* int ret = extern print_float_array2 (M,N,S) */
 }							     

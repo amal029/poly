@@ -34,7 +34,7 @@ let () = add_constant_propagation the_fpm
 let () = add_sccp the_fpm
 
 (* Now make the loop optimizations *)
-(* let () = add_loop_unroll the_fpm *)
+let () = add_loop_unroll the_fpm
 
 (* Initialize the pass manager *)
 let _ =  PassManager.initialize the_fpm
@@ -668,9 +668,9 @@ let rec get_dvars = function
     let sym = (SimTypedSymbol (DataTypes.Int32s, x,lc)) in
     sym :: (get_vars z)
   | CaseDef (case,_) -> 
-    let (clause_list,other) = (match case with Case (x,y) -> (x,y)) in
-    let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x) -> x)) clause_list in
-    let other_stmt = (match other with Otherwise x -> x) in
+    let (clause_list,other) = (match case with Case (x,y,_) -> (x,y)) in
+    let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x,_) -> x)) clause_list in
+    let other_stmt = (match other with Otherwise (x,_) -> x) in
     (List.flatten (List.map (fun x -> get_vars x) clause_stmt_list)) @ (get_vars other_stmt)
   | _ -> []
     

@@ -119,17 +119,17 @@ iter:
     | TFor symbol TIn colonExpr stmt {Language.Language.For($2,$4,$5, ln())}
 
 case:
-    | TCase caseclauselist otherwise {Language.Language.Case($2,$3)}
+    | TCase caseclauselist otherwise {Language.Language.Case($2,$3,ln())}
 ;
 caseclauselist:
     | caseclauselist caseclause {$2::$1}
     | caseclause {[$1]}
 ;
 caseclause:
-    | TOP relExpr TCP stmt {Language.Language.Clause ($2,$4)}
+    | TOP relExpr TCP stmt {Language.Language.Clause ($2,$4,ln())}
 ;
 otherwise:
-    | TOtherwise stmt {Language.Language.Otherwise ($2)}
+    | TOtherwise stmt {Language.Language.Otherwise ($2,ln())}
 ;
 
 allsymlist:

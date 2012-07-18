@@ -14,7 +14,7 @@ let rec get_new_block enode = function
   | Backnode _ as s -> s
 
 let get_num_case = function
-  | Case (x,_) -> (List.length x) + 1
+  | Case (x,_,_) -> (List.length x) + 1
 
 let rec is_op = function
   | Opposite _ -> true
@@ -86,15 +86,15 @@ and make_block = function
   | h::t -> make_stmt t h;
   | [] -> Empty
 and build_case = function
-  | Case (x,y) -> 
-    let ostmt = make_stmt [] (match y with Otherwise x -> x) in
+  | Case (x,y,_) -> 
+    let ostmt = make_stmt [] (match y with Otherwise (x,_) -> x) in
     build_case_clause ostmt (List.rev x)
 and build_case_clause ostmt = function
   | h::t -> build_clause_stmt t ostmt h
   | [] -> ostmt
 and build_clause_stmt t ostmt = function
       (* The Empty needs to get replaced with else if or otherwise stmts *)
-  | Clause (x,y) -> Conditionalnode (x, (make_stmt [] y), (build_case_clause ostmt t) )
+  | Clause (x,y,_) -> Conditionalnode (x, (make_stmt [] y), (build_case_clause ostmt t) )
 
 
 let rec make_cfg r e = function

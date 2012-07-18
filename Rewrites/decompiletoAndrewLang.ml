@@ -158,13 +158,13 @@ let rec get_andrew_stmt = function
   | Assign (x,y,_) -> (match y with | SimExpr s -> decompile_simple_assign x s | FCall (f,e) -> [AndrewLang.AndrewLang.FCall ((get_andrew_function_call x f),e)])
 
 and get_andrew_case = function
-  | Case (x,y) -> AndrewLang.AndrewLang.Case ((List.map (fun x -> get_andrew_clause x) x) , (get_andrew_otherwise y))
+  | Case (x,y,lc) -> AndrewLang.AndrewLang.Case ((List.map (fun x -> get_andrew_clause x) x) , (get_andrew_otherwise y))
 
 and get_andrew_clause = function
-  | Clause (x,y) -> AndrewLang.AndrewLang.Clause ((get_andrew_relexpr x),(get_andrew_stmt y))
+  | Clause (x,y,_) -> AndrewLang.AndrewLang.Clause ((get_andrew_relexpr x),(get_andrew_stmt y))
 
 and get_andrew_otherwise = function
-  | Otherwise x -> AndrewLang.AndrewLang.Otherwise (get_andrew_stmt x)
+  | Otherwise (x,_) -> AndrewLang.AndrewLang.Otherwise (get_andrew_stmt x)
 
 let get_andrew_filter = function
   | Filter (x,y,z,t) -> 

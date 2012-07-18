@@ -445,20 +445,20 @@ struct
     | h::t -> replace_var_decls declarations h :: replace_block_stmts declarations t
     | [] -> []
   and replace_casedef declarations = function
-    | Case (x,y) -> Case ((replace_clauselist declarations x), (replace_otherwise declarations y))
+    | Case (x,y,lc) -> Case ((replace_clauselist declarations x), (replace_otherwise declarations y),lc)
   and replace_clauselist declarations = function
     | h::t -> replace_clause declarations h :: replace_clauselist declarations t
     | [] -> []
   and replace_clause declarations = function
-    | Clause (x,s) -> 
+    | Clause (x,s,lc) -> 
       let r = replace_var_decls declarations s in
       let rr = (match r with | VarDecl (x,lc) -> Noop | _ as s -> s) in
-      Clause (x,rr)
+      Clause (x,rr,lc)
   and replace_otherwise declarations = function
-    | Otherwise s -> 
+    | Otherwise (s,lc) -> 
       let r = replace_var_decls declarations s in
       let rr = (match r with | VarDecl (x,lc) -> Noop | _ as s -> s) in
-      Otherwise (replace_var_decls declarations rr)
+      Otherwise ((replace_var_decls declarations rr),lc)
 
   let rec infer_stmt declarations = function
     | VarDecl (x,lc) as s -> 
@@ -504,20 +504,20 @@ struct
       For(x,y,ss,lc)
     | _ as s -> s
   and infer_casedef declarations = function
-    | Case (x,y) -> Case ((infer_casecluase_list declarations x), (infer_otherwise declarations y))
+    | Case (x,y,lc) -> Case ((infer_casecluase_list declarations x), (infer_otherwise declarations y),lc)
   and infer_casecluase_list  declarations = function
     | h::t -> infer_caseclause declarations h :: infer_casecluase_list declarations t
     | [] -> []
   and infer_caseclause declarations = function
-    | Clause (expr,stmt) -> 
+    | Clause (expr,stmt,lc) -> 
       let () = (infer_relexpr declarations expr) in
       (* The above inference can have the side-affect of changing the declarations list *)
       let ss = (match stmt with | VarDecl (x,lc) -> Noop | _ -> (infer_stmt declarations stmt)) in
-      Clause (expr, ss)
+      Clause (expr, ss,lc)
   and infer_otherwise declarations = function
-    | Otherwise x -> 
+    | Otherwise (x,lc) -> 
       let ss = (match x with | VarDecl (x,lc) -> Noop | _ -> (infer_stmt declarations x)) in
-      Otherwise ss
+      Otherwise (ss,lc)
   and infer_stmt_list declarations = function
     | h::t -> 
       (* let () = print_endline ("checking stmt list") in *)
@@ -1000,17 +1000,17 @@ struct
       let _ = infer_stmt declarations z in s
     | _ as s -> s (* Escape code, Noop, etc *)
   and infer_casedef declarations = function
-    | Case (x,y) as s -> let _ = infer_casecluase_list declarations x in let _ =  infer_otherwise declarations y in s
+    | Case (x,y,lc) as s -> let _ = infer_casecluase_list declarations x in let _ =  infer_otherwise declarations y in s
   and infer_casecluase_list declarations = function
     | h::t -> infer_caseclause declarations h :: infer_casecluase_list declarations t
     | [] -> []
   and infer_caseclause declarations = function
-    | Clause (expr,stmt) as s ->
+    | Clause (expr,stmt,lc) as s ->
       let () = (infer_relexpr !declarations expr) in
       (* The above inference can have the side-affect of changing the declarations list *)
       let _ = infer_stmt declarations stmt in s
   and infer_otherwise declarations = function
-    | Otherwise x as s ->
+    | Otherwise (x,lc) as s ->
       let _ = infer_stmt declarations x in s
   and infer_stmt_list declarations = function
     | h::t -> infer_stmt declarations h :: infer_stmt_list declarations t
@@ -1065,9 +1065,9 @@ struct
       let sym = (SimTypedSymbol (DataTypes.Int32s, x,lc)) in
       sym :: (get_vars z)
     | CaseDef (case,_) -> 
-      let (clause_list,other) = (match case with Case (x,y) -> (x,y)) in
-      let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x) -> x)) clause_list in
-      let other_stmt = (match other with Otherwise x -> x) in
+      let (clause_list,other) = (match case with Case (x,y,lc) -> (x,y)) in
+      let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x,_) -> x)) clause_list in
+      let other_stmt = (match other with Otherwise (x,_) -> x) in
       (List.flatten (List.map (fun x -> get_vars x) clause_stmt_list)) @ (get_vars other_stmt)
     | _ -> []
 	

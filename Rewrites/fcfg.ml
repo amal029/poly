@@ -30,7 +30,7 @@ let rec check_expr mystmt = function
   |  FCall (x,extern) ->
     let (name,lc) = (match x with Call(x,_,_) -> match x with Symbol (x,lc) -> (x,lc)) in
     (try
-       let (filter,r) = (Hashtbl.find tbl name) in 
+       let (filter,r) = (Hashtbl.find tbl name) in
        let ll = main filter in
        check_for_recursion name;
        [FCFG.Node (mystmt, filter, r, ll)];
@@ -48,7 +48,7 @@ and check_stmt = function
   | CaseDef (x,_) ->  check_case x
   | _ -> []
 and check_case = function
-  | Case (x,y) -> List.flatten (List.map (fun x -> (match x with Clause (_,x) -> check_stmt x)) x) @ (match y with Otherwise x -> check_stmt x)
+  | Case (x,y,_) -> List.flatten (List.map (fun x -> (match x with Clause (_,x,_) -> check_stmt x)) x) @ (match y with Otherwise (x,_) -> check_stmt x)
 and check_block = function
   | h::t -> ((check_stmt h) @ (check_block t))
   | [] -> []

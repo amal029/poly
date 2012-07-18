@@ -155,10 +155,10 @@ let rec get_dvars = function
   | For (x,y,z,lc) | Par (x,y,z,lc) -> 
     let sym = (SimTypedSymbol (DataTypes.Int32s, x, lc)) in
     sym :: (get_vars z)
-  | CaseDef (case,_) -> 
-    let (clause_list,other) = (match case with Case (x,y) -> (x,y)) in
-    let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x) -> x)) clause_list in
-    let other_stmt = (match other with Otherwise x -> x) in
+  | CaseDef (case,lc) -> 
+    let (clause_list,other) = (match case with Case (x,y,lc) -> (x,y)) in
+    let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x,_) -> x)) clause_list in
+    let other_stmt = (match other with Otherwise (x,_) -> x) in
     (List.flatten (List.map (fun x -> get_vars x) clause_stmt_list)) @ (get_vars other_stmt)
   | _ -> []
     
@@ -201,8 +201,12 @@ let rec decompile_cfg declarations arg = function
        with
 	 | Not_found -> 
 	   (match x with
-	     | Assign (a,y,lc) -> (match y with | FCall _ -> 
-	       raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Right hand side FCall, yet new name not found in the hashtbl")) | _ -> x)
+	     | Assign (a,y,lc) -> (match y with | FCall (y,e) -> 
+	       if not e then
+		 raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Right hand side FCall, yet new name not found in the hashtbl")) 
+	       else 
+		 (match y with Call (nname,y,lc) -> (Assign (a, (FCall(Call (nname,y,lc),e)),lc)))
+		 | _ -> x)
 	     | _ -> x)) in
     (* First we need to add the vardecl if there are any !! *)
     let () = add_var_decls declarations stmt in
@@ -228,9 +232,9 @@ and decompile_loop lc declarations x =
   let children_list = decompile_cfg declarations LOOP x in
   if not (List.length children_list = 3) then raise (Internal_compiler_error "For loop decompilation did not get 3 children") else ();
   let start_decl = (match (List.nth children_list 0) with | S x -> x | _ -> raise (Internal_compiler_error "Loop start_decl not S stmt type")) in
-  let stride_decl = (match (List.nth children_list 2) with | O x -> (match x with Otherwise x -> x) 
+  let stride_decl = (match (List.nth children_list 2) with | O x -> (match x with Otherwise (x,_) -> x) 
     | _ -> raise (Internal_compiler_error "Loop stride_dec not of O type")) in
-  let (end_expr , body) = (match (List.nth children_list 1) with | C x  -> (match x with Clause (expr,body) -> (expr,body)) 
+  let (end_expr , body) = (match (List.nth children_list 1) with | C x  -> (match x with Clause (expr,body,_) -> (expr,body)) 
     | _ -> raise (Internal_compiler_error "Loop end_expr/body not of type C")) in
   (* Now extract the loop variable *)
   let (lvar, start_expr) = extract_loop_variable start_decl in
@@ -260,10 +264,10 @@ and conditional_case lc declarations arg expr tbranch fbranch =
 
   let other = List.filter (fun x -> match x with S x -> true | _ -> false ) fchildren in
   let ost = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-otherwise in otherwise list, case conditional"))) other in
-  let ret_list = if not (other = []) then [O((Otherwise (Block (ost,lc))))] else [] in
+  let ret_list = if not (other = []) then [O((Otherwise (Block (ost,lc),lc)))] else [] in
   (* Now make the clause/otherwise list *)
   let toadd = List.filter (fun x -> (match x with C _ | O _ -> true | _ -> false)) fchildren in
-  (C (Clause (expr,(Block (tchildren,lc))))) :: (toadd  @ ret_list)
+  (C (Clause (expr,(Block (tchildren,lc)),lc))) :: (toadd  @ ret_list)
     
     
 and conditional_loop lc declarations arg expr tbranch fbranch = 
@@ -281,7 +285,7 @@ and conditional_loop lc declarations arg expr tbranch fbranch =
   (* Check that we really don't get anything back *)
   if not (fchildren = []) then raise (Internal_compiler_error "We got something back from the loop conditionals false branch!!");
   (* Now build the Clause and the Otherwise *)
-  [(C (Clause (expr, (Block (List.filter (fun x -> (not (x = ostmt))) tchildren,lc)))));(O (Otherwise ostmt))]
+  [(C (Clause (expr, (Block (List.filter (fun x -> (not (x = ostmt))) tchildren,lc)),lc)));(O (Otherwise (ostmt,lc)))]
 
 
 (* This is the function to carry out when the start node is holding a casedef type *)
@@ -296,7 +300,7 @@ and startnode_case lc declarations arg x =
   if not (List.length otherwise = 1) then raise (Internal_compiler_error "CaseDef, no otherwise specified") else ();
   if not (List.length clause_list >= 1) then raise (Internal_compiler_error "CaseDef, no clause specified") else ();
   (* Now build the Casedef and add it to the rest of the children from the previous call *)
-  (S (CaseDef (Case (clause_list,(List.hd otherwise)),lc))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
+  (S (CaseDef (Case (clause_list,(List.hd otherwise),lc),lc))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
 
 (* This is the function to carry out when the start node is holding a casedef type *)
 and startnode_for lc declarations arg x = 
