@@ -46,6 +46,7 @@ and check_stmt = function
   | For (_,_,x,_) -> check_stmt x
   | Par (_,_,x,_) -> check_stmt x
   | CaseDef (x,_) ->  check_case x
+  | Split (x,_) -> check_stmt x
   | _ -> []
 and check_case = function
   | Case (x,y,_) -> List.flatten (List.map (fun x -> (match x with Clause (_,x,_) -> check_stmt x)) x) @ (match y with Otherwise (x,_) -> check_stmt x)

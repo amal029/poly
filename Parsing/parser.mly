@@ -25,7 +25,7 @@
 %token TLbrack TRbrack TColon TCase TEof TLShift TRShift TVar
 %token TMain TIn TOut TOtherwise TPar TFor
 %token TInt8 TInt16 TInt32 TInt64 TInt8s TInt16s TInt32s TInt64s TFloat8 TFloat32 TFloat64 TFloat16
-%token TExtern
+%token TExtern TSplit
 
 /* Constructors with an argument */
 %token <string> TInt
@@ -108,7 +108,15 @@ stmt:
     | TOB TCB {Language.Language.Noop}
     | case {Language.Language.CaseDef ($1, ln())}
     | iter {$1}
+    | split {$1}
 ;
+
+split:
+    | TSplit stmt {
+      let s = (match $2 with
+	| Language.Language.Block _ as s -> s
+	| _ as s -> Language.Language.Block ([s],ln())) in
+      Language.Language.Split(s,ln())}
 
 iter:
     | TPar symbol TIn colonExpr stmt {Language.Language.Par($2,$4,$5, ln())}

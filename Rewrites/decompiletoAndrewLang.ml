@@ -156,6 +156,7 @@ let rec get_andrew_stmt = function
   | Noop -> []
   | CaseDef (x,_) -> [AndrewLang.AndrewLang.CaseDef (get_andrew_case x)]
   | Assign (x,y,_) -> (match y with | SimExpr s -> decompile_simple_assign x s | FCall (f,e) -> [AndrewLang.AndrewLang.FCall ((get_andrew_function_call x f),e)])
+  | Split (x,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "got a split node erroneously!!")) 
 
 and get_andrew_case = function
   | Case (x,y,lc) -> AndrewLang.AndrewLang.Case ((List.map (fun x -> get_andrew_clause x) x) , (get_andrew_otherwise y))

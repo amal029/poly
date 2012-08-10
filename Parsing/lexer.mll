@@ -32,6 +32,7 @@ rule lexer = parse
   | ']'  {Parser.TRbrack}
   | "in" {Parser.TIn}
   | "out" {Parser.TOut}
+  | "split" {Parser.TSplit}
   | "otherwise" {Parser.TOtherwise}
   | "par" {Parser.TPar}
   | "for" {Parser.TFor}

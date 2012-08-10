@@ -28,6 +28,15 @@ let rec make_stmt list = function
     let snode = Startnode (s,n) in
     let my_end_node = Endnode (s,enode,1) in
     get_new_block my_end_node snode
+
+  | Split (x,y) as s -> 
+    let x = (match x with Block (x,_) -> x) in
+    let enode =  make_block list in (* This is where I will continue to *)
+    let n = make_block (List.rev x) in (* This is my own list *)
+    let snode = Startnode (s,n) in
+    let my_end_node = Endnode (s,enode,1) in
+    get_new_block my_end_node snode
+      
   | For (x,y,z,lc) as s -> 
     let node = make_block list in (* This is where I continue to *)
     let enode = Endnode (s,node,1) in

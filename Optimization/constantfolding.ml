@@ -375,8 +375,8 @@ struct
     | Conditionalnode (e,y,z) as s -> 
       (* Add the nodes and consts *)
       let () = IFDEF DEBUG THEN print_endline ("Trace in.... conditional node :" ^ Dot.dot_relexpr e) ELSE () ENDIF in
-      let () = Hashtbl.add nodes s (Hashtbl.copy consts) in
       let () = propogate_cfg y in
+      let () = Hashtbl.add nodes s (Hashtbl.copy consts) in
       let () = IFDEF DEBUG THEN print_endline ("Trace2 in.... conditional node :" ^ Dot.dot_relexpr e) ELSE () ENDIF in
       let () = propogate_cfg z in  ()
     | Backnode x  ->

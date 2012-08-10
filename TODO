@@ -52,4 +52,10 @@ elements.
 IMPORTANT:
 
 1.) When we make a call the the same filter multiple times in the same
-place the compiler goes into recusion!!
+place the compiler goes into recusion!! --> solved
+
+FIXME Fri Aug 10 15:05:49 IST 2012 if one writes split { S1; S2;,,,,etc}
+//we get rid of split completely and hence, we are loosing parallelism
+completely in the generated code. --> FIX THIS!!
+
+

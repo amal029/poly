@@ -440,6 +440,7 @@ struct
     | For (x,y,z,lc) -> For(x,y, (replace_var_decls declarations z), lc)
     | Par(x,y,z,lc) -> Par(x,y, (replace_var_decls declarations z), lc)
     | CaseDef (x,lc) -> CaseDef (replace_casedef declarations x, lc)
+    | Split (x,lc) -> Split (replace_var_decls declarations x, lc)
     | _ as s -> s
   and replace_block_stmts declarations = function
     | h::t -> replace_var_decls declarations h :: replace_block_stmts declarations t
@@ -483,6 +484,7 @@ struct
       declarations := (get_block_less_declarations !declarations vcopy);
       rett_stmts
     (* We need to replace the var decls with the proper types in here *)
+    | Split (x,y) -> Split ((infer_stmt declarations x), y)
     | CaseDef (x,lc) -> CaseDef (infer_casedef declarations x, lc)
     | Par (x,y,z,lc) -> 
       let _ = infer_simp_expr declarations y in (* we don't bother with colon expr return types *)

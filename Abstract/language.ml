@@ -174,6 +174,7 @@ struct
     | Escape of string * (line * column)
     | Block of stmt list * (line * column)
     | Par of symbol * simpleExpr * stmt * (line * column)
+    | Split of stmt * (line * column) (* Denotes task parallelism, can only consist of function calls *)
     | For of symbol * simpleExpr * stmt * (line * column)
     | Noop
   and expr =

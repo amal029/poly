@@ -55,11 +55,12 @@ try
     (* Now we need to split the last value using "."*)
     let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
     (* The first string should be my target name *)
+    let llvm_file = (List.hd slist) in
     let file_name = ((List.hd slist) ^ ".xml") in
-    (* By default always produce llvm IR *)
+    (* By default do not always produce llvm IR *)
     if !llvm then
       let () = print_endline ".....Generating LLVM IR..." in
-      let () = MyLlvm.compile !load_modules file_name cfgt in ()
+      let () = MyLlvm.compile !load_modules llvm_file cfgt in ()
     else ();
     if !decompile_flag then
       let () = print_endline "....Decompiling to AST......" in

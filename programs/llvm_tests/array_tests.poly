@@ -13,7 +13,8 @@ rso2 in I[M] out O[M] for i in 0:M-1 O[i] = I[i]
 main
 {
   var size = 2
-  var Array[size] = zeros ()
+  var Array[size]; 
+  split Array = zeros ()
   /* print the array */
   int ret = extern print_array (size,Array)
   /* print the ret value */

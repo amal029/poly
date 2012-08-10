@@ -130,6 +130,7 @@ let rec dot_stmt = function
     let e3 = dot_stmt z in
     " Par " ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
   | CaseDef (x,_) -> "case stmt"
+  | Split _ -> raise (Internal_compiler_error ("We do not perform any task parallelism in the current compiler"))
 
 let rec dot_relexpr = function
   | LessThan (x,y,_) -> 
