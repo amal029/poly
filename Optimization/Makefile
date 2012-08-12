@@ -24,16 +24,24 @@ all: optimization
 
 
 optimization: fcheck
+	# $(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR)		\
+	#             $(BIGARRAYLIB) $(NUMSLIB) $(UNIXLIB) $(STRLIB) -I	\
+	#             $(CAMOMILEDIR) $(CAMOMILELIBB) $(CAMOMILELIB)	\
+	#             $(NUMSLIB) $(BIGARRAYLIB) -I $(BATTERIES)		\
+	#             $(BATLIBB) $(BATLIB) -I $(DOTDIR) $(DOTLIB) -a	\
+	#             *.cmo -o optimizations.cma
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR)		\
 	            $(BIGARRAYLIB) $(NUMSLIB) $(UNIXLIB) $(STRLIB) -I	\
 	            $(CAMOMILEDIR) $(CAMOMILELIBB) $(CAMOMILELIB)	\
-	            $(NUMSLIB) $(BIGARRAYLIB) -I $(BATTERIES)		\
-	            $(BATLIBB) $(BATLIB) -I $(DOTDIR) $(DOTLIB) -a	\
+	            $(NUMSLIB) $(BIGARRAYLIB) \
+	            -I $(DOTDIR) $(DOTLIB) -a	\
 	            *.cmo -o optimizations.cma
 fcheck: 
 	# $(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -i constantfolding.ml
+	# $(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
+	# -I $(ERRORDIR) -I $(LANGDIR) $(LANGLIB) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -c constantfolding.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
-	-I $(ERRORDIR) -I $(LANGDIR) $(LANGLIB) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -c constantfolding.ml
+	-I $(ERRORDIR) -I $(LANGDIR) $(LANGLIB) -I $(DOTDIR) $(DOTLIB) -c constantfolding.ml
 
 clean:
 	rm -rf *.cm* *mli

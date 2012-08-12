@@ -4,7 +4,7 @@ struct
   open Language
   open CFG
   open Consts
-  open Batteries_uni
+  (* open Batteries_uni *)
 
   exception Internal_compiler_error of string ;;
   exception Error of string;;
@@ -97,14 +97,27 @@ struct
     | Plus (x,y,_) ->
       let lvalue = get_simexpr_const x in
       let rvalue = get_simexpr_const y in
-      process lvalue rvalue Int.add Float.add
-    | Minus (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.sub Float.sub
-    | Times (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.mul Float.mul
-    | Div (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.div Float.div
-    | Mod (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.rem Float.modulo
-    | Pow (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.pow Float.pow
-    | Lshift (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) (lsl) (lsd)
-    | Rshift (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) (lsr) (lsd)
+      (* This line should be uncommented once batteries can be compiled with new ocaml >= 4.0*)
+      (* process lvalue rvalue Int.add Float.add *)
+      process lvalue rvalue (+) (+.)
+    (* | Minus (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.sub Float.sub *)
+    | Minus (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) (-) (-.)
+    (* | Times (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.mul Float.mul *)
+    | Times (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) ( * ) ( *. )
+    (* | Div (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.div Float.div *)
+    | Div (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) (/) (/.)
+    (* | Mod (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.rem Float.modulo *)
+    | Mod (x,y,lc) -> process (get_simexpr_const x) (get_simexpr_const y)  
+      (mod) (fun x y -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^" Batteries cannot be compiled using ocaml >=4.0, sorry, :-(")))
+    (* | Pow (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) Int.pow Float.pow *)
+    | Pow (x,y,lc) -> process (get_simexpr_const x) (get_simexpr_const y)  
+      (fun x y -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^" Batteries cannot be compiled using ocaml >=4.0, sorry, :-("))) ( ** ) 
+    (* | Lshift (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) (lsl) (lsd) *)
+    | Lshift (x,y,lc) -> process (get_simexpr_const x) (get_simexpr_const y) (lsl) 
+      (fun x y -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " Batteries cannot be compiled currently with ocaml >=4.0, sorry :-(")))
+    (* | Rshift (x,y,_) -> process (get_simexpr_const x) (get_simexpr_const y) (lsr) (lsd) *)
+    | Rshift (x,y,lc) -> process (get_simexpr_const x) (get_simexpr_const y) (lsr) 
+      (fun x y -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " Batteries cannot be compiled currently with ocaml >=4.0, sorry :-(")))
     | Cast (d,y,_) -> 
       let ret = get_simexpr_const y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
@@ -420,14 +433,27 @@ struct
       (* This is wrong, since we are calling the original function, but are not *)
       let lvalue = simple_epxr_const v x in
       let rvalue = simple_epxr_const v y in
-      process lvalue rvalue Int.add Float.add
-    | Minus (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.sub Float.sub
-    | Times (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.mul Float.mul
-    | Div (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.div Float.div
-    | Mod (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.rem Float.modulo
-    | Pow (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.pow Float.pow
-    | Lshift (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) (lsl) (lsd)
-    | Rshift (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) (lsr) (lsd)
+      (* Remove these comments once the batteries can be compiled with ocaml >= 4.0*)
+      (* process lvalue rvalue Int.add Float.add *)
+      process lvalue rvalue (+) (+.)
+    (* | Minus (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.sub Float.sub *)
+    | Minus (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) (-) (-.)
+    (* | Times (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.mul Float.mul *)
+    | Times (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) ( * ) ( *. )
+    (* | Div (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.div Float.div *)
+    | Div (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) (/) (/.)
+    (* | Mod (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.rem Float.modulo *)
+    | Mod (x,y,lc) -> process (simple_epxr_const v x) (simple_epxr_const v y) (mod) 
+      (fun x y -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^" Batteries cannot be compiled using ocaml >=4.0, sorry, :-(")))
+    (* | Pow (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) Int.pow Float.pow *)
+    | Pow (x,y,lc) -> process (simple_epxr_const v x) (simple_epxr_const v y)  
+      (fun x y -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^" Batteries cannot be compiled using ocaml >=4.0, sorry, :-("))) ( ** ) 
+    (* | Lshift (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) (lsl) (lsd) *)
+    | Lshift (x,y,lc) -> process (simple_epxr_const v x) (simple_epxr_const v y) (lsl) 
+      (fun x y -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^" Batteries cannot be compiled using ocaml >=4.0, sorry, :-(")))
+    (* | Rshift (x,y,_) -> process (simple_epxr_const v x) (simple_epxr_const v y) (lsr) (lsd) *)
+    | Rshift (x,y,lc) -> process (simple_epxr_const v x) (simple_epxr_const v y) (lsr) 
+      (fun x y -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^" Batteries cannot be compiled using ocaml >=4.0, sorry, :-(")))
     | Cast (d,y,_) -> 
       let ret = simple_epxr_const v y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
@@ -745,7 +771,9 @@ struct
   open Language
   open CFG
   open Consts
-  open Batteries_uni
+  (* open Batteries_uni *)
+    
+  let (^^) = (fun x y -> let t = Array.make y x in Array.fold_right (fun x y -> x*y) t 1)
 
   exception Internal_compiler_error of string
   exception Error of string
@@ -791,7 +819,9 @@ struct
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
-	  let valu = Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.add Float.add in
+	  (* Uncomment once, Ocaml batteries compiles with Ocaml >= 4.0*)
+	  (* let valu = Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.add Float.add in *)
+	  let valu = Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (+) (+.) in
 	  (match valu with
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Plus(lvalue,rvalue,lc))
@@ -802,7 +832,8 @@ struct
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
-	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.sub Float.sub) with
+	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.sub Float.sub) with *)
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (-) (-.)) with
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Minus(lvalue,rvalue,lc))
 	| _ -> Minus(lvalue,rvalue,lc))
@@ -812,7 +843,8 @@ struct
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
-	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.mul Float.mul) with
+	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.mul Float.mul) with *)
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) ( * ) ( *. )) with
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Times(lvalue,rvalue,lc))
 	| _ -> Times(lvalue,rvalue,lc))
@@ -822,7 +854,8 @@ struct
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
-	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.div Float.div) with
+	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.div Float.div) with *)
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (/) (/.)) with
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Div(lvalue,rvalue,lc))
 	| _ -> Div(lvalue,rvalue,lc))
@@ -832,18 +865,20 @@ struct
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
-	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.rem Float.modulo) with
+	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.rem Float.modulo) with *)
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (mod) (fun x y ->
+	   raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ "Batteries cannot be compiled with Ocaml >=4.0")))) with
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Mod(lvalue,rvalue,lc))
 	| _ -> Mod(lvalue,rvalue,lc))
-
 
     | Pow (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
-	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.pow Float.pow) with
+	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.pow Float.pow) with *)
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (^^) ( ** )) with
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Pow(lvalue,rvalue,lc))
 	| _ -> Pow(lvalue,rvalue,lc))
@@ -853,7 +888,9 @@ struct
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
-	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsl) (Constantpropogation.lsd)) with
+	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsl) (Constantpropogation.lsd)) with *)
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsl) 
+		    (fun x y -> raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ " Batteries cannot be compiled with Ocaml >= 4.0")))) with
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Lshift(lvalue,rvalue,lc))
 	| _ -> Lshift(lvalue,rvalue,lc))
@@ -863,7 +900,9 @@ struct
       let rvalue = fold_simple_expr consts y in 
       (match (lvalue,rvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
-	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsr) (Constantpropogation.lsd)) with
+	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsr) (Constantpropogation.lsd)) with *)
+	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsr) 
+		    (fun x y -> raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ " Battries cannot be compiled using Ocaml >=4.0")))) with
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Rshift(lvalue,rvalue,lc))
 	| _ -> Rshift(lvalue,rvalue,lc))

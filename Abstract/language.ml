@@ -235,4 +235,14 @@ struct
     | Top of DataTypes.t
 end
 
-
+module StreamGraph =
+  struct
+    open Language
+    type num_instr = int
+    type num_vec = int
+    type actor =
+      | Seq of stmt * num_instr * num_vec * actor
+      | TaskSplit of stmt * num_instr * num_vec * actor list
+      | TaskJoin of stmt * num_instr * num_vec * actor 
+      | EmptyActor
+  end
