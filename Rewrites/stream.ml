@@ -78,7 +78,7 @@ let rec process_stmt list filters num_instr num_vec = function
   | Par (x,expr,stmt) -> 
     (* Here we do the exact same as the for stmt, but increment the num_vec instead *)
     let child = process_list filters num_instr num_vec list in
-    let nv = get_new_num_instr num_instr y in
+    let nv = get_new_num_instr num_vec y in
     let me = process_stmt [] filters num_instr nv stmt in
     (* Replace the end of me *)
     replace_empty_actor child me
