@@ -152,6 +152,7 @@ let get_vars = function
 
 let rec get_dvars = function
   | Block (x,_) -> List.flatten (List.map (fun x -> get_vars x) x)
+  | Split (x,_) -> get_dvars x
   | For (x,y,z,lc) | Par (x,y,z,lc) -> 
     let sym = (SimTypedSymbol (DataTypes.Int32s, x, lc)) in
     sym :: (get_vars z)
@@ -183,6 +184,7 @@ let rec decompile_cfg declarations arg = function
 	let () = IFDEF DEBUG THEN print_endline ("Building a par stmt" ^ Dot.dot_stmt s) ELSE () ENDIF in
 	startnode_par lc declarations arg x
       | Block (_,lc) -> startnode_block lc declarations arg x
+      | Split (_,lc) -> startnode_split lc declarations arg x
       | _ -> raise (Internal_compiler_error "Got an unknown type stmt in the start node"))
   | Empty -> 
     let () = IFDEF DEBUG THEN print_endline "reached empty node" ELSE () ENDIF in []
@@ -314,6 +316,15 @@ and startnode_par lc declarations arg x =
   let (x,y,z) = decompile_loop lc declarations x in
   (* Now add it to the rest of the children *)
   (S (Par (x,y,z,lc))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
+
+and startnode_split lc declarations arg x = 
+  (* First get the children list *)
+  let children_list = decompile_cfg declarations BLOCK x in
+  (* Now remove the S's from the List*)
+  let no_s_children_list = List.map (fun x -> match x with S x -> x 
+    | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "While decompiling block stmt, got a non \"S\" type "))) children_list in
+  (* Now pop the endnode and make the rest of the children *)
+  (S (Split (Block (no_s_children_list,lc),lc))) :: (decompile_cfg declarations arg (Stack.pop one_place_stack))
 
 and startnode_block lc declarations arg x = 
   (* First get the children list *)

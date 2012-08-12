@@ -996,6 +996,7 @@ struct
       let vcopy = !declarations in
       let _ = infer_stmt_list declarations x in
       declarations := (Simple.get_block_less_declarations !declarations vcopy); s
+    | Split (x,lc) as s -> let _ = infer_stmt declarations x in s
     | CaseDef (x,lc) as s -> let _ = infer_casedef declarations x in s
     | Par (x,y,z,lc) | For (x,y,z,lc) as s ->
       let _ = infer_simp_expr !declarations y in (* we don't bother with colon expr return types *)
@@ -1063,6 +1064,7 @@ struct
 
   let rec get_dvars = function
     | Block (x,_) -> List.flatten (List.map (fun x -> get_vars x) x)
+    | Split (x,_) -> get_dvars x
     | For (x,y,z,lc) | Par (x,y,z,lc) -> 
       let sym = (SimTypedSymbol (DataTypes.Int32s, x,lc)) in
       sym :: (get_vars z)

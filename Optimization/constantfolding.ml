@@ -213,6 +213,7 @@ struct
 
   let rec get_dvars = function
     | Block (x,_) -> get_bvars x
+    | Split (x,_) -> get_dvars x
     | _ -> []
   and get_bvars = function
     | h::t -> get_stmt_vars h @ get_bvars t
