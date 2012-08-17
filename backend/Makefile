@@ -19,6 +19,8 @@ build: buildodot
 buildodot:
 	# $(CC) -I $(LANGDIR) -I $(ODOTDIR) -I $(TYPEINFERENCEDIR) -i dot.ml
 	$(CC) -I $(LANGDIR) -I $(ODOTDIR) -c dot.ml
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
+	-I $(LANGDIR) -I $(ODOTDIR) -c stream_dot.ml
 
 clean:
 	rm -rf *.cm* *mli

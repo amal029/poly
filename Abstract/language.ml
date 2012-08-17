@@ -28,6 +28,21 @@ struct
     | Bool
     | Poly of string
 
+  let getdata_size = function
+    | Int8 -> 8
+    | Int16 -> 16
+    | Int32 -> 32
+    | Int64 -> 64
+    | Int8s -> 8
+    | Int16s -> 16
+    | Int32s -> 32
+    | Int64s -> 64
+    | Float8 -> 8
+    | Float16 -> 16
+    | Float32 -> 32
+    | Float64 -> 64
+    | _ -> raise (Error ("DataType not recognized"))
+
     
   let print_datatype = function
     | Int8 -> "Int8"
@@ -236,13 +251,30 @@ struct
 end
 
 module StreamGraph =
-  struct
-    open Language
-    type num_instr = int
-    type num_vec = int
-    type actor =
-      | Seq of stmt * num_instr * num_vec * actor
-      | TaskSplit of stmt * num_instr * num_vec * actor list
-      | TaskJoin of stmt * num_instr * num_vec * actor 
-      | EmptyActor
-  end
+struct
+  open Language
+  type num_instr = int
+  type num_vec = int
+  type edge_weight = int
+  type actor =
+    | Store of typedSymbol * edge list
+    | Seq of stmt * num_instr * num_vec * edge
+    | TaskSplit of stmt * num_instr * num_vec * edge list
+    | TaskJoin of stmt * num_instr * num_vec * edge 
+    | EmptyActor
+  and edge =
+    | Edge of actor ref * edge_weight option * actor
+end
+
+module NStreamGraph = 
+struct
+  open Language
+  type actor = 
+    | Store of typedSymbol * edge list
+    | Seq of stmt * int * int * edge
+    | TaskSplit of stmt * int * int * edge list
+    | TaskJoin of stmt * int * int * edge
+    | EmptyActor
+  and edge =
+    | Edge of int option * actor
+end

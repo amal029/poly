@@ -5,11 +5,13 @@ try
   let version = ref false in
   let dot = ref false in
   let llvm = ref false in
+  let graph_part = ref false in
   let load_modules = ref [] in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag, " Decompile to stg-lang");
+		      ("-graph-part", Arg.Set graph_part, 
+		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
 		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file output.ll");
-		      (* Add the -l argument *)
 		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files (>= llvm-3.2)");
 		      ("-v", Arg.Set version, "  Get the compiler version")] (fun x -> file_name := x) usage_msg in
   if !version then print_endline "Poly compiler version alpha"
@@ -68,6 +70,13 @@ try
       let () = print_endline "....Decompiling to stg-lang......" in
       let andrew_ast = DecompiletoAndrewLang.get_andrew_program ast in
       let () = Andrewxml.ast_xml ("output/"^ (file_name)) andrew_ast in ()
+    else ();
+    if !graph_part then
+      let () = print_endline "......Graph part decompiling to AST....." in
+      let ast = DecompiletoAST.decompile cfgt in
+      let () = print_endline "....Producing the stream graph......" in
+      let stream_graph = MyStream.build_stream_graph ast in
+      let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in ()
     else ();
     (* Close the input channel *)
     let () = close_in in_chan in ()

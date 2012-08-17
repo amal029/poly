@@ -55,7 +55,7 @@ let rec dot_simpleexpr = function
   | Const (x,y,_) -> ((DataTypes.print_datatype x) ^ " ") ^ y
   | VarRef (x,_) -> get_symbol x
   | AddrRef (x,_) -> get_addressed_string x
-  | ColonExpr (x,y,z,_) -> ((dot_simpleexpr x) ^ (dot_simpleexpr y)) ^ (dot_simpleexpr z)
+  | ColonExpr (x,y,z,_) -> ((dot_simpleexpr x) ^ " : " ^ (dot_simpleexpr y)) ^ " : " ^ (dot_simpleexpr z)
   | Opposite (x,_) -> "-" ^ dot_simpleexpr x
   | Brackets (x,_) -> dot_simpleexpr x
   | Cast (x,y,_) -> (("(" ^ DataTypes.print_datatype x) ^ ")") ^ (dot_simpleexpr y)
@@ -129,10 +129,16 @@ let rec dot_stmt = function
     let e2 = dot_simpleexpr y in
     let e3 = dot_stmt z in
     " Par " ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
-  | CaseDef (x,_) -> "case stmt"
+  | CaseDef (x,_) -> "CaseDef" ^ dot_case x
   | Split _ -> raise (Internal_compiler_error ("We do not perform any task parallelism in the current compiler"))
 
-let rec dot_relexpr = function
+and dot_case = function
+  | Case (x,o,_) -> List.fold_right (fun x y -> dot_caseclause x ^ y) x (dot_otherwise o)
+and dot_otherwise = function
+  | Otherwise (x,_) -> "Otherwise " ^ dot_stmt x
+and dot_caseclause = function
+  | Clause (r,x,_) -> (dot_relexpr r) ^ dot_stmt x
+and dot_relexpr = function
   | LessThan (x,y,_) -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
@@ -284,7 +290,7 @@ let dot_topnode = function
     Hashtbl.clear visited_nodes;
     (* Dump the files separately *)
     fcounter := !fcounter + 1;
-    let rdot = (match r with | None -> "where ()" | Some x -> ("where" ^ dot_relexpr x)) in
+    let rdot = (match r with | None -> "" | Some x -> ("where" ^ dot_relexpr x)) in
     let rdotstmt_node = Stmt_node ((Simple_id rdot,None),[]) in
     let subg = {strict = false; kind = Digraph; id = Some (Simple_id name); stmt_list = (!cfg_dot_list@[rdotstmt_node])} in
     let () = print_file ((("output/" ^ name) ^ (string_of_int !fcounter)) ^ ".dot") subg in

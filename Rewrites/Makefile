@@ -22,6 +22,8 @@ decompile:
 	-I $(DOTDIR) $(DOTLIB) -I $(LANGDIR) -I $(ERRORDIR) -c decompiletoAST.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
 	-I $(DOTDIR) $(DOTLIB) -I $(LANGDIR) -I $(ERRORDIR) -c decompiletoAndrewLang.ml
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
+	-I $(DOTDIR) $(DOTLIB) -I $(LANGDIR) -I $(ERRORDIR) -c myStream.ml
 
 clean:
 	rm -rf *.cm*

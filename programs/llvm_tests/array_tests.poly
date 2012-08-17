@@ -14,7 +14,7 @@ main
 {
   var size = 2
   var Array[size]; 
-  split Array = zeros ()
+  Array = zeros ()
   /* print the array */
   int ret = extern print_array (size,Array)
   /* print the ret value */

@@ -25,7 +25,7 @@ main
   dummy = extern p1(t)
   t = t >> 2
   dummy = extern p1(t)
-  for i in 0:2 {
+  par i in 0:2 {
    case 
    (i < 1) {
     t = t+1
