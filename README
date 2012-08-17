@@ -3,4 +3,12 @@ programming
 
 Poly features:
 
-1.) 
+1.) First order dependent type inference and standard ML type inference
+2.) Data-parallel nested programming, which uses variants of polyhedral model for compilation
+3.) Heterogeneous partitoning on CPU and GPU units using graph partitioner
+4.) LLVM code generation
+
+And lots more...
+
+
+See programs for example programs
