@@ -150,7 +150,9 @@ let rec get_dependence_actors sym = function
   | TaskJoin (_,_,_,x) -> get_dependence_actors sym (get_edge_child x)
   | Store (_,x) -> List.flatten (List.map (fun x -> get_dependence_actors sym (get_edge_child x)) x)
   | TaskSplit (_,_,_,x) -> List.flatten (List.map (fun x -> get_dependence_actors sym (get_edge_child x)) x)
-  | Seq (t,_,_,x) as s -> if get_dep_actor sym t then [s] else [] @ get_dependence_actors sym (get_edge_child x)
+  | Seq (t,_,_,x) as s -> if get_dep_actor sym t then 
+      let () = IFDEF DEBUG THEN print_endline (("*****") ^ Dot.dot_typed_symbol sym ^ ("*******")) ELSE () ENDIF in
+      [s] else [] @ get_dependence_actors sym (get_edge_child x)
   | EmptyActor -> []
 
 let get_elements_in_simple_expr lc = function
@@ -170,11 +172,13 @@ let get_composite_size = function
 let make_dependece_edges tsym list = 
   (* First build the edges *)
   (* Calculate the size of the array *)
-  let size = get_composite_size tsym in
-  let edges = List.map (fun x -> Edge (ref EmptyActor, Some size, x)) list in
-  (* Now replace the parent with the store *)
-  let ret = Store (tsym, edges) in
-  let () = List.iter (fun x -> set_edge_parent ret x) edges in ret
+  if (match list with | [] -> false | _ -> true) then
+    let size = get_composite_size tsym in
+    let edges = List.map (fun x -> Edge (ref EmptyActor, Some size, x)) list in
+    (* Now replace the parent with the store *)
+    let ret = Store (tsym, edges) in
+    let () = List.iter (fun x -> set_edge_parent ret x) edges in ret
+  else EmptyActor
 
 let rec process_filter filters num_instr num_vec = function
   | Filter (x,y,z,stmt) as s -> 

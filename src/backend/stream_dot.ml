@@ -212,6 +212,7 @@ let rec dot_stream_graph ll = function
        | Not_found -> 
 	 let () = IFDEF DEBUG THEN print_endline ("building Store " ^ (dot_typed_symbol sym)) ELSE () ENDIF in
 	 let cfg_node_list = List.map(fun x -> dot_stream_graph ll (get_edge_child x)) y in
+	 let () = IFDEF DEBUG THEN print_endline ("SIZE: " ^ (string_of_int (List.length cfg_node_list))) ELSE () ENDIF in
 	 counter := !counter + 1;
 	 let this_id = (Simple_id ("Store" ^ (string_of_int !counter)), None) in
 	 let this_label = ("\""^ (dot_typed_symbol sym)) ^ "\"" in
@@ -220,16 +221,12 @@ let rec dot_stream_graph ll = function
 	 let tnode_list = List.map (fun x -> get_tnode_id x) cfg_node_list in
 	 let edge_node_ids = List.map (fun x -> Edge_node_id x)  tnode_list in
 	 let edge_attrs = List.map (fun x -> get_edge_weight x) y in
+	 let () = IFDEF DEBUG THEN print_endline ("SIZE: " ^ (string_of_int (List.length edge_attrs))) ELSE () ENDIF in
 	 let rets = List.map2 (fun x y -> Stmt_edge ((Edge_node_id this_id),  [x], [y])) edge_node_ids edge_attrs in
 	 ll := this :: !ll;
 	 ll := rets @ !ll;
 	 Hashtbl.add visited_nodes s (List.hd rets);
 	 List.hd rets)
-	 (* let ret = Stmt_edge ((Edge_node_id this_id),  edge_node_ids, edge_attrs) in *)
-	 (* ll := this :: !ll; *)
-	 (* ll := ret :: !ll; *)
-	 (* Hashtbl.add visited_nodes s ret; *)
-	 (* ret) *)
 
   | Seq (x,num_instr,num_vec,y) as s -> 
     (try
