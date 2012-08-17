@@ -1,0 +1,16 @@
+buggy_test in u out int yu {
+ var x[10];
+ case (u==1) {}
+ otherwise {}
+ /* var t = 90 */
+ for i in 0:9 x[i] = 0
+}
+
+zeros out O[N] for i in 0:N-1 O[i] = 0
+
+main 
+{
+  var J = 10
+  var qwe = buggy_test (J)
+  qwe = buggy_test (J)
+}

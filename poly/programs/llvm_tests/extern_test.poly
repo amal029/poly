@@ -1,0 +1,8 @@
+main
+{
+  split {
+    var t = 30
+    var y = 20
+  }
+  int u = extern p2 (t, y)
+}

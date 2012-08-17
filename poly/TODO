@@ -1,0 +1,71 @@
+Fri May 18 14:35:51 IST 2012
+
+Written code for:
+
+Optimizations
+
+1.) Aggressive constant propagation.
+2.) Constant folding leads to removal of loops, if assignment is to a constant
+3.) Removing dead-code: both filters and converting stmts (e.g., unused variables) to Noop
+
+
+Type inference and safety
+
+1.) First order dependent typing
+2.) Non-overflowing loop-bounds
+3.) Forcing affine loop-bounds (needs a lot more testing)
+
+Written examples:
+
+1.) K-means.poly
+2.) N-body.poly (Done)
+3.) Binomial-lattice.poly (Done)
+
+
+TODO
+
+Safety checks
+
+1.) Aggressive testing (Next 2 weeks)
+
+2.) Transitive closures for making sure that pars are pars and
+extracting parallelism, see: Induction variable analysis with delayed
+abstractions (Hipeac'05).
+
+3.) WRITE POPL PAPER (START 1st WEEK OF JUNE)
+
+4.) Resolve these bugs:
+
+a.) Right now the **, semantics are not implemented correctly in
+constant propogation and First order type inference
+
+To resolve bugs in constant propogation:
+
+1.) The constants to even external functions should be resolved
+
+In llvm generation code:
+
+1.) The assignment to an array type is not resolved properly!! It should
+be a pointer to the first element rather than the pointer to array of
+elements.
+
+IMPORTANT:
+
+1.) When we make a call the the same filter multiple times in the same
+place the compiler goes into recusion!! --> solved
+
+FIXME Fri Aug 10 15:05:49 IST 2012 if one writes split { S1; S2;,,,,etc}
+//we get rid of split completely and hence, we are loosing parallelism
+completely in the generated code. --> FIX THIS!!
+
+In the decompiletoAST file we need to add the Split node as well!! --> DONE
+
+Sun Aug 12 19:18:41 IST 2012
+
+1.) Check stream.ml and take care of non-constant bounds/strides
+
+2.) Write a dot file output backend for the stream graph!!
+
+
+
+

@@ -1,0 +1,55 @@
+test in X[K] out Y[K] Y = X
+
+buggy_test in u out yu {
+  var erw = u
+  yu = erw+1
+}
+
+constraint_test in u[M] out y[N] {
+} 
+where (M==(2*N) && (M%2 == 0))
+
+zeros out H[M] par i in 0:(M-1) H[i] = 0
+
+zerost out L[K][T] par i in 0:K-1 par j in 0:T-1 L[i][j] = 0.0
+
+main
+{
+  var J = 10
+  var K = 100
+  var Y = 100
+  var X = 100
+  Y = X
+  var REE[100] = zeros()
+  var minter = K-J /* Currently you have to do it this way !!*/
+  var inter[K-J][10] = zerost()
+  var Result[J][J] = zerost()
+  float Input[minter][10] = inter
+  case
+  (J == 1100) K=90
+  (J==900) { case (K <= 90) K=10 otherwise K=80}
+  otherwise {} K=78
+  var M = 100
+  var N = 100
+  var P = 100
+  var Q = 100
+  var R = 100
+  var Centroids[J,J] = zerost()
+  
+  int8 halt = (int8)1
+  case (halt == (int8)1) {var u[9] = zeros () Q = 90} /* <!--break;--> */
+  otherwise { var t[9] = zeros() }
+  for i in 0:((K-J)-1) for j in 0:9 {inter[i][j] = 20.0}
+  for i in 0:((K-J)-1) for j in 0:9 {inter[i][j] = 20.0}
+  for i in 0:M-1 for j in 0:N-1 Result[i,j] = Centroids[i][j]
+  for i in 0:M-1 for j in 0:N-1 Result[i,j] = Centroids[i][j]
+  for k in M-1:0:(-1) for p in 0:N-1 Result[k,p] = Centroids[k][p]
+  for y in 0:2 {
+    var per = 0
+    for qw in 0:3 var qwe = 0
+  }
+  var ER[10] = zeros()
+  var RT[J] = test (ER)
+  var qwe = buggy_test (J)
+  
+}

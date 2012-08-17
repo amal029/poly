@@ -1,0 +1,85 @@
+/* Simplest and the most inefficient conv2d example*/
+conv2d 
+in I[data], int32s dataSizeX, int32s dataSizeY, K[kdata], int32s kernelSizeX, int32s kernelSizeY
+out float O[data]
+{
+  var kCenterX = kernelSizeX/2
+  var kCenterY = kernelSizeY/2
+  var mm var nn
+  var rowIndex var colIndex
+  for i in 0:dataSizeY-1{
+   for j in 0:dataSizeX-1{
+    float sum = 0.0
+    for m in 0:kernelSizeY-1{
+     mm = kernelSizeY - 1 - m
+     for n in 0:kernelSizeX-1{
+      nn = kernelSizeX - 1 - n
+      rowIndex = i + m - kCenterY
+      colIndex = j+n-kCenterX
+      case (rowIndex >= 0 && rowIndex < dataSizeY && colIndex >= 0 && colIndex < dataSizeX) 
+      {sum = sum + (I[dataSizeX*rowIndex+colIndex] * K[kernelSizeX*mm+nn]) 
+       /* assign to output array */
+       O[dataSizeX*i+j] = extern fabs_add_point_5(sum)}
+      otherwise {}
+     }
+    }
+   }
+  }
+} where (dataSizeX >= 0 && dataSizeY >= 0)
+
+/* read image from a file */
+init_IN in int32s M out float O[M]{
+  int ret = extern read_image_o(M,O)
+  /* print the kernel size read in*/
+  ret = extern p1(ret)
+}
+
+/* 5x5 gaussian kernel */
+init_K out O[M]{
+  O[0] = (1.0/256.0)
+  O[1] = (4.0/256.0)
+  O[2] = (6.0/256.0)
+  O[3] = (4.0/256.0)
+  O[4] = (1.0/256.0)
+  O[5] = (4.0/256.0)
+  O[6] = (16.0/256.0)
+  O[7] = (24.0/256.0)
+  O[8] = (16.0/256.0)
+  O[9] = (4.0/256.0)
+  O[10] = (6.0/256.0)
+  O[11] = (24.0/256.0)
+  O[12] = (36.0/256.0)
+  O[13] = (24.0/256.0)
+  O[14] = (6.0/256.0)
+  O[15] = (4.0/256.0)
+  O[16] = (16.0/256.0)
+  O[17] = (24.0/256.0)
+  O[18] = (16.0/256.0)
+  O[19] = (4.0/256.0)
+  O[20] = (1.0/256.0)
+  O[21] = (4.0/256.0)
+  O[22] = (6.0/256.0)
+  O[23] = (4.0/256.0)
+  O[24] = (1.0/256.0)
+}
+
+zeros out O[M] for i in 0:M-1 O[i] = 0.0
+
+main
+{
+  var IXS = 256
+  var data = IXS*IXS
+  var KXS = 5
+  var I[IXS*IXS] = init_IN(data)
+  var O[IXS*IXS] = zeros()
+  var K[KXS*KXS] = init_K()
+  int ret = extern start_timer()
+  O = conv2d(I,IXS,IXS,K,KXS,KXS)
+  ret = extern print_time()
+  /* print the output matrix */
+  ret = extern print_float_array(data,O)
+  /* int ret = extern print_float_array2(KXS,KYS,K) */
+  /* int ret = extern print_float_array2(IXS,IYS,I) */
+  /* print the return value*/
+  ret = extern p1 (ret)
+}

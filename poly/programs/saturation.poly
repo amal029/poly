@@ -1,0 +1,138 @@
+read_input_data out O[N][M] par i in 0:N-1 par j in 0:M-1 O[i,j] = (int8)0
+
+gray in yin out yout, uout, vout
+{
+  yout = (int8)yin
+  uout = 128
+  vout = 128
+}
+
+clamp in fin out iout
+{
+    case 
+    (fin < 0.0)     iout = (int8)0
+    (fin > 255.0)   iout = (int8)255
+    otherwise      iout = (int8)fin
+}
+
+extrapolate in source1, degenerate1, source2, degenerate2, source3, degenerate3, alpha 
+  out result1, result2, result3
+{
+    var intermediate = ((1.0 - ((alpha / 255.0) - 1.0))
+			* (float32) source1)
+                           +
+                           (((alpha / 255.0) - 1.0)
+                            * (float32) degenerate1)
+    result1 = clamp (intermediate)
+
+    intermediate = ((1.0 - ((alpha / 255.0) - 1.0))
+			* (float32) source2)
+                           +
+                           (((alpha / 255.0) - 1.0)
+                            * (float32) degenerate2)
+
+    result2 = clamp (intermediate)
+    intermediate = ((1.0 - ((alpha / 255.0) - 1.0))
+			* (float32) source3)
+                           +
+                           (((alpha / 255.0) - 1.0)
+                            * (float32) degenerate3)
+
+      result3 = clamp (intermediate)
+}
+
+yuvtorgb in yin,  uin,  vin out rout, gout, bout
+{
+    var ydash = ((float32) yin - 16.0) / 219.0
+    var udash = ((float32) uin - 128.0) / 224.0
+    var vdash = (((float32) vin) - 128.0) / 224.0
+    var interr = (255.0 * (ydash + (1.402 * vdash)))
+    var interg = (255.0 * (ydash - (0.344136 * udash) - (0.714136 * vdash)))
+    var interb = (255.0 * (ydash + (1.772 * udash)))
+
+    rout = clamp (interr)
+    gout = clamp (interg)
+    bout = clamp (interb)
+}
+
+rgbtoyuv in  rin,  gin,  bin out yout, uout, vout
+{
+    var rdash = ((float32) rin) / 255.0
+    var gdash = ((float32) gin) / 255.0
+    var bdash = ((float32) bin) / 255.0
+    var ydash = ((0.299 * rdash) + (0.587 * gdash) + (0.114 * bdash))
+    var intery = ((ydash * 219.0) + 16.0)
+    var udash = (((0.0 - 0.168736) * rdash) + ((0.0 - 0.331264) * gdash) + (0.5 * bdash))
+    var vdash = ((0.5 * rdash) - (0.418688 * gdash) - (0.081312 * bdash))
+    
+    var interu = ((udash * 224.0) + 128.0)
+    var interv = ((vdash * 224.0) + 128.0)
+
+    yout = clamp (intery)
+    uout = clamp (interu)
+    vout = clamp (interv)
+}
+
+gray_yuvtorgb 
+
+in
+    origy[height][width]
+out
+    greyr[height][width],
+    greyg[height][width],
+    greyb[height][width]
+{
+  var greyy
+  var greyu
+  var greyv
+
+  par i in 0:height-1
+   par j in 0:width-1 {
+    (greyy, greyu, greyv) = gray (origy[i][j]) 
+    (greyr[i][j], greyg[i,j], greyb[i][j]) = yuvtorgb (greyy,greyu,greyv) 
+   }
+}
+
+ENTER
+in
+    origy[height][width],
+    origu[height2][width2],
+    origv[height2][width2]
+out
+    saty[height][width],
+    satu[height2][width2],
+    satv[height2][width2]
+{
+        var alpha = 0.5
+        
+	 (var grayr[height][width], var grayg[height][width], var grayb[height][width]) = gray_yuvtorgb (origy) 
+
+	 var origb[height][width] = read_input_data()
+	 var origr[height][width] = read_input_data()
+	 var origg[height][width] = read_input_data()
+
+	  par i in 0:height-1
+	   par j in 0:width-1
+	    (origr[i][j], origg[i][j], origb[i][j]) = yuvtorgb (origy[i,j],origu[(i/2),(j/2)],origv[(i/2),(j/2)]) 
+
+	  for i in 0:height-1
+	   for j in 0:width-1 {
+	    (var satr, var satg, var satb) = extrapolate (origr[i,j],grayr[i,j],origg[i,j],grayg[i,j],origb[i,j],grayb[i,j],alpha)
+	    (saty[i,j],satu[i/2][j/2],satv[i/2][j/2]) = rgbtoyuv (satr,satg,satb) 
+	   }
+}
+where (height%2==0 && width%2 == 0)
+
+main
+{
+    var height = 720
+    var width = 1280
+    int8 origy[height][width] = read_input_data()
+    int8 origu[height/2][width/2] = read_input_data()
+    int8 origv[height/2][width/2] = read_input_data()
+    int8 saty[height][width] = read_input_data()
+    int8 satu[(height/2)][(width/2)] = read_input_data()
+    int8 satv[(height/2)][(width/2)] = read_input_data()
+      
+    (saty, satu, satv) = ENTER (origy,origu,origv) 
+}

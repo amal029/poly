@@ -1,0 +1,18 @@
+zeros out O[M][N] par i in 0:M-1 par j in 0:N-1 O[i,j] = 0.0 where M==N
+
+matmul in first[M,N], second[M,N] out result[M,N]
+{
+    par i in 0:M-1
+      par j in 0:N-1 {
+        result[i,j] = 0.0 
+        for k in 0:M-1 
+          result[i,j] = result[i,j] + (first[i,k] * second[k,j])
+      }   
+}where M==N
+
+
+main
+{
+    var a[10,10] = zeros()
+    var result[10,10] = matmul(a, a)
+}

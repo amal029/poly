@@ -1,0 +1,4 @@
+entry.in.bodies.N=1024
+entry.out.accel.N=1024
+entry.out.naccel.N=1024
+entry.out.nbodies.N=1024

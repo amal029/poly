@@ -1,0 +1,207 @@
+// N-body simulation with O(N^2) task parallel actors and each actor
+// itself containing O(10) data-parallel computations
+// For N=1024 stars in the galaxy there are: O((1024*10)^2) parallel
+// actors => 1,04,857,600 actors in this example
+
+// Author: Avinash Malik
+// Mon Apr 16 11:08:33 IST 2012
+
+// Notes: See Fast N-body simultion with CUDA (Nvidia GPU Gems chapter
+// 31) for algorithm description
+
+//calculate the acceleration
+// O(3) parallel computations here
+
+filter calcAcceleration
+in 
+   float8 r<3>,
+   float32 s
+out float32 a<3>
+//increment the current 
+//value of a with (s*r) pointwise
+{	
+	map s over a{
+	    a = a+(s*r)
+	}
+}
+//calculate the inverse distance cuboid
+//O(1) data computation here
+filter invDist
+in float8 r<3>,
+   float16 p<1>,
+   float8 w<1>
+out float32 a<3>
+{
+	//this is the EPS^2 factor to make sure that 
+	// galaxies do not collide
+	create(float8 EPS2)
+	EPS2 = 0.00125 
+
+	create(float32 s)
+	//notice that there is a sqrt in here
+	s = w * (1.0/((p+EPS2)^(3/2)))
+	
+	call(calcAcceleration r s => a)
+	
+}
+
+filter plus
+in  int8 a,
+    int8 b
+out
+    int8 c
+{ c = a + b }
+
+filter multm
+in float8 r<3>
+out float32 p<1>
+
+{
+	(create int32 init)
+	init = 0
+	reduce p<3> by plus from init {
+		p = (r*r)
+	}
+}
+
+// calculate the multiplication
+// should be O(3) 
+// data-parallel computations here
+filter mult
+in float8 r<3>,
+   float8 w<1>
+out 
+    float32 a<3>,
+{   
+    create(float16 p)
+    call (multm r => p)
+    call (invDist p w r => a)
+}
+
+// Calculate the distance vector between two bodies
+// O(3) data-parallel computations here
+filter calcdist 
+in float8 ai<3>,
+   float8 aj<3>,
+   float8 w<1>
+out float8 a<3>
+{
+	//where should I define r<3> ??
+	create(float8 r<3>)
+	r = ai - aj
+	call (mult r w => a)
+}
+
+//Integrate to the new position on screen
+filter calcposition
+in float8 v<3>,
+out float32 bi<3>
+{
+	create(float8 dTime)
+	dTime = 0.5
+	b  = b + (v*dTime)
+}
+
+
+// Integrate in time to move the bodies on screen
+// O(3) parallelism
+filter calcvelocity
+in 
+   float32 ai<3>
+out 
+   float8 bi<3>,
+{
+	create(float8 v<3>)
+	create(float8 dTime)
+	dTime = 0.5
+	v = v + ((cast(float8 a))*dTime)
+	create(float8 damping)
+	damping = 0.5
+	v = v * damping
+
+	//Is this allowed??
+	call (calcposition v => bi)
+}
+
+
+//The (1-N)-body simulation
+filter BODY2
+in float8 bi<4>,
+   float8 bj<4><N>,
+out float32 ai<3><N>,
+{
+	//this should be described as bi<><N> giving the direction to
+	//expand to
+
+	map bi over bj {
+		create(float8 position<3>)
+		create(float8 positionj<3>)
+		position<0>=bi<0>
+		position<1>=bi<1>
+		position<2>=bi<2>
+		positionj<0>=bj<0>
+		positionj<1>=bj<1>
+		positionj<2>=bj<2>
+		call (calcdist position positionj bi<3> => ai)
+	}
+}
+
+filter acceladd
+in float32 accel <3><N>
+out float32 acc<3>
+{
+	(create int32 init)
+	init = 0
+	reduce acc<3><N> by plus from init{
+		acc = accel
+	}
+}
+
+//Now put the filters together to make the N-body problem
+//we do O(N^2) task parallel computations at once
+
+filter calnpos
+// M = 4
+in 
+   block<4> float8 bodies<4><N>,
+   const float8 bodies2<4><N>
+out 
+    //naccel for inner N bodies
+    const float32 accel<3><N>,
+    //naccel for outer N bodies
+    block<3> float32 naccel<3><N>,
+{
+
+	//need this tunables in here
+	call (BODY2 bodies bodies2 => accel)
+
+	call (acceladd accel => naccel)
+
+}
+
+// Integrate over time
+filter intgrateovertime
+in 
+   block<3> float32 naccel<3><N>,
+   block<4> float8 bodies<4><N>
+out block<4> float8 nbodies<4><N>
+{
+	create(float8 position<3>)
+	//integrate in time to get the new positions
+	call(calcvelocity naccel => position)
+	nbodies<0> = position<0>
+	nbodies<1> = position<1>
+	nbodies<2> = position<2>
+	nbodies<3> = bodies<3>
+}
+
+main filter entry
+in float8 bodies<4><N>,
+out float32 accel<3><N>,
+    float32 naccel<3><N>,
+   float8 nbodies<4><N>
+{
+	call(calnpos bodies bodies => accel naccel)
+	call(intgrateovertime naccel bodies => nbodies)
+}
+
