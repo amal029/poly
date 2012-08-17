@@ -145,6 +145,8 @@ let rec get_lvalue sym = function
 
 let get_dep_actor sym = function
   | Assign (x,y,_) -> get_lvalue sym x || get_rvalue sym y
+  | Noop -> false
+  | _ as s -> raise (Internal_compiler_error ("erroneously obtained: " ^ (Dot.dot_stmt s)))
 
 let rec get_dependence_actors sym = function
   | TaskJoin (_,_,_,x) -> get_dependence_actors sym (get_edge_child x)
@@ -160,13 +162,16 @@ let get_elements_in_simple_expr lc = function
   | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ComTyped Symbol does not have constant dimensions"))
 
 let get_elements lc = function
-  | AngleDimExpr x -> match x with | DimSpecExpr x -> get_elements_in_simple_expr lc x
+  | BracDim (x::t) -> match x with | DimSpecExpr x -> get_elements_in_simple_expr lc x
 
 let get_composite_size = function
   | SimTypedSymbol (typ,_,_) -> DataTypes.getdata_size typ
   | ComTypedSymbol (typ,x,lc) -> 
     let size = DataTypes.getdata_size typ in
-    let num_elements = (match x with | AddressedSymbol (_,x,_,_) -> List.fold_right (fun x y -> get_elements lc x + y) x 0) in
+    let num_elements = (match x with | AddressedSymbol (_,_,x,_) -> List.fold_right (fun x y -> 
+      let el = get_elements lc x in 
+      let () = IFDEF DEBUG THEN print_endline ((string_of_int el) ^ "$$$$$$$") ELSE () ENDIF in
+      el + y) x 0) in
     size * num_elements
 
 let make_dependece_edges tsym list = 
