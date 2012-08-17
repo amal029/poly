@@ -190,11 +190,12 @@ let rec dot_stream_graph ll = function
 	 counter := !counter + 1;
 	 let this_id = (Simple_id ("TaskSplit" ^ (string_of_int !counter)), None) in
 	 let this_label = ("\""^ (dot_stmt x)) ^ "\"" in
+	 let constraints = "\"" ^ (string_of_int num_instr) ^"," ^ (string_of_int num_vec) ^ "\"" in
 	 let this = Stmt_node (this_id , [(Simple_id("type"), Some (Simple_id("task_split")));
 	   (Simple_id("shape"), Some (Simple_id("box")));
 					  (Simple_id("label"),Some(Simple_id(this_label)));
-					  (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr)));
-					  (Simple_id("num_vec"),Some(Simple_id(string_of_int num_vec)))]) in 
+					  (* (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr))); *)
+					  (Simple_id("constraints"),Some(Simple_id(constraints)))]) in 
 	 let tnode_list = List.map (fun x -> get_tnode_id x) cfg_node_list in
 	 let edge_node_ids = List.map (fun x -> Edge_node_id x)  tnode_list in
 	 let edge_attrs = List.map (fun x -> get_edge_weight x) y in
@@ -240,10 +241,11 @@ let rec dot_stream_graph ll = function
 	 counter := !counter + 1;
 	 let this_id = (Simple_id ("Seq" ^ (string_of_int !counter)), None) in
 	 let this_label = ("\""^ (dot_stmt x)) ^ "\"" in
+	 let constraints = "\"" ^ (string_of_int num_instr) ^"," ^ (string_of_int num_vec) ^ "\"" in
 	 let this = Stmt_node (this_id, [(Simple_id("type"), Some (Simple_id("seq")));(Simple_id("shape"),Some(Simple_id("box")));
 					 (Simple_id("label"),Some(Simple_id(this_label)));
-					 (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr)));
-					 (Simple_id("num_vec"),Some(Simple_id(string_of_int num_vec)))]) in
+					 (* (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr))); *)
+					 (Simple_id("constraints"),Some(Simple_id(constraints)))]) in
 	 let tnode = get_tnode_id cfg_node in
 	 let edge_attrs = List.map (fun x -> get_edge_weight x) [y] in
 	 let ret = Stmt_edge ((Edge_node_id this_id),  [Edge_node_id tnode], edge_attrs) in
@@ -265,10 +267,11 @@ let rec dot_stream_graph ll = function
 	 counter := !counter + 1;
 	 let this_id = (Simple_id ("TaskJoin" ^ (string_of_int !counter)), None) in
 	 let this_label = ("\""^ (dot_stmt x)) ^ "\"" in
+	 let constraints = "\"" ^ (string_of_int num_instr) ^"," ^ (string_of_int num_vec) ^ "\"" in
 	 let this = Stmt_node (this_id, [(Simple_id("type"), Some (Simple_id("task_join")));(Simple_id("shape"),Some(Simple_id("box")));
 					 (Simple_id("label"),Some(Simple_id(this_label)));
-					 (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr)));
-					 (Simple_id("num_vec"),Some(Simple_id(string_of_int num_vec)))]) in
+					 (* (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr))); *)
+					 (Simple_id("constraints"),Some(Simple_id(constraints)))]) in
 	 let tnode = get_tnode_id cfg_node in
 	 let edge_attrs = List.map (fun x -> get_edge_weight x) [y] in
 	 let ret = Stmt_edge ((Edge_node_id this_id),  [Edge_node_id tnode], edge_attrs) in

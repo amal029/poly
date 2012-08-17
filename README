@@ -1,1 +1,6 @@
-SCoP Language
+Poly is a new language targeted at mixture of data-parallel and stream
+programming
+
+Poly features:
+
+1.) 
