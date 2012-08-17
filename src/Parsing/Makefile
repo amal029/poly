@@ -1,4 +1,4 @@
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Error
+ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 OCMLOPTS=-a
 OCMALDEBUG=-g

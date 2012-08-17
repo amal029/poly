@@ -1,4 +1,4 @@
-COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml
+COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
 BIGARRAYDIR=/macports-1.9.1/lib/ocaml/

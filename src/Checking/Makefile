@@ -1,8 +1,8 @@
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Abstract
-BACKDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/backend
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Error
-PARSEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Parsing
-REWRITEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Optimization
+LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
+BACKDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
+ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
+PARSEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Parsing
+REWRITEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Optimization
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 CC=ocamlc
 XMLLIB=xml-light.cma

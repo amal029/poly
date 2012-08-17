@@ -1,7 +1,7 @@
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Abstract
-TYPEINFERENCEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Checking
+LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
+TYPEINFERENCEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Checking
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-ODOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/lib
+ODOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/lib
 FIND=ocamlfind
 CC=ocamlc
 XMLLIB=xml-light.cma

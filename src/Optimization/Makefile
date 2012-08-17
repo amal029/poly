@@ -1,6 +1,6 @@
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Abstract
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Error
-DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/backend
+LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
+ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
+DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile

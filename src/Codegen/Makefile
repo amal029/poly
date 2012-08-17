@@ -1,8 +1,8 @@
-COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml
+COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
 DOTDIR=$(COMP_HOME)/backend
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Error
+ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 LANGDIR=$(COMP_HOME)/Abstract
 XMLLIB=xml-light.cma
 LANGLIB=language.cma

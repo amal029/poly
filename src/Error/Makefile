@@ -1,4 +1,4 @@
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/std-lang/Ocaml/Abstract
+LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
 LANGLIB=language.cma
 CC=ocamlc
 SRC=reporting.ml
