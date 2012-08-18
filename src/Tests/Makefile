@@ -1,5 +1,6 @@
 COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
-BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
+# BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
+BATTERIES=$(HOME)/batteries-included/_build/src
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
 BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
 LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
@@ -19,7 +20,6 @@ REWRITES=rewrites.cma
 OPTIMIZATIONS=optimizations.cma
 ANALYSIS=static-analysis.cma
 CODEGEN=codegen.cma
-BATLIB=batteries_uni.cma
 BATLIBB=batteries.cma
 CAMOMILELIB=camomile.cma
 CAMOMILELIBB=camomileLibrary.cma
@@ -43,11 +43,12 @@ run:
 
 compiler:
 	$(CC) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR) -I		\
-	   $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
-	  -I $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN)	\
-	   $(REWRITES) $(ANALYSIS) $(OPTIMIZATIONS) -I $(CODEGENDIR)	\
-	   $(CODEGENLIB) -I $(LIBDIR) $(FILEUTILS) $(LLVMLIB) -cc gcc	\
-	  -cclib -lstdc++ -ccopt -rdynamic -custom $(SRC) -o $(TARGETC)
+	     $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
+	     -I $(BATTERIES) -I $(ERRORDIR) $(ERRORLIB) $(PARSELIB)	\
+	     $(LANGLIB) $(CODEGEN) $(REWRITES) $(ANALYSIS)		\
+	     $(OPTIMIZATIONS) -I $(CODEGENDIR) $(CODEGENLIB) -I		\
+	    $(LIBDIR) $(FILEUTILS) $(LLVMLIB) $(BATLIBB) -cc gcc -cclib	\
+	    -lstdc++ -ccopt -rdynamic -custom $(SRC) -o $(TARGETC)
 
 clean:
 	rm -rf ../output ../output1 polyc polyi *.cm* *mli

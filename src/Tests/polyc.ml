@@ -1,3 +1,5 @@
+open Batteries;;
+
 let usage_msg = "Usage: polyc [options] <filename>\nsee -help for more options" in
 try
   let file_name = ref "" in
