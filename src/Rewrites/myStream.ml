@@ -300,11 +300,17 @@ and convert_to_nstream_edge = function
   | Edge (_,w,x) -> NStreamGraph.Edge (w, convert_to_nstream_graph x)
 
 let rec convert_to_metis_graph = function
-  | TaskSplit (x,y,z,r) -> Metis.Split ((Dot.dot_stmt x), y,z, List.map (fun x -> convert_to_metis_graph_edge x) r)
+  | TaskSplit (x,y,z,r) -> 
+    let z = if z = 0 then 1 else z in
+    Metis.Split ((Dot.dot_stmt x), [y*z], List.map (fun x -> convert_to_metis_graph_edge x) r)
   | EmptyActor -> Metis.Empty
-  | Store (x,y) -> Metis.Split ((Dot.dot_typed_symbol x), 0,0, List.map (fun x -> convert_to_metis_graph_edge x) y)
-  | Seq (x,y,z,e) -> Metis.Seq ((Dot.dot_stmt x),y,z, convert_to_metis_graph_edge e)
-  | TaskJoin (x,y,z,e) -> Metis.Join ((Dot.dot_stmt x), y,z,convert_to_metis_graph_edge e)
+  | Store (x,y) -> Metis.Split ((Dot.dot_typed_symbol x), [0], List.map (fun x -> convert_to_metis_graph_edge x) y)
+  | Seq (x,y,z,e) -> 
+    let z = if z = 0 then 1 else z in
+    Metis.Seq ((Dot.dot_stmt x), [(y*z)], convert_to_metis_graph_edge e)
+  | TaskJoin (x,y,z,e) -> 
+    let z = if z = 0 then 1 else z in
+    Metis.Join ((Dot.dot_stmt x), [y*z],convert_to_metis_graph_edge e)
 and convert_to_metis_graph_edge = function
   | Edge (_,w,x) -> Metis.Edge (w, convert_to_metis_graph x)
 

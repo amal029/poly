@@ -79,7 +79,7 @@ try
       let () = print_endline "....Producing the stream graph......" in
       let (stream_graph,metis_graph) = MyStream.build_stream_graph ast in
       let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in
-      let () = MetisDriver.generate_metis_file (llvm_file ^ ".grf") metis_graph in ()
+      let () = MetisDriver.generate_metis_file "1" "011" (llvm_file ^ ".grf") metis_graph in ()
     else ();
     (* Close the input channel *)
     let () = close_in in_chan in ()
