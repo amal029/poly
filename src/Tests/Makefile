@@ -1,6 +1,7 @@
 COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 # BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
 BATTERIES=$(HOME)/batteries-included/_build/src
+METISDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/lib-metis/lib
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
 BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
 LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
@@ -34,6 +35,7 @@ CC=ocamlc
 SRC=polyc.ml
 TARGETC=polyc
 FIND=ocamlfind
+METISLIB=lib-metis.cma
 
 all: compiler
 
@@ -43,12 +45,14 @@ run:
 
 compiler:
 	$(CC) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR) -I		\
-	     $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
-	     -I $(BATTERIES) -I $(ERRORDIR) $(ERRORLIB) $(PARSELIB)	\
-	     $(LANGLIB) $(CODEGEN) $(REWRITES) $(ANALYSIS)		\
-	     $(OPTIMIZATIONS) -I $(CODEGENDIR) $(CODEGENLIB) -I		\
-	    $(LIBDIR) $(FILEUTILS) $(LLVMLIB) $(BATLIBB) -cc gcc -cclib	\
-	    -lstdc++ -ccopt -rdynamic -custom $(SRC) -o $(TARGETC)
+	           $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I	\
+	           $(OPTDIR) -I $(METISDIR) -I $(BATTERIES) -I		\
+	          $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB)	\
+	           $(CODEGEN) $(REWRITES) $(ANALYSIS) $(OPTIMIZATIONS)	\
+	           -I $(CODEGENDIR) $(CODEGENLIB) -I $(LIBDIR)		\
+	           $(FILEUTILS) $(LLVMLIB) $(BATLIBB) $(METISLIB) -cc	\
+	          gcc -cclib -lstdc++ -ccopt -rdynamic -custom $(SRC)	\
+	          -o $(TARGETC)
 
 clean:
 	rm -rf ../output ../output1 polyc polyi *.cm* *mli

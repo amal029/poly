@@ -299,6 +299,15 @@ let rec convert_to_nstream_graph = function
 and convert_to_nstream_edge = function
   | Edge (_,w,x) -> NStreamGraph.Edge (w, convert_to_nstream_graph x)
 
+let rec convert_to_metis_graph = function
+  | TaskSplit (x,y,z,r) -> Metis.Split ((Dot.dot_stmt x), y,z, List.map (fun x -> convert_to_metis_graph_edge x) r)
+  | EmptyActor -> Metis.Empty
+  | Store (x,y) -> Metis.Split ((Dot.dot_typed_symbol x), 0,0, List.map (fun x -> convert_to_metis_graph_edge x) y)
+  | Seq (x,y,z,e) -> Metis.Seq ((Dot.dot_stmt x),y,z, convert_to_metis_graph_edge e)
+  | TaskJoin (x,y,z,e) -> Metis.Join ((Dot.dot_stmt x), y,z,convert_to_metis_graph_edge e)
+and convert_to_metis_graph_edge = function
+  | Edge (_,w,x) -> Metis.Edge (w, convert_to_metis_graph x)
+
 
 let build_stream_graph = function
   | Program x -> 
@@ -309,7 +318,8 @@ let build_stream_graph = function
     (try 
        let main = List.find (fun x -> (match x with DefMain _ -> true | _ -> false)) x in
        let ret = convert_to_nstream_graph (process_main filters main) in
+       let ret2 = convert_to_metis_graph (process_main filters main) in
        (* debug *)
-       let () = IFDEF DEBUG THEN ndebug ret ELSE () ENDIF in ret
+       let () = IFDEF DEBUG THEN ndebug ret ELSE () ENDIF in (ret,ret2)
      with | Not_found -> raise (Error "No main function defined"));
     (* Now start processing from the main filter *)
