@@ -71,11 +71,11 @@ main
   var IYS = IXS
   var KXS = 5
   var KYS = KXS
-  var I[IXS][IYS] = init_IN(IXS)
-  var O[IXS][IYS] = zeros()
-  var K[KXS][KYS] = init_K()
+  var IIN[IXS][IYS] = init_IN(IXS)
+  var OIN[IXS][IYS] = zeros()
+  var KIN[KXS][KYS] = init_K()
   int ret = extern start_timer()
-  O = conv2d(I,K)
+  OIN = conv2d(IIN,KIN)
   ret = extern print_time()
   /* print the output matrix */
   ret = extern print_float_array2(IXS,IYS,O)

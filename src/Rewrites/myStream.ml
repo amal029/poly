@@ -202,8 +202,11 @@ let rec process_filter filters num_instr num_vec = function
     let () = List.iter (fun x -> set_edge_parent ret x) edges in ret
 
 and process_stmt declarations list filters num_instr num_vec = function
-  | Assign (_,x,lc) as s ->
+  | Assign (sts,x,lc) as s ->
     (* Here we need to check if a call is being made to a different filter!! *)
+    (* Get all the declaration types *)
+    (* declarations := !declarations @ List.map (fun (AllTypedSymbol x) -> x) *)
+    (*   (List.filter (fun x -> (match x with | AllTypedSymbol _ -> true | _ -> false)) sts); *)
     let child = process_list declarations filters num_instr num_vec list in
     (match x with
       | FCall (x,b) ->
@@ -299,6 +302,21 @@ let rec convert_to_nstream_graph = function
 and convert_to_nstream_edge = function
   | Edge (_,w,x) -> NStreamGraph.Edge (w, convert_to_nstream_graph x)
 
+let rec convert_to_our_metis_graph = function
+  | TaskSplit (x,y,z,r) -> 
+    (* let z = if z = 0 then 1 else z in *)
+    Metis.Split ((Dot.dot_stmt x), [y;z], List.map (fun x -> convert_to_our_metis_graph_edge x) r)
+  | EmptyActor -> Metis.Empty
+  | Store (x,y) -> Metis.Split ((Dot.dot_typed_symbol x), [0;0], List.map (fun x -> convert_to_our_metis_graph_edge x) y)
+  | Seq (x,y,z,e) ->
+    (* let z = if z = 0 then 1 else z in *)
+    Metis.Seq ((Dot.dot_stmt x), [y;z], convert_to_our_metis_graph_edge e)
+  | TaskJoin (x,y,z,e) -> 
+    (* let z = if z = 0 then 1 else z in *)
+    Metis.Join ((Dot.dot_stmt x), [y;z],convert_to_our_metis_graph_edge e)
+and convert_to_our_metis_graph_edge = function
+  | Edge (_,w,x) -> Metis.Edge (w, convert_to_our_metis_graph x)
+
 let rec convert_to_metis_graph = function
   | TaskSplit (x,y,z,r) -> 
     let z = if z = 0 then 1 else z in
@@ -307,7 +325,7 @@ let rec convert_to_metis_graph = function
   | Store (x,y) -> Metis.Split ((Dot.dot_typed_symbol x), [0], List.map (fun x -> convert_to_metis_graph_edge x) y)
   | Seq (x,y,z,e) -> 
     let z = if z = 0 then 1 else z in
-    Metis.Seq ((Dot.dot_stmt x), [(y*z)], convert_to_metis_graph_edge e)
+    Metis.Seq ((Dot.dot_stmt x), [y*z], convert_to_metis_graph_edge e)
   | TaskJoin (x,y,z,e) -> 
     let z = if z = 0 then 1 else z in
     Metis.Join ((Dot.dot_stmt x), [y*z],convert_to_metis_graph_edge e)
@@ -325,7 +343,8 @@ let build_stream_graph = function
        let main = List.find (fun x -> (match x with DefMain _ -> true | _ -> false)) x in
        let ret = convert_to_nstream_graph (process_main filters main) in
        let ret2 = convert_to_metis_graph (process_main filters main) in
+       let ret3 = convert_to_our_metis_graph (process_main filters main) in
        (* debug *)
-       let () = IFDEF DEBUG THEN ndebug ret ELSE () ENDIF in (ret,ret2)
+       let () = IFDEF DEBUG THEN ndebug ret ELSE () ENDIF in (ret,ret2,ret3)
      with | Not_found -> raise (Error "No main function defined"));
     (* Now start processing from the main filter *)

@@ -130,7 +130,7 @@ let rec dot_stmt = function
     let e3 = dot_stmt z in
     " Par " ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
   | CaseDef (x,_) -> "CaseDef" ^ dot_case x
-  | Split _ -> raise (Internal_compiler_error ("We do not perform any task parallelism in the current compiler"))
+  | Split (x,_) -> "Split " ^ dot_stmt x
 
 and dot_case = function
   | Case (x,o,_) -> List.fold_right (fun x y -> dot_caseclause x ^ y) x (dot_otherwise o)
