@@ -36,6 +36,7 @@ SRC=polyc.ml
 TARGETC=polyc
 FIND=ocamlfind
 METISLIB=lib-metis.cma
+METISLDIR=/macports-1.9.1/lib
 
 all: compiler
 
@@ -49,7 +50,7 @@ compiler:
 	           $(OPTDIR) -I $(METISDIR) -I $(BATTERIES) -I		\
 	          $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB)	\
 	           $(CODEGEN) $(REWRITES) $(ANALYSIS) $(OPTIMIZATIONS)	\
-	           -I $(CODEGENDIR) $(CODEGENLIB) -I $(LIBDIR)		\
+	           -I $(CODEGENDIR) $(CODEGENLIB) -I $(METISLDIR) -I $(LIBDIR)		\
 	           $(FILEUTILS) $(LLVMLIB) $(BATLIBB) $(METISLIB) -cc	\
 	          gcc -cclib -lstdc++ -ccopt -rdynamic -custom $(SRC)	\
 	          -o $(TARGETC)

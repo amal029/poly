@@ -152,6 +152,9 @@ let rec get_dependence_actors sym = function
   | TaskJoin (_,_,_,x) -> get_dependence_actors sym (get_edge_child x)
   | Store (_,x) -> List.flatten (List.map (fun x -> get_dependence_actors sym (get_edge_child x)) x)
   | TaskSplit (_,_,_,x) -> List.flatten (List.map (fun x -> get_dependence_actors sym (get_edge_child x)) x)
+  (* FIXME: If we make the if else as single function, then metis
+     generator, fucks up, because we have multiple edges between two
+     nodes*)
   | Seq (t,_,_,x) as s -> if get_dep_actor sym t then 
       let () = IFDEF DEBUG THEN print_endline (("*****") ^ Dot.dot_typed_symbol sym ^ ("*******")) ELSE () ENDIF in
       [s] else [] @ get_dependence_actors sym (get_edge_child x)
@@ -205,8 +208,8 @@ and process_stmt declarations list filters num_instr num_vec = function
   | Assign (sts,x,lc) as s ->
     (* Here we need to check if a call is being made to a different filter!! *)
     (* Get all the declaration types *)
-    (* declarations := !declarations @ List.map (fun (AllTypedSymbol x) -> x) *)
-    (*   (List.filter (fun x -> (match x with | AllTypedSymbol _ -> true | _ -> false)) sts); *)
+    declarations := !declarations @ List.map (fun (AllTypedSymbol x) -> x)
+      (List.filter (fun x -> (match x with | AllTypedSymbol _ -> true | _ -> false)) sts);
     let child = process_list declarations filters num_instr num_vec list in
     (match x with
       | FCall (x,b) ->

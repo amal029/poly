@@ -30,7 +30,7 @@ clean:
 	$(MAKE) -C backend/ clean
 	$(MAKE) -C Codegen/ clean
 	$(MAKE) -C Tests/ clean
-	rm -rf *.ll *.bc *.s *.dot *.grf
+	rm -rf *.ll *.bc *.s *.dot *.grf *.part*
 
 run:
 	$(MAKE) -C Tests/ run

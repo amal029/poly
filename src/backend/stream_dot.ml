@@ -193,6 +193,7 @@ let rec dot_stream_graph ll = function
 	 let constraints = "\"" ^ (string_of_int num_instr) ^"," ^ (string_of_int num_vec) ^ "\"" in
 	 let this = Stmt_node (this_id , [(Simple_id("type"), Some (Simple_id("task_split")));
 	   (Simple_id("shape"), Some (Simple_id("box")));
+					 (Simple_id("Id"),Some(Simple_id((string_of_int !counter))));
 					  (Simple_id("label"),Some(Simple_id(this_label)));
 					  (* (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr))); *)
 					  (Simple_id("constraints"),Some(Simple_id(constraints)))]) in 
@@ -218,6 +219,7 @@ let rec dot_stream_graph ll = function
 	 let this_id = (Simple_id ("Store" ^ (string_of_int !counter)), None) in
 	 let this_label = ("\""^ (dot_typed_symbol sym)) ^ "\"" in
 	 let this = Stmt_node (this_id , [(Simple_id("type"), Some (Simple_id("store")));(Simple_id("shape"), Some (Simple_id("box")));
+					 (Simple_id("Id"),Some(Simple_id((string_of_int !counter))));
 					  (Simple_id("label"),Some(Simple_id(this_label)))]) in 
 	 let tnode_list = List.map (fun x -> get_tnode_id x) cfg_node_list in
 	 let edge_node_ids = List.map (fun x -> Edge_node_id x)  tnode_list in
@@ -244,6 +246,7 @@ let rec dot_stream_graph ll = function
 	 let constraints = "\"" ^ (string_of_int num_instr) ^"," ^ (string_of_int num_vec) ^ "\"" in
 	 let this = Stmt_node (this_id, [(Simple_id("type"), Some (Simple_id("seq")));(Simple_id("shape"),Some(Simple_id("box")));
 					 (Simple_id("label"),Some(Simple_id(this_label)));
+					 (Simple_id("Id"),Some(Simple_id((string_of_int !counter))));
 					 (* (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr))); *)
 					 (Simple_id("constraints"),Some(Simple_id(constraints)))]) in
 	 let tnode = get_tnode_id cfg_node in
@@ -270,6 +273,7 @@ let rec dot_stream_graph ll = function
 	 let constraints = "\"" ^ (string_of_int num_instr) ^"," ^ (string_of_int num_vec) ^ "\"" in
 	 let this = Stmt_node (this_id, [(Simple_id("type"), Some (Simple_id("task_join")));(Simple_id("shape"),Some(Simple_id("box")));
 					 (Simple_id("label"),Some(Simple_id(this_label)));
+					 (Simple_id("Id"),Some(Simple_id((string_of_int !counter))));
 					 (* (Simple_id("num_instr"),Some(Simple_id(string_of_int num_instr))); *)
 					 (Simple_id("constraints"),Some(Simple_id(constraints)))]) in
 	 let tnode = get_tnode_id cfg_node in

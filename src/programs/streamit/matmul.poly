@@ -14,5 +14,5 @@ matmul in first[M,N], second[M,N] out result[M,N]
 main
 {
     var a[10,10] = zeros()
-    var result[10,10] = matmul(a, a)
+    var result2[10,10] = matmul(a, a)
 }
