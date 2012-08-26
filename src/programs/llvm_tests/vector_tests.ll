@@ -634,5 +634,6 @@ entry:
     %r = getelementptr inbounds <2 x i32>* %ngep3, i64 0, i64 0
     call void @printa (i32* %p, i32 *%q, i32 *%r)
 
+    ; 
     ret void
 }

@@ -141,7 +141,7 @@ let get_dims = function
 let get_first_order_type = function
   | SimTypedSymbol (x,_,_) -> (x,[])
     (* Remember we have gotten rid of all the angledim <> lists, so that
-       we inly have [] and [,,,][] expressions with drop semantics
+       we only have [] and [,,,][] expressions with drop semantics
        left *)
   | ComTypedSymbol (x,y,_) -> 
       (* let () = IFDEF DEBUG THEN print_endline "get_first_order_type: got complex typed symbol" ELSE () ENDIF in *)
@@ -359,6 +359,7 @@ let rec codegen_simexpr declarations = function
   | TStar | TStarStar -> raise (Error "TStar and TStartStar currently not supported in LLVM IR generation")
   | _ -> raise (Internal_compiler_error "Bogus simple expression hit while producing LLVM IR" )
 
+(* TODO: Make the very first type always a vector type instead of an array type !! *)
 let get_exact_addressed_symbol_llvm_type ptype = function
   | AddressedSymbol (name,_,[BracDim x],lc) -> 
     (* We only have dimspecexpr list*)
@@ -367,8 +368,13 @@ let get_exact_addressed_symbol_llvm_type ptype = function
     let x = List.map (fun (DimSpecExpr x) -> x) x in
     let atype = ref ptype in
     let slist = List.rev x in
-    let () = List.iter (fun x -> (match x with | Const (_,value,_) -> atype := array_type !atype (int_of_string value)
-      | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist 
+    let () = List.iteri (fun i x -> 
+      (match x with | Const (_,value,_) -> 
+	(if i = 0 then
+	    atype := vector_type !atype (int_of_string value)
+	 else
+	    atype := array_type !atype (int_of_string value))
+	| _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist 
     in !atype
   | _ -> raise (Internal_compiler_error "get_addressed_symbol_llvm_type went wrong")
 
@@ -392,6 +398,12 @@ let codegen_typedsymbol f declarations = function
     let alloca = create_entry_block_alloca f (get_symbol y) (datatype context) in
     (* Add the var decl to the declarations list *)
     add_to_declarations s alloca declarations
+  (* Sun Aug 26 16:23:30 IST 2012 : 
+  
+     TODO:
+     
+     Change to have the most internal ones as vector types, always!!
+  *)
   | ComTypedSymbol (x,y,lc) as s -> (* raise (Error ((Reporting.get_line_and_column lc) ^ "complex types currently not supported")) *)
     (* Produce and array type alloca *)
     (* This is my primitive data-type *)
