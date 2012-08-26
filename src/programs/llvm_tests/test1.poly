@@ -1,4 +1,4 @@
-test in m out t, z {t = m z=t}
+test in m out t1, z1 {t1 = m z1=t1}
 
 main
 {

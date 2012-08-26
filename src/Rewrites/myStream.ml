@@ -42,28 +42,28 @@ let get_new_num_instr lc curr = function
     curr * (bound - start + 1) / stride 
   | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " loop expression not a colon-expression"))
 
-let set_edge_parent parent = function
-  | Edge (x,_,_) -> x := parent
+(* let set_edge_parent parent = function *)
+(*   | Edge (x,_,_) -> x := parent *)
 
 let get_edge_child = function
-  | Edge (_,_,z) -> z
+  | Edge (_,z) -> z
 
-let get_edge_parent = function
-  | Edge (x,_,_) -> !x
+(* let get_edge_parent = function *)
+(*   | Edge (x,_,_) -> !x *)
 
 let get_edge_weight = function
-  | Edge (_,w,_) -> w
+  | Edge (w,_) -> w
 
 let get_nedge_child = function
-  | NStreamGraph.Edge (_,x) -> x
+  | Edge (_,x) -> x
 
 let rec ndebug = function
-  | NStreamGraph.Store (t,x) -> print_endline (Dot.dot_typed_symbol t); List.iteri (fun c x -> print_endline ("Child: " ^ (string_of_int c)); ndebug (get_nedge_child x)) x
-  | NStreamGraph.Seq (x,_,_,c) -> print_endline ((Dot.dot_stmt x) ^ "Child: 0"); ndebug (get_nedge_child c)
-  | NStreamGraph.TaskSplit (x,y,z,c) -> print_endline ("Task split: " ^ (Dot.dot_stmt x)); List.iteri (fun c x -> print_endline ("Child: " ^ (string_of_int c)); 
+  | Store (t,x) -> print_endline (Dot.dot_typed_symbol t); List.iteri (fun c x -> print_endline ("Child: " ^ (string_of_int c)); ndebug (get_nedge_child x)) x
+  | Seq (x,_,_,c) -> print_endline ((Dot.dot_stmt x) ^ "Child: 0"); ndebug (get_nedge_child c)
+  | TaskSplit (x,y,z,c) -> print_endline ("Task split: " ^ (Dot.dot_stmt x)); List.iteri (fun c x -> print_endline ("Child: " ^ (string_of_int c)); 
     ndebug (get_nedge_child x)) c
-  | NStreamGraph.TaskJoin (x,y,z,c) -> print_endline ("Task Join: " ^ ((Dot.dot_stmt x) ^ "Child: 0")); ndebug (get_nedge_child c)
-  | NStreamGraph.EmptyActor -> print_endline "Empty actor"
+  | TaskJoin (x,y,z,c) -> print_endline ("Task Join: " ^ ((Dot.dot_stmt x) ^ "Child: 0")); ndebug (get_nedge_child c)
+  | EmptyActor -> print_endline "Empty actor"
 
 (* For debugging *)
 let rec debug = function
@@ -77,25 +77,25 @@ let rec replace_empty_actor child = function
   | Store (t,x) -> 
     let children = List.map(fun x -> replace_empty_actor child (get_edge_child x)) x in
     let weights = List.map (fun x -> get_edge_weight x) x in
-    let edges = List.map2 (fun w c -> Edge (ref EmptyActor, w, c)) weights children in
-    let ret = Store (t,edges) in 
-    let () = List.iter (fun x -> set_edge_parent ret x) edges in ret
+    let edges = List.map2 (fun w c -> Edge (w, c)) weights children in
+    let ret = Store (t,edges) in ret
+    (* let () = List.iter (fun x -> set_edge_parent ret x) edges in ret *)
   | Seq (x,y,z,c) -> 
     let weight = get_edge_weight c in
     let c2 = replace_empty_actor child (get_edge_child c) in
-    let edge = Edge (ref EmptyActor, weight, c2) in
-    let ret = Seq (x,y,z,edge) in set_edge_parent ret edge; ret
+    let edge = Edge (weight, c2) in
+    let ret = Seq (x,y,z,edge) in (* set_edge_parent ret edge; *) ret
   | TaskSplit (x,y,z,c) -> 
     let children = List.map(fun x -> replace_empty_actor child (get_edge_child x)) c in
     let weights = List.map (fun x -> get_edge_weight x) c in
-    let edges = List.map2 (fun w c -> Edge (ref EmptyActor, w, c)) weights children in
-    let ret = TaskSplit(x,y,z,edges) in
-    let () = List.iter (fun x -> set_edge_parent ret x) edges in ret
+    let edges = List.map2 (fun w c -> Edge (w, c)) weights children in
+    let ret = TaskSplit(x,y,z,edges) in ret
+    (* let () = List.iter (fun x -> set_edge_parent ret x) edges in ret *)
   | TaskJoin (x,y,z,c) -> 
     let weight = get_edge_weight c in
     let c2 = replace_empty_actor child (get_edge_child c) in
-    let edge = Edge (ref EmptyActor, weight, c2) in
-    let ret = TaskJoin(x,y,z,edge) in set_edge_parent ret edge; ret
+    let edge = Edge (weight, c2) in
+    let ret = TaskJoin(x,y,z,edge) in (* set_edge_parent ret edge; *) ret
   | EmptyActor -> 
     let () = IFDEF DEBUG THEN print_endline "replacing empty actor with child" ELSE () ENDIF in
     child
@@ -144,21 +144,27 @@ let rec get_lvalue sym = function
   | [] -> false
 
 let get_dep_actor sym = function
-  | Assign (x,y,_) -> get_lvalue sym x || get_rvalue sym y
+  | Assign (x,y,_) as s -> 
+    let () = IFDEF DEBUG THEN print_endline "Checking for connection to store" ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_stmt s) ELSE () ENDIF in
+    let ret = get_lvalue sym x || get_rvalue sym y in
+    let () = IFDEF DEBUG THEN if ret then print_endline ("Will connect " ^ (Dot.dot_typed_symbol sym) ^ " to this stmt") ELSE () ENDIF in 
+    ret
   | Noop -> false
   | _ as s -> raise (Internal_compiler_error ("erroneously obtained: " ^ (Dot.dot_stmt s)))
 
-let rec get_dependence_actors sym = function
-  | TaskJoin (_,_,_,x) -> get_dependence_actors sym (get_edge_child x)
-  | Store (_,x) -> List.flatten (List.map (fun x -> get_dependence_actors sym (get_edge_child x)) x)
-  | TaskSplit (_,_,_,x) -> List.flatten (List.map (fun x -> get_dependence_actors sym (get_edge_child x)) x)
-  (* FIXME: If we make the if else as single function, then metis
-     generator, fucks up, because we have multiple edges between two
-     nodes*)
-  | Seq (t,_,_,x) as s -> if get_dep_actor sym t then 
-      let () = IFDEF DEBUG THEN print_endline (("*****") ^ Dot.dot_typed_symbol sym ^ ("*******")) ELSE () ENDIF in
-      [s] else [] @ get_dependence_actors sym (get_edge_child x)
-  | EmptyActor -> []
+let rec get_dependence_actors ret sym = function
+  | TaskJoin (_,_,_,x) -> get_dependence_actors ret sym (get_edge_child x)
+  | Store (_,x) -> List.iter (fun x -> get_dependence_actors ret sym (get_edge_child x)) x
+  | TaskSplit (_,_,_,x) -> List.iter (fun x -> get_dependence_actors ret sym (get_edge_child x)) x
+  | Seq (t,_,_,x) as s -> 
+    (* Check that we don't already have a connection in the list*)
+    (if not (List.exists ((=) s) !ret) then
+	if get_dep_actor sym t then 
+	  let () = IFDEF DEBUG THEN print_endline (("*****") ^ Dot.dot_typed_symbol sym ^ ("*******")) ELSE () ENDIF in
+	  ret := s :: !ret; else ());
+    get_dependence_actors ret sym (get_edge_child x)
+  | EmptyActor -> ()
 
 let get_elements_in_simple_expr lc = function
   | Const (_,x,_) -> int_of_string x
@@ -182,11 +188,18 @@ let make_dependece_edges tsym list =
   (* Calculate the size of the array *)
   if (match list with | [] -> false | _ -> true) then
     let size = get_composite_size tsym in
-    let edges = List.map (fun x -> Edge (ref EmptyActor, Some size, x)) list in
+    let edges = List.map (fun x -> Edge (Some size, x)) list in
     (* Now replace the parent with the store *)
-    let ret = Store (tsym, edges) in
-    let () = List.iter (fun x -> set_edge_parent ret x) edges in ret
+    let ret = Store (tsym, edges) in ret
+    (* let () = List.iter (fun x -> set_edge_parent ret x) edges in ret *)
   else EmptyActor
+
+let make_edge tsym list node = 
+  let () = IFDEF DEBUG THEN print_endline ("calling 1 with " ^ (Dot.dot_typed_symbol tsym)) ELSE () ENDIF in
+  let () = get_dependence_actors list tsym node in
+  let () = IFDEF DEBUG THEN print_endline "calling 2" ELSE () ENDIF in
+  let ret = make_dependece_edges tsym !list in
+  list := []; ret
 
 let rec process_filter filters num_instr num_vec = function
   | Filter (x,y,z,stmt) as s -> 
@@ -196,13 +209,14 @@ let rec process_filter filters num_instr num_vec = function
     let node = process_list declarations filters num_instr num_vec [stmt] in
     (* Now get all the actors in the stream graph that are using the declarations *)
     (* and make the dependence graph between the store and the collected actors *)
-    let stores = List.map (fun x -> make_dependece_edges x (get_dependence_actors x node)) !declarations in
+    let llist = ref [] in
+    (* let stores = List.map (fun x -> make_dependece_edges x (let () = get_dependence_actors llist x node in !llist)) !declarations in *)
+    let stores = List.map (fun x -> make_edge x llist node) !declarations in
     (* Return all the things back for further processing *)
-    let node_edge = Edge(ref EmptyActor, None, node) in
-    let store_edges = List.map (fun x -> Edge(ref EmptyActor, None, x)) stores in
+    let node_edge = Edge(None, node) in
+    let store_edges = List.map (fun x -> Edge(None, x)) stores in
     let edges = node_edge :: store_edges in
-    let ret = TaskSplit (stmt,0,0,edges) in
-    let () = List.iter (fun x -> set_edge_parent ret x) edges in ret
+    let ret = TaskSplit (stmt,0,0,edges) in ret
 
 and process_stmt declarations list filters num_instr num_vec = function
   | Assign (sts,x,lc) as s ->
@@ -222,20 +236,20 @@ and process_stmt declarations list filters num_instr num_vec = function
 	   ret
 	 with Not_found -> 
 	   if b then
-	     let edge = Edge (ref EmptyActor, None, child) in let ret = Seq (s,num_instr,num_vec,edge) in let () = set_edge_parent ret edge in ret
+	     let edge = Edge (None, child) in let ret = Seq (s,num_instr,num_vec,edge) in (* let () = set_edge_parent ret edge in *) ret
 	   else 
 	     let fname = (match x with | Call (x,_,_) -> x) in
 	     raise (Error ((Reporting.get_line_and_column lc) ^ " filter named:" ^ get_symbol fname ^ " is unbound!!")))
-      | _ -> let edge = Edge (ref EmptyActor, None, child) in let ret = Seq (s,num_instr,num_vec,edge) in let () = set_edge_parent ret edge in ret)
+      | _ -> let edge = Edge (None, child) in let ret = Seq (s,num_instr,num_vec,edge) (* let () = set_edge_parent ret edge *) in ret)
   (* Need to take care of vardecl --> make it into a store node later on !! *)
   | VarDecl (x,_) -> 
     declarations := !declarations @ [x];
     process_list declarations filters num_instr num_vec list
   | Escape _ | Noop as s ->
     let child = process_list declarations filters num_instr num_vec list in
-    let edge = Edge (ref EmptyActor, None, child) in
-    let ret = Seq (s,num_instr,num_vec,edge) in
-    let () = set_edge_parent ret edge in ret
+    let edge = Edge (None, child) in
+    let ret = Seq (s,num_instr,num_vec,edge) in ret
+    (* let () = set_edge_parent ret edge in ret *)
   | CaseDef (x,lc) as s -> 
   (* Build a task parallel actor, because every branch of if-else is
      separate of each other*)
@@ -243,14 +257,14 @@ and process_stmt declarations list filters num_instr num_vec = function
     let stmts = (match x with | Case (x,y,_) -> (List.map (fun x -> match x with Clause (_,x,_) -> x) x) @ [(match y with | Otherwise (x,_) -> x)]) in
     let mes = List.map (fun x -> process_stmt declarations [] filters num_instr num_vec x) stmts in
     let () = IFDEF DEBUG THEN List.iter (fun x -> debug x; print_endline "NEXT") mes ELSE () ENDIF in
-    let join_edge = Edge (ref EmptyActor, None, child) in
+    let join_edge = Edge (None, child) in
     let myjoin = TaskJoin (s,num_instr,num_vec,join_edge) in
-    let () = set_edge_parent myjoin join_edge in
+    (* let () = set_edge_parent myjoin join_edge in *)
     let mes = List.map (fun x -> replace_empty_actor myjoin x) mes in
     let () = IFDEF DEBUG THEN List.iter (fun x -> debug x; print_endline "NEXT 2") mes ELSE () ENDIF in
-    let edge_list = List.map (fun x -> Edge (ref EmptyActor, None, x)) mes in
+    let edge_list = List.map (fun x -> Edge (None, x)) mes in
     let ret = TaskSplit (s,num_instr,num_vec,edge_list) in
-    let () = List.iter (fun x -> set_edge_parent ret x) edge_list in 
+    (* let () = List.iter (fun x -> set_edge_parent ret x) edge_list in  *)
     let () = IFDEF DEBUG THEN debug ret; print_endline "NEXT 3" ELSE () ENDIF in
     ret
   | Block (x,lc) -> 
@@ -281,13 +295,13 @@ and process_stmt declarations list filters num_instr num_vec = function
     let child = process_list declarations filters num_instr num_vec list in
     let stmts = (match x with | Block (x,_) -> x | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " Split is not of Block type!!"))) in
     let mes = List.map (fun x -> process_stmt declarations [] filters num_instr num_vec x) stmts in
-    let join_edge = Edge (ref EmptyActor, None, child) in
+    let join_edge = Edge (None, child) in
     let myjoin = TaskJoin (s,num_instr,num_vec,join_edge) in
-    set_edge_parent myjoin join_edge;
+    (* set_edge_parent myjoin join_edge; *)
     let mes = List.map (fun x -> replace_empty_actor myjoin x) mes in
-    let edge_list = List.map (fun x -> Edge (ref EmptyActor, None, x)) mes in
-    let ret = TaskSplit (s,num_instr,num_vec,edge_list) in
-    let () = List.iter (fun x -> set_edge_parent ret x) edge_list in ret
+    let edge_list = List.map (fun x -> Edge (None, x)) mes in
+    let ret = TaskSplit (s,num_instr,num_vec,edge_list) in ret
+    (* let () = List.iter (fun x -> set_edge_parent ret x) edge_list in ret *)
 
 and process_list declarations filters num_instr num_vec = function
   | h::t -> process_stmt declarations t filters num_instr num_vec h
@@ -295,15 +309,6 @@ and process_list declarations filters num_instr num_vec = function
 
 let rec process_main filters = function
   | DefMain (x,y,lc) -> process_filter filters 1 0 x
-
-let rec convert_to_nstream_graph = function
-  | TaskSplit (x,y,z,r) -> NStreamGraph.TaskSplit (x,y,z, List.map (fun x -> convert_to_nstream_edge x) r)
-  | EmptyActor -> NStreamGraph.EmptyActor
-  | Store (x,y) -> NStreamGraph.Store (x, List.map (fun x -> convert_to_nstream_edge x) y)
-  | Seq (x,y,z,e) -> NStreamGraph.Seq (x,y,z, convert_to_nstream_edge e)
-  | TaskJoin (x,y,z,e) -> NStreamGraph.TaskJoin (x,y,z,convert_to_nstream_edge e)
-and convert_to_nstream_edge = function
-  | Edge (_,w,x) -> NStreamGraph.Edge (w, convert_to_nstream_graph x)
 
 let rec convert_to_our_metis_graph = function
   | TaskSplit (x,y,z,r) -> 
@@ -318,7 +323,7 @@ let rec convert_to_our_metis_graph = function
     (* let z = if z = 0 then 1 else z in *)
     Metis.Join ((Dot.dot_stmt x), [y;z],convert_to_our_metis_graph_edge e)
 and convert_to_our_metis_graph_edge = function
-  | Edge (_,w,x) -> Metis.Edge (w, convert_to_our_metis_graph x)
+  | Edge (w,x) -> Metis.Edge (w, convert_to_our_metis_graph x)
 
 let rec convert_to_metis_graph = function
   | TaskSplit (x,y,z,r) -> 
@@ -333,7 +338,7 @@ let rec convert_to_metis_graph = function
     let z = if z = 0 then 1 else z in
     Metis.Join ((Dot.dot_stmt x), [y*z],convert_to_metis_graph_edge e)
 and convert_to_metis_graph_edge = function
-  | Edge (_,w,x) -> Metis.Edge (w, convert_to_metis_graph x)
+  | Edge (w,x) -> Metis.Edge (w, convert_to_metis_graph x)
 
 
 let build_stream_graph = function
@@ -344,9 +349,9 @@ let build_stream_graph = function
     (* Now process the stream graph starting from the main filter, just like FCFG is built *)
     (try 
        let main = List.find (fun x -> (match x with DefMain _ -> true | _ -> false)) x in
-       let ret = convert_to_nstream_graph (process_main filters main) in
-       let ret2 = convert_to_metis_graph (process_main filters main) in
-       let ret3 = convert_to_our_metis_graph (process_main filters main) in
+       let ret = process_main filters main in
+       let ret2 = convert_to_metis_graph ret in
+       let ret3 = convert_to_our_metis_graph ret in
        (* debug *)
        let () = IFDEF DEBUG THEN ndebug ret ELSE () ENDIF in (ret,ret2,ret3)
      with | Not_found -> raise (Error "No main function defined"));

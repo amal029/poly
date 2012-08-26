@@ -263,18 +263,5 @@ struct
     | TaskJoin of stmt * num_instr * num_vec * edge 
     | EmptyActor
   and edge =
-    | Edge of actor ref * edge_weight option * actor
-end
-
-module NStreamGraph = 
-struct
-  open Language
-  type actor = 
-    | Store of typedSymbol * edge list
-    | Seq of stmt * int * int * edge
-    | TaskSplit of stmt * int * int * edge list
-    | TaskJoin of stmt * int * int * edge
-    | EmptyActor
-  and edge =
-    | Edge of int option * actor
+    | Edge of edge_weight option * actor
 end

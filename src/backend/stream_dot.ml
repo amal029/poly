@@ -1,6 +1,6 @@
 open Language
 open Language
-open NStreamGraph
+open StreamGraph
 open Odot
 
 exception Error of string
