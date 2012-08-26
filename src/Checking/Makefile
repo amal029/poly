@@ -4,20 +4,19 @@ ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 PARSEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Parsing
 REWRITEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Optimization
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-CC=ocamlc
-XMLLIB=xml-light.cma
-LANGLIB=language.cma
-CODEGENLIB=codegen.cma
-REWRITELIB=optimizations.cma
-PARSERLIB=parser.cma 
-ERRORLIB=error.cma
+CC=ocamlopt
+XMLLIB=xml-light.cmxa
+LANGLIB=language.cmxa
+CODEGENLIB=codegen.cmxa
+REWRITELIB=optimizations.cmxa
+PARSERLIB=parser.cmxa 
+ERRORLIB=error.cmxa
 
 
 all: pack
 
 pack: check
-	$(CC) -I $(LANGDIR) -I $(BACKDIR) -I $(REWRITEDIR) $(CODEGENLIB) $(LANGLIB) \
-	$(REWRITELIB) -I $(ERRORDIR) $(ERRORLIB) -a *.cmo -o static-analysis.cma
+	$(CC) -a *.cmx -o static-analysis.cmxa
 check: 
 	$(CC) -I $(LANGDIR) -I $(PARSEDIR) $(PARSELIB) $(LANGLIB) -c syntax_check.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
@@ -25,5 +24,5 @@ check:
 	$(LANGLIB) -I $(ERRORDIR) $(ERRORLIB) -c type_inference.ml
 
 clean:
-	rm -rf *.cm* *mli
+	rm -rf *.cm* *mli *.a *.o
 

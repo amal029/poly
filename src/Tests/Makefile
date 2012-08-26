@@ -1,3 +1,5 @@
+XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
+XMLLIB=xml-light.cmxa
 COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 # BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
 BATTERIES=$(HOME)/batteries-included/_build/src
@@ -14,29 +16,32 @@ REWRITEDIR=$(COMP_HOME)/Rewrites
 CODEGENDIR=$(COMP_HOME)/Codegen
 OPTDIR=$(COMP_HOME)/Optimization
 BACKEND=$(COMP_HOME)/backend
-CODEGENLIB=backend.cma
-PARSELIB=parser.cma
-LANGLIB=language.cma
-REWRITES=rewrites.cma
-OPTIMIZATIONS=optimizations.cma
-ANALYSIS=static-analysis.cma
-CODEGEN=codegen.cma
-BATLIBB=batteries.cma
-CAMOMILELIB=camomile.cma
-CAMOMILELIBB=camomileLibrary.cma
-BIGARRAYLIB=bigarray.cma
-NUMSLIB=nums.cma
-UNIXLIB=unix.cma
-STRLIB=str.cma
-ERRORLIB=error.cma
-FILEUTILS=fileutils.cma
-LLVMLIB=llvm_scalar_opts.cma llvm_bitwriter.cma llvm_analysis.cma llvm_executionengine.cma llvm_target.cma
-CC=ocamlc
+CODEGENLIB=backend.cmxa
+PARSELIB=parser.cmxa
+LANGLIB=language.cmxa
+REWRITES=rewrites.cmxa
+OPTIMIZATIONS=optimizations.cmxa
+ANALYSIS=static-analysis.cmxa
+CODEGEN=codegen.cmxa
+BATLIBB=batteries.cmxa
+CAMOMILELIB=camomile.cmxa
+CAMOMILELIBB=camomileLibrary.cmxa
+BIGARRAYLIB=bigarray.cmxa
+STRLIB=str.cmxa
+NUMSLIB=nums.cmxa
+UNIXLIB=unix.cmxa
+STRLIB=str.cmxa
+ERRORLIB=error.cmxa
+# FILEUTILS=fileutils.cmxa
+LLVMLIB=llvm_bitreader.cmxa llvm.cmxa llvm_scalar_opts.cmxa llvm_bitwriter.cmxa llvm_analysis.cmxa llvm_executionengine.cmxa llvm_target.cmxa
+CC=ocamlopt
 SRC=polyc.ml
 TARGETC=polyc
 FIND=ocamlfind
-METISLIB=lib-metis.cma
+METISLIB=lib-metis.cmxa
 METISLDIR=/macports-1.9.1/lib
+DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/lib
+DOTLIB=odot.cmxa
 
 all: compiler
 
@@ -45,16 +50,15 @@ run:
 	./polyc $(FILE)
 
 compiler:
-	$(CC) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR) -I		\
-	           $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I	\
-	           $(OPTDIR) -I $(METISDIR) -I $(BATTERIES) -I		\
-	          $(ERRORDIR) $(ERRORLIB) $(PARSELIB) $(LANGLIB)	\
-	           $(CODEGEN) $(REWRITES) $(ANALYSIS) $(OPTIMIZATIONS)	\
-	           -I $(CODEGENDIR) $(CODEGENLIB) -I $(METISLDIR) -I $(LIBDIR)		\
-	           $(FILEUTILS) $(LLVMLIB) $(BATLIBB) $(METISLIB) -cc	\
-	          gcc -cclib -lstdc++ -ccopt -rdynamic -custom $(SRC)	\
-	          -o $(TARGETC)
+	$(CC) -I $(DOTDIR) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR)	\
+	 -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
+	-I $(METISDIR) -I $(BATTERIES) $(LLVMLIB) $(STRLIB) $(BIGARRAYLIB)	\
+	$(UNIXLIB) $(NUMSLIB) $(BATLIBB) -I $(ERRORDIR) $(DOTLIB)	\
+	 -I $(XMLDIR) $(XMLLIB) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(REWRITES)	\
+	$(ANALYSIS) $(OPTIMIZATIONS) -I $(CODEGENDIR) $(CODEGENLIB) -I	\
+	$(METISLDIR) -I $(LIBDIR) $(METISLIB) -cc clang -cclib -lstdc++	\
+	 -ccopt -rdynamic $(SRC) -o $(TARGETC)
 
 clean:
-	rm -rf ../output ../output1 polyc polyi *.cm* *mli
+	rm -rf ../output ../output1 polyc polyi *.cm* *mli *.a *.o
 

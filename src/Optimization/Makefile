@@ -7,43 +7,30 @@ BATTERIES=$(HOME)/batteries-included/_build/src
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
 BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
 FIND=ocamlfind
-CC=ocamlc
-DOTLIB=codegen.cma
-XMLLIB=xml-light.cma
-LANGLIB=language.cma
-BATLIB=batteries_uni.cma
-BATLIBB=batteries.cma
-CAMOMILELIB=camomile.cma
-CAMOMILELIBB=camomileLibrary.cma
-BIGARRAYLIB=bigarray.cma
-NUMSLIB=nums.cma
-UNIXLIB=unix.cma
-STRLIB=str.cma
-ERRORLIB=error.cma
+CC=ocamlopt
+DOTLIB=codegen.cmxa
+XMLLIB=xml-light.cmxa
+LANGLIB=language.cmxa
+BATLIB=batteries_uni.cmxa
+BATLIBB=batteries.cmxa
+CAMOMILELIB=camomile.cmxa
+CAMOMILELIBB=camomileLibrary.cmxa
+BIGARRAYLIB=bigarray.cmxa
+NUMSLIB=nums.cmxa
+UNIXLIB=unix.cmxa
+STRLIB=str.cmxa
+ERRORLIB=error.cmxa
 
 all: optimization
 
 
 optimization: fcheck
-	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR)		\
-	             $(BIGARRAYLIB) $(NUMSLIB) $(UNIXLIB) $(STRLIB) -I	\
-	             $(CAMOMILEDIR) $(CAMOMILELIBB) $(CAMOMILELIB)	\
-	             $(NUMSLIB) $(BIGARRAYLIB) -I $(BATTERIES) -I	\
-	            $(ERRORDIR) $(BATLIBB) $(ERRORLIB) -I	\
-	            $(DOTDIR) $(DOTLIB) -a *.cmo -o optimizations.cma
-	# $(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR)		\
-	#             $(BIGARRAYLIB) $(NUMSLIB) $(UNIXLIB) $(STRLIB) -I	\
-	#             $(CAMOMILEDIR) $(CAMOMILELIBB) $(CAMOMILELIB)	\
-	#             $(NUMSLIB) $(BIGARRAYLIB) \
-	#             -I $(DOTDIR) $(DOTLIB) -a	\
-	#             *.cmo -o optimizations.cma
+	$(CC) -a constantfolding.cmx -o optimizations.cmxa
+
 fcheck: 
-	# $(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I $(BATTERIES) -I $(DOTDIR) $(DOTLIB) -i constantfolding.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(ERRORDIR) -I	\
 	$(LANGDIR) $(LANGLIB) -I $(BATTERIES) -I $(DOTDIR) $(ERRORLIB)	\
 	$(DOTLIB) -c constantfolding.ml
-	# $(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
-	# -I $(ERRORDIR) -I $(LANGDIR) $(LANGLIB) -I $(DOTDIR) $(DOTLIB) -c constantfolding.ml
 
 clean:
-	rm -rf *.cm* *mli
+	rm -rf *.cm* *mli *.a *.o

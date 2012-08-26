@@ -30,7 +30,7 @@ clean:
 	$(MAKE) -C backend/ clean
 	$(MAKE) -C Codegen/ clean
 	$(MAKE) -C Tests/ clean
-	rm -rf *.ll *.bc *.s *.dot *.grf *.part*
+	rm -rf *.ll *.bc *.s *.dot *.grf *.part* gmon.out
 
 run:
 	$(MAKE) -C Tests/ run

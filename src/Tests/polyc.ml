@@ -38,9 +38,9 @@ try
     let tbl = Constantfolding.Constantpropogation.propogate Language.CFG.Null cfg in
     if !dot then
       (* Clean the output directory *)
-      let () = FileUtil.rm ["../output";"../output1"] in
-      let () = FileUtil.mkdir "output" ~parent:true in
-      let () = FileUtil.mkdir "output1" ~parent:true in
+      (* let () = FileUtil.rm ["../output";"../output1"] in *)
+      (* let () = FileUtil.mkdir "output" ~parent:true in *)
+      (* let () = FileUtil.mkdir "output1" ~parent:true in *)
       let () = print_endline ".....Printing the cfg dot file in directory output..." in
       let () = Dot.build_program_dot cfg "output/output.dot" in ()
     else ();

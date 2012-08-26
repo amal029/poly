@@ -1,21 +1,22 @@
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-XMLLIB=xml-light.cma
+XMLLIB=xml-light.cmxa
 OCMLOPTS=-a
 OCMALDEBUG=-g
-CC=ocamlc
+CC=ocamlopt
 SRC=language.ml
 SRC2=andrewLang.ml
 
-all: language.cma
+all: language.cmxa
 
-language.cma: check
-	$(CC) -I $(XMLDIR) $(XMLLIB) $(OCAMLDEBUG) $(OCMLOPTS) $(SRC) $(SRC2) -o $@
+language.cmxa: check
+	$(CC) $(OCMLOPTS) language.cmx andrewLang.cmx -o $@
 
 check:
-	$(CC) -i $(SRC) > language.mli
-	# $(CC) -I $(XMLDIR) -i $(SRC) $(SRC2)
-	$(CC) -i $(SRC) > ../Parsing/language.mli
-	$(CC) -c language.mli
+	$(CC) -I $(XMLDIR) $(XMLLIB) -c $(SRC)
+	$(CC) -I $(XMLDIR) $(XMLLIB) -c $(SRC2)
+	cp language.cmi ../Parsing/language.cmi
+	# $(CC) -i $(SRC) > language.mli
+	# $(CC) -i $(SRC) > ../Parsing/language.mli
 
 clean:
 	rm -rf *cm* *o *a *mli

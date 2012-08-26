@@ -3,18 +3,17 @@ TYPEINFERENCEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Checking
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 ODOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/lib
 FIND=ocamlfind
-CC=ocamlc
-XMLLIB=xml-light.cma
-LANGLIB=language.cma
-TYPEINFERENCELIB=static-analysis.cma
-ODOTLIB=odot.cma
+CC=ocamlopt
+XMLLIB=xml-light.cmxa
+LANGLIB=language.cmxa
+TYPEINFERENCELIB=static-analysis.cmxa
+ODOTLIB=odot.cmxa
 
 all: build
 
 
 build: buildodot
-	$(CC) -I $(LANGDIR) -I $(ODOTDIR) $(ODOTLIB) -a *.cmo -o	\
-	codegen.cma
+	$(CC) -a *.cmx -o codegen.cmxa
 
 buildodot:
 	# $(CC) -I $(LANGDIR) -I $(ODOTDIR) -I $(TYPEINFERENCEDIR) -i dot.ml
@@ -23,4 +22,4 @@ buildodot:
 	-I $(LANGDIR) -I $(ODOTDIR) -c stream_dot.ml
 
 clean:
-	rm -rf *.cm* *mli
+	rm -rf *.cm* *mli *.a *.o

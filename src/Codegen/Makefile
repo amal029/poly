@@ -4,30 +4,27 @@ LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
 DOTDIR=$(COMP_HOME)/backend
 ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 LANGDIR=$(COMP_HOME)/Abstract
-XMLLIB=xml-light.cma
-LANGLIB=language.cma
-LLVMLIB=llvm.cma llvm_executionengine.cma llvm_bitreader.cma
-ERRORLIB=error.cma
-DOTLIB=codegen.cma
+XMLLIB=xml-light.cmxa
+LANGLIB=language.cmxa
+LLVMLIB=llvm.cmxa llvm_executionengine.cmxa llvm_bitreader.cmxa
+ERRORLIB=error.cmxa
+DOTLIB=codegen.cmxa
 OCMLOPTS=-a
-OCMALDEBUG=-g
+OCMXALDEBUG=-g
 SRC=andrewxml.ml myLlvm.ml
-CC=ocamlc
+CC=ocamlopt
 
-all: backend.cma
+all: backend.cmxa
 
 
-backend.cma:
-	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
-	   $(XMLDIR) -I $(DOTDIR) -I $(LLVMDIR) -I $(ERRORDIR)		\
-	   $(ERRORLIB) $(DOTLIB) $(XMLLIB) $(LANGLIB) $(LLVMLIB)	\
-	  $(OCAMLDEBUG) $(OCMLOPTS) $(SRC) -o $@
+backend.cmxa: check
+	$(CC) -a *.cmx -o $@
 
 check: 
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
 	   $(XMLDIR) -I $(DOTDIR) -I $(LLVMDIR) -I $(ERRORDIR)		\
 	   $(DOTLIB) $(ERRORLIB) $(XMLLIB) $(LANGLIB) $(LLVMLIB)	\
-	  $(OCAMLDEBUG) -i $(SRC)
+	  $(OCAMLDEBUG) -c $(SRC)
 
 clean:
 	rm -rf *cm* *o *a *mli

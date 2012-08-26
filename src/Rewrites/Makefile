@@ -3,18 +3,18 @@ ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
 METISDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/lib-metis/lib
-DOTLIB=codegen.cma
-ERRORLIB=error.cma
-CC=ocamlc
-XMLLIB=xml-light.cma
-LANGLIB=language.cma
-METISLIB=lib-metis.cma
+DOTLIB=codegen.cmxa
+ERRORLIB=error.cmxa
+CC=ocamlopt
+XMLLIB=xml-light.cmxa
+LANGLIB=language.cmxa
+METISLIB=lib-metis.cmxa
 
 all: fcfg decompile
 
 
 fcfg: 
-	$(CC) -I $(LANGDIR) -I $(ERRORDIR) $(ERRORLIB) -a *.cmo -o rewrites.cma
+	$(CC) -a *.cmx -o rewrites.cmxa
 fcheck: 
 	$(CC) -I $(LANGDIR) -I $(ERRORDIR) -c fcfg.ml
 	$(CC) -I $(LANGDIR) -I $(ERRORDIR) -c cfg.ml
@@ -28,4 +28,4 @@ decompile:
 	-I $(METISDIR) $(METISLIB) -I $(LANGDIR) -I $(ERRORDIR) -c myStream.ml
 
 clean:
-	rm -rf *.cm*
+	rm -rf *.cm* *.o *.a
