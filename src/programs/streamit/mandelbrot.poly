@@ -1,0 +1,40 @@
+main {
+     
+     var x var y
+     var xx
+     var cx var cy
+     int ret
+       
+     int32s rc = 255
+     int32s rcc = 10
+     int32s rt = 0
+     
+     var itermax = 100
+     var magnify = 1.0
+     var hxres = 500
+     var hyres = 500
+       
+       
+     ret = extern write_ppm_header (hxres, hyres)
+     
+     for hy in 1:hyres {
+      for hx in 1:hxres {
+	cx = (((((float)hx)/((float)hxres)-0.5)/magnify)*3.0)-0.7
+        cy = ((((float)hy)/((float)hyres)-0.5)/magnify)*3.0
+	x = 0.0
+	y = 0.0
+	int32s iteration = 1
+	for iteration1 in 1:itermax {
+	 xx = ((x*x)-(y*y))+cx
+	 y = (2.0*x*y)+cy
+	 x = xx
+	 iteration = iteration + 1
+	 /* ret = extern p1 (iteration) */
+	 case (((x*x)+(y*y)) > 100.0) iteration = 999999
+	 otherwise {}
+	}
+	case (iteration < 999999) {ret = extern color (rt,rc,rc)}
+	otherwise {ret = extern color (rcc,rt,rt)}
+      }
+     }
+}

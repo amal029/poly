@@ -142,3 +142,18 @@ extern void bit_shift_loop (int k, int j, int *rk, int *rj){
     *rk >>= 1;
   }
 }
+
+FILE *fd = NULL;
+
+extern void write_ppm_header (int hxres, int hyres, int *ret){
+  printf("P6\n# CREATOR: Avinash Malik / mandel program\n");
+  printf("%d %d\n255\n",hxres,hyres);
+  *ret = 0;
+}
+
+extern void color (int r, int g, int b, int *ret){
+  fputc((char)r,stdout);
+  fputc((char)g,stdout);
+  fputc((char)b,stdout);
+  *ret = 0;
+}
