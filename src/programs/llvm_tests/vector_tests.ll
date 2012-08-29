@@ -38,72 +38,72 @@ entry:
     ; %RAHMD = fdiv <32 x float> %AHL, %AHL
     ; %RAHMR = frem <32 x float> %AHL, %AHL
 
-    ; %TUTU = alloca <128 x float> 
+    %TUTU = alloca <128 x float> 
 
-    ; store <128 x float> <float 2.0, float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
-    ; 2.0,float 2.0,float 2.0,float 2.0>, <128 x float>* %TUTU
+    store <128 x float> <float 2.0, float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0,float 2.0,float 2.0,float
+    2.0,float 2.0,float 2.0,float 2.0>, <128 x float>* %TUTU
 
-    ; %TUTU2 = alloca <128 x float> 
+    %TUTU2 = alloca <128 x float> 
 
-    ; store <128 x float> <float 1.25e+7, float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
-    ; 1.25e+7,float 1.25e+7>, <128 x float>* %TUTU2
+    store <128 x float> <float 1.25e+7, float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7,float 1.25e+7,float 1.25e+7,float
+    1.25e+7,float 1.25e+7>, <128 x float>* %TUTU2
     
     
-    ; %TUTUL = load <128 x float>* %TUTU
-    ; %TUTUL2 = load <128 x float>* %TUTU2
+    %TUTUL = load <128 x float>* %TUTU
+    %TUTUL2 = load <128 x float>* %TUTU2
 
-    ; %TUTUR = fmul <128 x float> %TUTUL, %TUTUL2
+    %TUTUR = fmul <128 x float> %TUTUL, %TUTUL2
     
     ; ; Try some very large results
     
@@ -545,7 +545,7 @@ entry:
     ; call void @printh (<32 x float> %RAHM)
     ; call void @printh (<32 x float> %RAHMD)
     ; call void @printh (<32 x float> %RAHMR)
-    ; call void @printf (<128 x float> %TUTUR)
+    call void @printf (<128 x float> %TUTUR)
     ; call void @printvl (<1000 x float> %TUTUVR)
     
     
@@ -635,5 +635,6 @@ entry:
     call void @printa (i32* %p, i32 *%q, i32 *%r)
 
     ; 
+    
     ret void
 }

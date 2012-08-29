@@ -148,8 +148,12 @@ struct
     | Cast of DataTypes.t * simpleExpr  * (line * column)
     | ColonExpr of simpleExpr * simpleExpr * simpleExpr * (line * column)
     | Opposite of simpleExpr * (line * column)
+    | Constvector of DataTypes.t * simpleExpr array * (line * column)
+    | VecRef of vecaddresssymbol * (line * column)
   and addressedSymbol =
       AddressedSymbol of symbol * angledim list * dimspec list * (line * column)
+  and vecaddresssymbol =
+      VecAddress of symbol * dimspec * (line * column)
   and dimSpecExpr =
     | DimSpecExpr of simpleExpr
   and angledim =
@@ -180,6 +184,7 @@ struct
     | AllAddressedSymbol of addressedSymbol
     | AllSymbol of symbol
     | AllTypedSymbol of typedSymbol
+    | AllVecSymbol of vecaddresssymbol
 
 
   type stmt = 
@@ -210,9 +215,9 @@ struct
     | DefMain of filter * relExpr option * (line * column)
     | TopEscape of string * (line * column)
 
-  type ast = 
-    | Program of toplevelStmt list
-end
+  type ast =  
+    | Program  of toplevelStmt list
+end	      
 
 
 (* This structure defines the control flow graph at the filter level *)

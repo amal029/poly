@@ -6,7 +6,7 @@ main {
      int ret
        
      int32s rc = 255
-     int32s rcc = 10
+     int32s rcc = 180
      int32s rt = 0
      
      var itermax = 100
@@ -25,15 +25,15 @@ main {
 	y = 0.0
 	int32s iteration = 1
 	for iteration1 in 1:itermax {
-	 xx = ((x*x)-(y*y))+cx
-	 y = (2.0*x*y)+cy
+	 xx = x*x-y*y+cx
+	 y = 2.0*x*y+cy
 	 x = xx
 	 iteration = iteration + 1
 	 /* ret = extern p1 (iteration) */
-	 case (((x*x)+(y*y)) > 100.0) iteration = 999999
+	 case (x*x+y*y > 100.0) iteration = 999999
 	 otherwise {}
 	}
-	case (iteration < 999999) {ret = extern color (rt,rc,rc)}
+	case (iteration < 99999) {ret = extern color (rt,rc,rc)}
 	otherwise {ret = extern color (rcc,rt,rt)}
       }
      }

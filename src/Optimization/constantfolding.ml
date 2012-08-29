@@ -798,6 +798,18 @@ struct
 
   let fold_symbol consts = function
     | Symbol (x,_) -> get_const consts x
+      
+  let rec get_const_value = function
+    | Cast (x,y,_) as s -> 
+      let () = print_endline ("getting the const value from a cast " ^ (Dot.dot_simpleexpr s))  in
+      (match y with
+	| Const (_,r,lc) as t -> 
+	  let () = print_endline ("Sending const value " ^ Dot.dot_simpleexpr t) in
+	  Const (x,r,lc)
+	| Brackets (x,_) -> get_const_value x
+	| _ -> s)
+    | Brackets (x,_) -> get_const_value x
+    | _ as s -> s
 
   let rec fold_simple_expr consts = function
     | VarRef (x,lc) as m -> 
@@ -818,7 +830,10 @@ struct
     | Plus (x,y,lc) ->
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
-      (match (lvalue,rvalue) with
+      let llvalue = get_const_value lvalue in
+      let rrvalue = get_const_value rvalue in
+      (match (llvalue,rrvalue) with
+      (* (match (lvalue,rvalue) with *)
 	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (* Uncomment once, Ocaml batteries compiles with Ocaml >= 4.0*)
 	  let valu = Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.add Float.add in
@@ -831,7 +846,9 @@ struct
     | Minus (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
-      (match (lvalue,rvalue) with
+      let llvalue = get_const_value lvalue in
+      let rrvalue = get_const_value rvalue in
+      (match (llvalue,rrvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.sub Float.sub) with
 	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (-) (-.)) with *)
@@ -842,7 +859,9 @@ struct
     | Times (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
-      (match (lvalue,rvalue) with
+      let llvalue = get_const_value lvalue in
+      let rrvalue = get_const_value rvalue in
+      (match (llvalue,rrvalue) with
 	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.mul Float.mul) with
 	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) ( * ) ( *. )) with *)
@@ -850,21 +869,46 @@ struct
 	    | _ -> Times(lvalue,rvalue,lc))
 	| _ -> Times(lvalue,rvalue,lc))
 
-    | Div (x,y,lc) -> 
+    (* Optimization: If any one of the lvalue of rvalue are constants
+       then find the reciprocal of that value and and send back a
+       multiplication instruction
+       
+       on X86: FDIV = 39 clock cycles and FMUL = 7 clock cycles
+    
+    *)
+    | Div (x,y,lc) ->
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
-      (match (lvalue,rvalue) with
-	| (Const(x,y,_), Const(d,z,_)) -> 
+      let llvalue = get_const_value lvalue in
+      let rrvalue = get_const_value rvalue in
+      (match (llvalue,rrvalue) with
+	| (Const(x,y,_), Const(d,z,_)) ->
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.div Float.div) with
-	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (/) (/.)) with *)
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Div(lvalue,rvalue,lc))
+	| (Const(x,y,lc), (_ as s)) ->
+	  let () = print_endline "Converting div to mul" in
+	  let one = VConst(x,"1") in
+	  (match (Constantpropogation.process one (VConst(x,y)) Int.div Float.div) with
+	      | VConst (x,y) -> Times (Const (x,y,lc), s, lc)
+	      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " error while converting fdiv to fmul")))
+	| ((_ as s),Const(x,y,lc)) ->
+	  let () = print_endline "Converting div to mul 2" in
+	  let one = VConst(x,"1") in
+	  (match (Constantpropogation.process one (VConst(x,y)) Int.div Float.div) with
+	      | VConst (x,y) -> 
+		let () = print_endline ("Converting div to mul 2 val: " ^ y) in
+		Times (s, Const (x,y,lc),lc)
+	      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " error while converting fdiv to fmul")))
 	| _ -> Div(lvalue,rvalue,lc))
 
     | Mod (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
-      (match (lvalue,rvalue) with
+      let llvalue = get_const_value lvalue in
+      let rrvalue = get_const_value rvalue in
+      (match (llvalue,rrvalue) with
+      (* (match (lvalue,rvalue) with *)
 	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.rem Float.modulo) with
 	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (mod) (fun x y -> *)
@@ -876,7 +920,10 @@ struct
     | Pow (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
-      (match (lvalue,rvalue) with
+      let llvalue = get_const_value lvalue in
+      let rrvalue = get_const_value rvalue in
+      (match (llvalue,rrvalue) with
+      (* (match (lvalue,rvalue) with *)
 	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) Int.pow Float.pow) with
 	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (^^) ( ** )) with *)
@@ -887,7 +934,10 @@ struct
     | Lshift (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
-      (match (lvalue,rvalue) with
+      let llvalue = get_const_value lvalue in
+      let rrvalue = get_const_value rvalue in
+      (match (llvalue,rrvalue) with
+      (* (match (lvalue,rvalue) with *)
 	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsl) (Constantpropogation.lsd)) with
 	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsl)  *)
@@ -899,7 +949,10 @@ struct
     | Rshift (x,y,lc) -> 
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
-      (match (lvalue,rvalue) with
+      let llvalue = get_const_value lvalue in
+      let rrvalue = get_const_value rvalue in
+      (match (llvalue,rrvalue) with
+      (* (match (lvalue,rvalue) with *)
 	| (Const(x,y,_), Const(d,z,_)) -> 
 	  (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsr) (Constantpropogation.lsd)) with
 	  (* (match (Constantpropogation.process (VConst(x,y)) (VConst(d,z)) (lsr)  *)

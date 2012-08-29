@@ -65,6 +65,8 @@ let user_modules = ref []
 
 let get_symbol = function
   | Symbol (x,_) -> x
+let get_vec_symbol = function
+  | VecAddress (x,_,_) -> get_symbol x
 let get_addressed_symbol = function
   | AddressedSymbol (x,_,_,_) -> get_symbol x
 let get_typed_symbol = function
@@ -202,7 +204,7 @@ let rec get_exact_simexpr_type declarations = function
 
 let derefence_pointer pointer =
   match classify_type (type_of pointer) with
-    | TypeKind.Pointer -> build_load pointer "derefence_pointer" builder
+    | TypeKind.Pointer -> build_load pointer "dereference_pointer" builder
     | _ -> pointer
 
 let rec codegen_simexpr declarations = function
@@ -304,6 +306,7 @@ let rec codegen_simexpr declarations = function
 	build_zext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) "zext" builder
       | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " got a wrong type!! " ^ s)))
   | Brackets (x,_) -> codegen_simexpr declarations x
+
   | VarRef (x,lc) -> 
     (* Now this can also be an array type, in which case the pointer
        needs to be sent back, not the value!! *)
@@ -313,6 +316,7 @@ let rec codegen_simexpr declarations = function
 	let findex = const_int (Llvm_target.intptr_type target_data) 0 in
 	build_in_bounds_gep (match get declarations (get_symbol x) with | (_,x)->x) [|findex;findex|] "tempgep" builder
       | _ -> build_load (match get declarations (get_symbol x) with | (_,x) -> x) (get_symbol x) builder)
+
   | AddrRef (x,lc) as s ->
     (* We need to make getelementptr instructions here do them in order not the reverse *)
     let array_llvaue = (match get declarations (get_addressed_symbol x) with | (_,x) -> x) in
@@ -356,6 +360,48 @@ let rec codegen_simexpr declarations = function
 	 (* Build the extra 0,0 address referencing *)
 	 ret := build_in_bounds_gep !ret (Array.of_list [findex;findex]) "tempgep" builder)) indices in 
     !ret
+
+  (* Generating the non constant vector *)
+  | VecRef (x,lc) as s ->
+  (* This is easy to handle
+
+     1.) Convert all the non-colon-expressions to AddrRef type and dereference them by calling this same method!!
+     2.) Next, the pointer that one gets back needs to be loaded, it will always be of type vector!! 
+     3.) Then make the shuffle mask by calling the function in vectorization module
+     4.) build the new shuffled vector by calling build_shuffle_vector, and pass on that value back!!
+
+  *)
+    
+    let (name,ll) = (match x with VecAddress (x, ll) -> (x,ll)) in
+    let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true))) in
+    let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false))) in
+    if Length.ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
+    let ce = List.hd ce in
+    (* Now make the address symbol *)
+    let vptr = 
+      if dll <> [] then
+	let aptr = AddrRef (AddressedSymbol (x,[],dll,lc),lc) in
+	(* Now load the vector with the returned pointer *)
+	derefence_pointer aptr
+      else match get declarations (get_vec_symbol x) with | (_,x) -> x in
+    (* Now build the shuffle mask *)
+    let (s,e,st,lc) = (match ce with | ColonExpr (x,y,z,lc) -> (Vectorization.Convert.get_const x, Vectorization.Convert.get_const y, Vectorization.Convert.get_const z, lc)) in
+    let mask = Vectorization.Convert.build_shuffle_mask s e st lc in
+    let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
+    let mask = const_vector (Array.map codegen_simexpr mask) in
+    build_shuffle_vector (derefence_pointer vptr) (undef (vector_type (i32_type context) ((e-s+1)/st))) mask "shuff_vec" builder
+      
+
+  (* Generating the const vector *)
+  | Constvector (dt, sa, lc) -> 
+    let () = IFDEF DEBUG THEN print_endline ("Vector size: " ^ (Array.Length sa)) ELSE () ENDIF in
+    let ca = Array.map (fun x -> 
+      (match x with 
+	| Const (x,y,lc) as s -> codegen_simexpr s
+	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got a const vector with non constants in them")))) in
+    const_vector ca
+
+
   | TStar | TStarStar -> raise (Error "TStar and TStartStar currently not supported in LLVM IR generation")
   | _ -> raise (Internal_compiler_error "Bogus simple expression hit while producing LLVM IR" )
 
@@ -605,7 +651,9 @@ let codegen_stmt f declarations = function
 	let rval = (match t with
 	  (* Need to load the value from the pointer just calculated*)
 	  | AddrRef _ -> build_load rval "loadgep" builder
+	  (* Even if this is a vector type it should be alright to just send the vector loaded back!!*)
 	  | _ -> rval) in
+	(* Any kind of vectorization code can only affect this place!! *)
 	List.iter (fun x ->
 	  (match x with
 	    | AllTypedSymbol x ->
@@ -626,7 +674,43 @@ let codegen_stmt f declarations = function
 	      let assaddrval = codegen_simexpr !declarations tempaddref in
 	      let () = IFDEF DEBUG THEN print_endline "Dumping the lvalue of type addr: "  ELSE () ENDIF in
 	      let () = IFDEF DEBUG THEN dump_value assaddrval ELSE () ENDIF in
-	      let _ = build_store rval assaddrval builder in ())) ll
+	      let _ = build_store rval assaddrval builder in ()
+	    | AllVecSymbol x -> 
+	      (* FIXME: Make this go away later on!! *)
+	      let (name,ll) = (match x with VecAddress (x, ll) -> (x,ll)) in
+	      let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true))) in
+	      let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false))) in
+	      if Length.ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
+	      let ce = List.hd ce in
+	      (* Now make the address symbol *)
+	      let vptr = 
+		if dll <> [] then
+		  let aptr = AddrRef (AddressedSymbol (x,[],dll,lc),lc) in
+		  (* Now load the vector with the returned pointer *)
+		  derefence_pointer aptr
+		else match get !declarations (get_vec_symbol x) with | (_,x) -> x in
+	      (* Now build the shuffle mask *)
+	      let (s,e,st,lc) = 
+		(match ce with | ColonExpr (x,y,z,lc) -> (Vectorization.Convert.get_const x, Vectorization.Convert.get_const y, Vectorization.Convert.get_const z, lc)) in
+	      let mask = Vectorization.Convert.build_inverse_shuffle_mask s e st lc in
+	      let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
+	      let mask = const_vector (Array.map codegen_simexpr mask) in
+	      (* Now again shuffle with the complete length of the vector, but put rval first and then put *)
+	      let _ =
+		if mask <> [] then 
+		  let inver_s = build_shuffle_vector (derefence_pointer vptr) (undef (vector_type (i32_type context) ((e-s+1)/st))) mask "shuff_vec" builder in
+		  (* Build the permutation mask for shuffling things in!! *)
+		  let tot = Vectorization.Convert.build_counter_mask s e in
+		  let first = Vectorization.Convert.build_inverse_shuffle_mask s e st lc in
+		  let second = Vectorization.Convert.build_shuffle_mask s e st lc in
+		  let mask = Vectorization.Convert.build_permute_mask tot first second lc in
+		  let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
+		  let mask = const_vector (Array.map codegen_simexpr mask) in
+		  let resptr = build_shuffle_vector inver_s rval mask "shuff_vec" builder in
+		  build_store resptr vtpr build
+		else 
+		  (* Just store the whole rval in here!! *)
+		  build_store rval vptr builder in ())) ll
       | FCall (_,e) as s -> 
 	let (callee,args) = codegen_fcall lc !declarations s in
 	let () = IFDEF DEBUG THEN (List.iter (fun x -> dump_value x) args) ELSE () ENDIF in

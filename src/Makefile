@@ -16,6 +16,7 @@ compile:
 	$(MAKE) -C Optimization/ all
 	$(MAKE) -C Checking/ all
 	$(MAKE) -C Codegen/ all
+	$(MAKE) -C Vectorization/ all
 	$(MAKE) -C Tests/ all
 	mkdir -p output
 	mkdir -p output1
@@ -29,6 +30,7 @@ clean:
 	$(MAKE) -C Optimization/ clean
 	$(MAKE) -C backend/ clean
 	$(MAKE) -C Codegen/ clean
+	$(MAKE) -C Vectorization/ clean
 	$(MAKE) -C Tests/ clean
 	rm -rf *.ll *.bc *.s *.dot *.grf *.part* gmon.out
 
