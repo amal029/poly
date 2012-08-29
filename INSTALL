@@ -1,0 +1,11 @@
+Change the paths in the Makefiles throughout the project and then:
+
+
+
+make clean && make inside the src directory
+
+
+Autoconf and automake support coming
+
+
+Dependencies: lib-metis
