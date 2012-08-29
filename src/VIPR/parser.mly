@@ -53,7 +53,7 @@ ast:
 ;
 
 statementlist:
-    | statementlist TComma statement {[$1]@$3}
+    | statementlist TComma statement {$1@[$3]}
     | statement {[$1]}
 ;
 statement : 
@@ -76,7 +76,7 @@ proc :
 ;
 
 storageList : 
-    | storageList TComma storage                                       { [$1]@$3 }
+    | storageList TComma storage                                       { $1@[$3] }
     | storage                                                       { [$1] }
 ;
 
@@ -122,12 +122,12 @@ literal :
 ;
 
 intList : 
-    | intList TComma int                                                   { $1@$3 }
+    | intList TComma int                                                   { $1@[$3] }
     | int                                                               { [$1] }
 ;
 
 expressionList : 
-    | expressionList TComma expression                              { $1 @ $3 }
+    | expressionList TComma expression                              { $1 @ [$3] }
     | expression                                                 { [$1] }
 ;
 
@@ -156,7 +156,7 @@ typ :
 ;
 
 iList : 
-    | iList TComma int   { [$1] @ $3 }
+    | iList TComma int   { $1 @ [$3] }
     | int             { [$1] }
 ;
 
@@ -176,7 +176,7 @@ groundType:
 ;
 
 numList : 
-    | numList TComma num                                                { [$1]@$3 }
+    | numList TComma num                                                { $1@[$3] }
     | num                                                               { [$1] }
 ;
 
