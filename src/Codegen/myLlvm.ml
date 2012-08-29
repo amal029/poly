@@ -373,16 +373,16 @@ let rec codegen_simexpr declarations = function
   *)
     
     let (name,ll) = (match x with VecAddress (x, ll) -> (x,ll)) in
-    let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true))) in
-    let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false))) in
+    let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true)) x) in
+    let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false)) x) in
     if Length.ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
     let ce = List.hd ce in
     (* Now make the address symbol *)
     let vptr = 
       if dll <> [] then
-	let aptr = AddrRef (AddressedSymbol (x,[],dll,lc),lc) in
+	let aptr = AddrRef (AddressedSymbol (x,[],dll,lc),lc) in aptr
 	(* Now load the vector with the returned pointer *)
-	derefence_pointer aptr
+	(* derefence_pointer aptr *)
       else match get declarations (get_vec_symbol x) with | (_,x) -> x in
     (* Now build the shuffle mask *)
     let (s,e,st,lc) = (match ce with | ColonExpr (x,y,z,lc) -> (Vectorization.Convert.get_const x, Vectorization.Convert.get_const y, Vectorization.Convert.get_const z, lc)) in
@@ -675,19 +675,20 @@ let codegen_stmt f declarations = function
 	      let () = IFDEF DEBUG THEN print_endline "Dumping the lvalue of type addr: "  ELSE () ENDIF in
 	      let () = IFDEF DEBUG THEN dump_value assaddrval ELSE () ENDIF in
 	      let _ = build_store rval assaddrval builder in ()
+
 	    | AllVecSymbol x -> 
 	      (* FIXME: Make this go away later on!! *)
 	      let (name,ll) = (match x with VecAddress (x, ll) -> (x,ll)) in
-	      let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true))) in
-	      let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false))) in
+	      let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true)) x) in
+	      let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false)) x) in
 	      if Length.ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
 	      let ce = List.hd ce in
 	      (* Now make the address symbol *)
 	      let vptr = 
 		if dll <> [] then
-		  let aptr = AddrRef (AddressedSymbol (x,[],dll,lc),lc) in
-		  (* Now load the vector with the returned pointer *)
-		  derefence_pointer aptr
+		  let aptr = AddrRef (AddressedSymbol (x,[],dll,lc),lc) in aptr
+		(* Now load the vector with the returned pointer *)
+		(* derefence_pointer aptr *)
 		else match get !declarations (get_vec_symbol x) with | (_,x) -> x in
 	      (* Now build the shuffle mask *)
 	      let (s,e,st,lc) = 
@@ -711,6 +712,7 @@ let codegen_stmt f declarations = function
 		else 
 		  (* Just store the whole rval in here!! *)
 		  build_store rval vptr builder in ())) ll
+
       | FCall (_,e) as s -> 
 	let (callee,args) = codegen_fcall lc !declarations s in
 	let () = IFDEF DEBUG THEN (List.iter (fun x -> dump_value x) args) ELSE () ENDIF in
