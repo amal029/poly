@@ -27,4 +27,4 @@ check:
 
 
 clean:
-	rm -rf *.cm* *.o *.a
+	rm -rf *.cm* *.o *.a parser.ml lexer.ml parser.mli
