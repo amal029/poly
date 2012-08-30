@@ -9,14 +9,15 @@ compile:
 	$(MAKE) -C Abstract/ all
 	$(MAKE) -C Error/ all
 	$(MAKE) -C Parsing/ all
+	$(MAKE) -C VIPR/ all
 	$(MAKE) -C Rewrites/ fcheck
 	$(MAKE) -C backend/ all
 	$(MAKE) -C Rewrites/ decompile
 	$(MAKE) -C Rewrites/ fcfg
 	$(MAKE) -C Optimization/ all
 	$(MAKE) -C Checking/ all
-	$(MAKE) -C Codegen/ all
 	$(MAKE) -C Vectorization/ all
+	$(MAKE) -C Codegen/ all
 	$(MAKE) -C Tests/ all
 	mkdir -p output
 	mkdir -p output1
@@ -25,6 +26,7 @@ clean:
 	$(MAKE) -C Abstract/ clean
 	$(MAKE) -C Error/ clean
 	$(MAKE) -C Parsing/ clean
+	$(MAKE) -C VIPR/ clean
 	$(MAKE) -C Checking/ clean
 	$(MAKE) -C Rewrites/ clean
 	$(MAKE) -C Optimization/ clean

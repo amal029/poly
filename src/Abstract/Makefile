@@ -15,6 +15,7 @@ check:
 	$(CC) -I $(XMLDIR) $(XMLLIB) -c $(SRC)
 	$(CC) -I $(XMLDIR) $(XMLLIB) -c $(SRC2)
 	cp language.cmi ../Parsing/language.cmi
+	cp language.cmi ../VIPR/language.cmi
 	# $(CC) -i $(SRC) > language.mli
 	# $(CC) -i $(SRC) > ../Parsing/language.mli
 

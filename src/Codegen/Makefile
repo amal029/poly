@@ -4,6 +4,7 @@ LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
 DOTDIR=$(COMP_HOME)/backend
 ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 LANGDIR=$(COMP_HOME)/Abstract
+VECDIR=$(COMP_HOME)/Vectorization
 XMLLIB=xml-light.cmxa
 LANGLIB=language.cmxa
 LLVMLIB=llvm.cmxa llvm_executionengine.cmxa llvm_bitreader.cmxa
@@ -22,7 +23,7 @@ backend.cmxa: check
 
 check: 
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
-	   $(XMLDIR) -I $(DOTDIR) -I $(LLVMDIR) -I $(ERRORDIR)		\
+	   $(XMLDIR) -I $(VECDIR) -I $(DOTDIR) -I $(LLVMDIR) -I $(ERRORDIR)		\
 	   $(DOTLIB) $(ERRORLIB) $(XMLLIB) $(LANGLIB) $(LLVMLIB)	\
 	  $(OCAMLDEBUG) -c $(SRC)
 

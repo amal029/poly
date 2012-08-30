@@ -1,64 +1,7 @@
-module DataTypes = 
-struct
-  type t =
-    | Int8 | Int16 | Int32 | Int64
-    | Int8s | Int16s | Int32s | Int64s
-    | Float8 | Float16 | Float32 | Float64
-    | Filter of t list * t list
-    | Aggregate of AccessPattern.tunablevariable list * AccessPattern.accesspattern list * t
-    | None
-    | Bool
-    | Poly of string
-
-  let getdata_size = function
-    | Int8 -> 8
-    | Int16 -> 16
-    | Int32 -> 32
-    | Int64 -> 64
-    | Int8s -> 8
-    | Int16s -> 16
-    | Int32s -> 32
-    | Int64s -> 64
-    | Float8 -> 8
-    | Float16 -> 16
-    | Float32 -> 32
-    | Float64 -> 64
-    | _ -> raise (Error ("DataType not recognized"))
-
-      
-  let print_datatype = function
-    | Int8 -> "Int8"
-    | Int16 -> "Int16"
-    | Int32 -> "Int32"
-    | Int64 -> "Int64"
-    | Int8s -> "Int8s"
-    | Int16s -> "Int16s"
-    | Int32s -> "Int32s"
-    | Int64s -> "Int64s"
-    | Float8 -> "Float8"
-    | Float16 -> "Float16"
-    | Float32 -> "Float32"
-    | Float64 -> "Float64"
-    | None -> "None"
-    | Poly x -> x
-    | Bool -> "Bool"
-    | _ -> raise (Error ("DataType not recognized"))
-
-  (* Type Ranges *)
-  let unsignedIntegral    = [Int8; Int16; Int32; Int64];;
-  let signedIntegral      = [Int8s; Int16s; Int32s; Int64s];;
-  let integral            = unsignedIntegral @ signedIntegral;;
-  let floating            = [Float8; Float16; Float32; Float64];;
-  let signed              = floating @ signedIntegral;;
-  let numeric             = integral @ floating;;
-
-  
-end
-
 type types = 
-  | Ground of DataTypes.t
-  | Aggregate of int list * DataTypes.t
-  | Tile of int list * DataTypes.t
+  | Ground of Language.DataTypes.t
+  | Aggregate of int list * Language.DataTypes.t
+  | Tile of int list * Language.DataTypes.t * int list
 
 type literal = string
 
@@ -77,14 +20,15 @@ type op =
   | GT
   | RSHIFT
   | LSHIFT
+  | OPP
 
 type index =
   | StaticIndex of int list
   | DynamicIndex of expression list
 
 and storage = 
-  | Array of literal 
-  | Variable of literal * groundType
+  | Array of literal * types
+  | Variable of literal * Language.DataTypes.t
   | Subarray of literal * types * types * index
 
 and reference =
@@ -96,9 +40,9 @@ and reference =
 and expression = 
   | Ref of reference
   | Binop of op * expression * expression
-  | Unop of op * expression * expression
+  | Unop of op * expression
   | Brackets of expression
-  | Cast of groundType * expression
+  | Cast of Language.DataTypes.t * expression
 
 and rExpression = 
   | LitTrue
@@ -118,7 +62,8 @@ and statement =
   | DeclareEntry of procedure
   | Assign of reference * expression
   | DeclareAndAssign of storage * expression
-  | DeclareArrayConst of storage * expression
+  | DeclareArrayConst of storage * literal list
+  (* This means one can pass constants as asguments, then how do we get the type of this constant?? *)
   | CallFun of literal * reference list * reference list
   | Block of statement list
   | Noop

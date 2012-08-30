@@ -372,24 +372,26 @@ let rec codegen_simexpr declarations = function
 
   *)
     
-    let (name,ll) = (match x with VecAddress (x, ll) -> (x,ll)) in
+    let (name,ll) = (match x with VecAddress (x, ll,_) -> (x,ll)) in
     let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true)) x) in
     let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false)) x) in
-    if Length.ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
-    let ce = List.hd ce in
+    if List.length ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
+    let ce = (match (List.hd ce) with | DimSpecExpr x -> x) in
     (* Now make the address symbol *)
     let vptr = 
       if dll <> [] then
-	let aptr = AddrRef (AddressedSymbol (x,[],dll,lc),lc) in aptr
+	let aptr = AddrRef (AddressedSymbol (name,[],[BracDim dll],lc),lc) in
 	(* Now load the vector with the returned pointer *)
-	(* derefence_pointer aptr *)
+	codegen_simexpr declarations aptr
       else match get declarations (get_vec_symbol x) with | (_,x) -> x in
     (* Now build the shuffle mask *)
-    let (s,e,st,lc) = (match ce with | ColonExpr (x,y,z,lc) -> (Vectorization.Convert.get_const x, Vectorization.Convert.get_const y, Vectorization.Convert.get_const z, lc)) in
+    let (s,e,st,lc) = (match ce with 
+      | ColonExpr (x,y,z,lc) as s -> let (s,e,st) = Vectorization.Convert.get_par_bounds s in (s,e,st,lc)
+      | _ as ettt -> raise (Internal_compiler_error ("Vector index not of type colon expr" ^ Dot.dot_simpleexpr ettt))) in
     let mask = Vectorization.Convert.build_shuffle_mask s e st lc in
     let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
-    let mask = const_vector (Array.map codegen_simexpr mask) in
-    build_shuffle_vector (derefence_pointer vptr) (undef (vector_type (i32_type context) ((e-s+1)/st))) mask "shuff_vec" builder
+    let mask = const_vector (Array.map (codegen_simexpr declarations) mask) in
+    build_shufflevector (derefence_pointer vptr) (undef (vector_type (i32_type context) ((e-s+1)/st))) mask "shuff_vec" builder
       
 
   (* Generating the const vector *)
@@ -397,8 +399,8 @@ let rec codegen_simexpr declarations = function
     let () = IFDEF DEBUG THEN print_endline ("Vector size: " ^ (Array.Length sa)) ELSE () ENDIF in
     let ca = Array.map (fun x -> 
       (match x with 
-	| Const (x,y,lc) as s -> codegen_simexpr s
-	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got a const vector with non constants in them")))) in
+	| Const (x,y,lc) as s -> codegen_simexpr declarations s
+	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got a const vector with non constants in them")))) sa in
     const_vector ca
 
 
@@ -678,37 +680,39 @@ let codegen_stmt f declarations = function
 
 	    | AllVecSymbol x -> 
 	      (* FIXME: Make this go away later on!! *)
-	      let (name,ll) = (match x with VecAddress (x, ll) -> (x,ll)) in
+	      let (name,ll) = (match x with VecAddress (x, ll,_) -> (x,ll)) in
 	      let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true)) x) in
 	      let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false)) x) in
-	      if Length.ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
-	      let ce = List.hd ce in
+	      if List.length ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
+	      let ce = (match (List.hd ce) with | DimSpecExpr x -> x) in
 	      (* Now make the address symbol *)
 	      let vptr = 
 		if dll <> [] then
-		  let aptr = AddrRef (AddressedSymbol (x,[],dll,lc),lc) in aptr
+		  let aptr = AddrRef (AddressedSymbol (name,[],[BracDim dll],lc),lc) in
 		(* Now load the vector with the returned pointer *)
-		(* derefence_pointer aptr *)
+		codegen_simexpr !declarations aptr
 		else match get !declarations (get_vec_symbol x) with | (_,x) -> x in
 	      (* Now build the shuffle mask *)
-	      let (s,e,st,lc) = 
-		(match ce with | ColonExpr (x,y,z,lc) -> (Vectorization.Convert.get_const x, Vectorization.Convert.get_const y, Vectorization.Convert.get_const z, lc)) in
+	      let (s,e,st,lc) = (match ce with
+		| ColonExpr (x,y,z,lc) as s -> let (s,e,st) = Vectorization.Convert.get_par_bounds s in (s,e,st,lc)
+		| _ as ettt -> raise (Internal_compiler_error ("Vector index not of type colon expr" ^ Dot.dot_simpleexpr ettt))) in
+	      
 	      let mask = Vectorization.Convert.build_inverse_shuffle_mask s e st lc in
-	      let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
-	      let mask = const_vector (Array.map codegen_simexpr mask) in
+	      let mask1 = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
+	      let mask = const_vector (Array.map (codegen_simexpr !declarations) mask1) in
 	      (* Now again shuffle with the complete length of the vector, but put rval first and then put *)
 	      let _ =
-		if mask <> [] then 
-		  let inver_s = build_shuffle_vector (derefence_pointer vptr) (undef (vector_type (i32_type context) ((e-s+1)/st))) mask "shuff_vec" builder in
+		if Array.length mask1 <> 0 then 
+		  let inver_s = build_shufflevector (derefence_pointer vptr) (undef (vector_type (i32_type context) ((e-s+1)/st))) mask "shuff_vec" builder in
 		  (* Build the permutation mask for shuffling things in!! *)
 		  let tot = Vectorization.Convert.build_counter_mask s e in
 		  let first = Vectorization.Convert.build_inverse_shuffle_mask s e st lc in
 		  let second = Vectorization.Convert.build_shuffle_mask s e st lc in
 		  let mask = Vectorization.Convert.build_permute_mask tot first second lc in
 		  let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
-		  let mask = const_vector (Array.map codegen_simexpr mask) in
-		  let resptr = build_shuffle_vector inver_s rval mask "shuff_vec" builder in
-		  build_store resptr vtpr build
+		  let mask = const_vector (Array.map (codegen_simexpr !declarations) mask) in
+		  let resptr = build_shufflevector inver_s rval mask "shuff_vec" builder in
+		  build_store resptr vptr builder
 		else 
 		  (* Just store the whole rval in here!! *)
 		  build_store rval vptr builder in ())) ll

@@ -59,8 +59,6 @@ rule lexer = parse
   | "Or" {Parser.Or}
   | "Not" {Parser.Not}
   | "Procedure" {Parser.Procedure}
-  | "For" {Parser.For}
-  | "Par" {Parser.Par}
   | "Declare" {Parser.Declare}
   | "DeclareFun" {Parser.DeclareFun}
   | "DeclareEntry" {Parser.DeclareEntry}
@@ -85,7 +83,6 @@ rule lexer = parse
   | "Float" {Parser.TFloat32}
   | "Float64" {Parser.TFloat64}
   | "Boolean" {Parser.Boolean}
-  | "None" {Parser.None}
   | ['0'-'9']+ {Parser.TInt (lexeme lexbuf)} (* an integer *)
   | ['0'-'9']+'.'['0'-'9']+ {Parser.TFloat (lexeme lexbuf)} (* a floating number *)
   | ['A'-'Z' 'a'-'z']['A'-'Z' 'a'-'z' '0'-'9' '_']* {Parser.TSymbol (lexeme lexbuf)} (* any identifier a letter followed by anything, except a '$' sign*)

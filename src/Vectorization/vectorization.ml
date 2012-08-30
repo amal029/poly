@@ -108,12 +108,12 @@ struct
   let build_inverse_shuffle_mask s e st lc = 
     let tot = ref (build_counter_mask s e) in
     let sm = build_shuffle_mask s e st lc in
-    let () = List.iter (fun x -> tot := (List.filter (fun x ->  x <> i) !tot)) sm in 
-    tot
+    let () = Array.iter (fun i -> tot := (Array.filter (fun x ->  x <> i) !tot)) sm in 
+    !tot
       
   let build_permute_mask tot first second lc = 
     let c1 = 0 in
-    let c2 = List.length first in
+    let c2 = Array.length first in
     Array.map (fun x -> 
       (try
 	 Array.findi ((=)x) first + c1
@@ -153,15 +153,14 @@ struct
     | BracDim l -> List.findi (get_index_to_convert lc index) l
       
   let check_index lc index = function
-    | BracDim l -> List.filter (get_index_to_convert lc index) l
+    | BracDim l -> List.filter (get_index_to_convert lc index 0) l
 
   let build_addressed_symbol_vec index symbol_table vstart vend vstride lc = function
     | AddressedSymbol (x,_,y,lc) -> 
-      (* convert the last index into colon expression for later extraction in llvm!! *)
       if (List.length (check_index lc index (List.hd y)) <> 1) then 
-	raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " cannot handle more/less than one indexing with same par index!!")) 
+	raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " cannot handle more/less than one indexing with same par index!!"));
       let (index_to_convert,_) = (index_to_convert_to lc index) (List.hd y) in
-      let () = IFDEF DEBUG THEN print_endline "Trying to convert index: " ^ (string_of_int index_to_convert_to) ELSE () ENDIF in
+      let () = IFDEF DEBUG THEN print_endline ("Trying to convert index: " ^ (string_of_int index_to_convert)) ELSE () ENDIF in
       (* First get the typed symbol from the symbol_table *)
       let symbol =  try get symbol_table (get_symbol x) with | Not_found -> 
 	raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " var not found in symbol table")) in 
@@ -180,7 +179,8 @@ struct
 	  | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " array indices not const"))) then
 	  let ce = ColonExpr (Const (DataTypes.Int32s, string_of_int vstart, lc),Const(DataTypes.Int32s, string_of_int vend, lc),
 			      Const(DataTypes.Int32s, string_of_int vstride, lc),lc) in
-	  let dl = match (List.hd y) with | BracDim x -> List.map (fun (DimSpecExpr x) -> if x = index then DimSpecExpr ce else DimSpecExpr x) x in
+	  let dl = match (List.hd y) with | BracDim x -> 
+	    List.map (fun (DimSpecExpr x) -> if (get_index_to_conv lc index x) then DimSpecExpr ce else DimSpecExpr x) x in
 	  VecAddress (x, BracDim dl,lc)
 	else raise (Error ((Reporting.get_line_and_column lc) ^ " dereferencing more dimensions than the allowed size for the array!! "))
       else raise (Error ((Reporting.get_line_and_column lc) ^ " iteration vector of the par loop does not fit into the size of the declared array for this dimension"))
