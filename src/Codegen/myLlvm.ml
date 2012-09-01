@@ -189,6 +189,8 @@ let rec get_simexpr_type declarations = function
   | Brackets (x,_) -> get_simexpr_type declarations x
   | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_typed_type x
   | AddrRef (x,_) -> let (x,_) = get declarations (get_addressed_symbol x) in get_typed_type x
+  | VecRef (x,_) -> let (x,_) = get declarations (get_vec_symbol x) in get_typed_type x
+  | Constvector (x,_,lc) -> get_data_types lc x
   | _ -> raise (Internal_compiler_error ("Unsupported simple expr"))
 
 let rec get_exact_simexpr_type declarations = function
@@ -200,7 +202,9 @@ let rec get_exact_simexpr_type declarations = function
   | Brackets (x,_) -> get_exact_simexpr_type declarations x
   | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_exact_typed_type x
   | AddrRef (x,lc) -> let (x,_) = get declarations (get_addressed_symbol x) in get_exact_typed_type x
-  | _ -> raise (Internal_compiler_error ("Unsupported simple expr"))
+  | VecRef (x,lc) -> let (x,_) = get declarations (get_vec_symbol x) in get_exact_typed_type x
+  | Constvector (x,_,_) -> x
+  | _ as s -> raise (Internal_compiler_error (("Unsupported simple expr") ^ Dot.dot_simpleexpr s))
 
 let derefence_pointer pointer =
   match classify_type (type_of pointer) with
@@ -391,12 +395,15 @@ let rec codegen_simexpr declarations = function
     let mask = Vectorization.Convert.build_shuffle_mask s e st lc in
     let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
     let mask = const_vector (Array.map (codegen_simexpr declarations) mask) in
-    build_shufflevector (derefence_pointer vptr) (undef (vector_type (i32_type context) ((e-s+1)/st))) mask "shuff_vec" builder
+    let dv = match get declarations (get_vec_symbol x) with | (x,_) -> x in
+    let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
+    let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of (derefence_pointer vptr))))) in
+    build_shufflevector (derefence_pointer vptr) uptl mask "shuff_vec" builder
       
 
   (* Generating the const vector *)
   | Constvector (dt, sa, lc) -> 
-    let () = IFDEF DEBUG THEN print_endline ("Vector size: " ^ (Array.Length sa)) ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN print_endline ("Vector size: " ^ (string_of_int (Array.length sa))) ELSE () ENDIF in
     let ca = Array.map (fun x -> 
       (match x with 
 	| Const (x,y,lc) as s -> codegen_simexpr declarations s
@@ -642,6 +649,23 @@ let codegen_asssimexpr lc declarations = function
     let () = IFDEF DEBUG THEN dump_value r ELSE () ENDIF in r
   | FCall _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ended up with FCall when it shouldn't"))
 
+let rec strech v s1 to_inc vtyp declaration = 
+  let () = IFDEF DEBUG THEN print_endline ("Streching by : " ^ (string_of_int to_inc)) ELSE () ENDIF in
+  if (to_inc < 0) then raise (Internal_compiler_error "Cannot make the result vector shorter than the current length!!")
+  else if s1 = to_inc then v
+  else 
+    (* Now first build a 0 sized vector *)
+    let to_inca = const_vector (Array.init s1 (fun i -> codegen_simexpr declaration (Const(vtyp, "0", (0,0))))) in
+    let () = IFDEF DEBUG THEN dump_value to_inca ELSE () ENDIF in
+    (* Now use the shuffle instruction to increase the size of this vector to s2*)
+    let msize = if (2*s1 < to_inc) then (2*s1) else to_inc in
+    let mask = Array.init msize (fun i -> codegen_simexpr declaration (Const(DataTypes.Int32s, (string_of_int i), (0,0)))) in
+    let mask = const_vector mask in
+    let () = IFDEF DEBUG THEN dump_value mask ELSE () ENDIF in
+    let v = build_shufflevector v to_inca mask "strech" builder in
+    let () = IFDEF DEBUG THEN dump_value v ELSE () ENDIF in
+    strech v (vector_size (type_of v)) to_inc vtyp declaration
+
 let codegen_stmt f declarations = function
   | Assign (ll, expr, lc) -> 
     (* codegen the rhs *)
@@ -683,7 +707,7 @@ let codegen_stmt f declarations = function
 	      let (name,ll) = (match x with VecAddress (x, ll,_) -> (x,ll)) in
 	      let dll = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> false | _ -> true)) x) in
 	      let ce = (match ll with | BracDim x -> List.filter (fun (DimSpecExpr x) -> (match x with ColonExpr _ -> true | _ -> false)) x) in
-	      if List.length ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statemetn"));
+	      if List.length ce <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " more than one colon expression in a vector statement"));
 	      let ce = (match (List.hd ce) with | DimSpecExpr x -> x) in
 	      (* Now make the address symbol *)
 	      let vptr = 
@@ -692,18 +716,28 @@ let codegen_stmt f declarations = function
 		(* Now load the vector with the returned pointer *)
 		codegen_simexpr !declarations aptr
 		else match get !declarations (get_vec_symbol x) with | (_,x) -> x in
+	      let () = IFDEF DEBUG THEN dump_value vptr ELSE () ENDIF in
 	      (* Now build the shuffle mask *)
 	      let (s,e,st,lc) = (match ce with
 		| ColonExpr (x,y,z,lc) as s -> let (s,e,st) = Vectorization.Convert.get_par_bounds s in (s,e,st,lc)
 		| _ as ettt -> raise (Internal_compiler_error ("Vector index not of type colon expr" ^ Dot.dot_simpleexpr ettt))) in
-	      
+	      let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int s)
+						       ^ "(end:) " ^ (string_of_int e) ^ "(stride:) " ^ (string_of_int st)) ELSE () ENDIF in
 	      let mask = Vectorization.Convert.build_inverse_shuffle_mask s e st lc in
 	      let mask1 = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
-	      let mask = const_vector (Array.map (codegen_simexpr !declarations) mask1) in
 	      (* Now again shuffle with the complete length of the vector, but put rval first and then put *)
 	      let _ =
 		if Array.length mask1 <> 0 then 
-		  let inver_s = build_shufflevector (derefence_pointer vptr) (undef (vector_type (i32_type context) ((e-s+1)/st))) mask "shuff_vec" builder in
+		  let mask = const_vector (Array.map (codegen_simexpr !declarations) mask1) in
+		  let () = IFDEF DEBUG THEN dump_value mask ELSE () ENDIF in
+		  let vtpt = (derefence_pointer vptr) in
+		  let () = IFDEF DEBUG THEN dump_value vtpt ELSE () ENDIF in
+		  let dv = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
+		  let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
+		  let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vtpt)))) in
+		  let () = IFDEF DEBUG THEN dump_value uptl ELSE () ENDIF in
+		  let inver_s = build_shufflevector vtpt uptl mask "shuff_vec" builder in
+		  let () = IFDEF DEBUG THEN dump_value inver_s ELSE () ENDIF in
 		  (* Build the permutation mask for shuffling things in!! *)
 		  let tot = Vectorization.Convert.build_counter_mask s e in
 		  let first = Vectorization.Convert.build_inverse_shuffle_mask s e st lc in
@@ -711,6 +745,24 @@ let codegen_stmt f declarations = function
 		  let mask = Vectorization.Convert.build_permute_mask tot first second lc in
 		  let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
 		  let mask = const_vector (Array.map (codegen_simexpr !declarations) mask) in
+		  let () = IFDEF DEBUG THEN dump_value mask ELSE () ENDIF in
+		  (* It is possible that the rval or the inver_s, either
+		     one of them is shorter than the other.  We want to
+		     make them of equal size and hence, we should pad
+		     the shorter one with zeros. This won't really have
+		     any affect on the result, because the shuffle mask
+		     will correctly pick up the required elements from
+		     the vectors!! *)
+		  let () = IFDEF DEBUG THEN print_endline 
+		    ((string_of_int (vector_size (type_of rval))) ^ " = "  ^ (string_of_int (vector_size (type_of inver_s)))) ELSE () ENDIF in
+		  let rval = 
+		    if (vector_size (type_of rval)) < (vector_size (type_of inver_s)) then
+		      strech rval (vector_size (type_of rval)) (vector_size (type_of inver_s)) vtyp !declarations 
+		    else 
+		      let () = IFDEF DEBUG THEN print_endline "return old rval" ELSE () ENDIF in
+		      rval in
+		  let inver_s = if (vector_size (type_of inver_s)) < (vector_size (type_of rval)) then
+		      strech inver_s (vector_size (type_of inver_s)) (vector_size (type_of rval))  vtyp !declarations else inver_s in
 		  let resptr = build_shufflevector inver_s rval mask "shuff_vec" builder in
 		  build_store resptr vptr builder
 		else 

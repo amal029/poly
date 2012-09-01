@@ -191,4 +191,5 @@ let process = function
       | DeclareFun x -> Language.Language.Def (process_procedure x, None, get_lc)
       | _ -> raise (Internal_compiler_error "Could not filter procedures out!!"))) f in
     let s = List.filter (fun x -> (match x with DeclareEntry _ | DeclareFun _ -> false | _ -> true)) x in
-    if s <> [] then raise (Internal_compiler_error " Statements not inside procedure!!") else fs
+    if s <> [] then raise (Internal_compiler_error " Statements not inside procedure!!") else 
+      Language.Language.Program fs

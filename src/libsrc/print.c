@@ -31,9 +31,12 @@ extern void print_array (int size, int A[size], int *ret){
 
 extern void print_array2 (int size, int A[size][size], int *ret){
   int i =0,j =0;
-  for (;i<size;++i)
-    for(j=0;j<size;++j)
+  for (i=0;i<size;++i){
+    for(j=0;j<size;++j){
       fprintf(stdout,"%d\t",A[i][j]);
+    }
+    fprintf(stdout,"\n");
+  }
   fprintf(stdout,"\n");
   *ret = (i+j);
 }

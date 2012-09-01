@@ -59,12 +59,18 @@ let rec dot_simpleexpr = function
   | Opposite (x,_) -> "-" ^ dot_simpleexpr x
   | Brackets (x,_) -> dot_simpleexpr x
   | Cast (x,y,_) -> (("(" ^ DataTypes.print_datatype x) ^ ")") ^ (dot_simpleexpr y)
+  | VecRef (x,_) -> ("<" ^ get_vec_string x ^ ">")
+  | Constvector (d,x,_) ->(("(" ^ DataTypes.print_datatype d) ^ ")") ^ "< " ^ (Array.fold_right (fun x y -> dot_simpleexpr x ^ "," ^ y) x "") ^ " >"
 
 and get_addressed_string = function
   | AddressedSymbol (x,_,z,_) -> 
     let name = get_symbol x in
     let string_brac_dims = get_string_brac_dims z in
     name ^ string_brac_dims
+
+and get_vec_string = function
+  | VecAddress (x,y,_) -> (get_symbol x) ^ "[" ^ (get_bracdim y) ^ "]"
+
 and get_string_brac_dims = function
   | h::t -> (("[" ^ (get_bracdim h) ) ^ "]") ^ (get_string_brac_dims t)
   | [] -> ""
@@ -85,6 +91,7 @@ let dot_allsym = function
   | AllTypedSymbol x -> (dot_typed_symbol x)
   | AllSymbol x -> (get_symbol x)
   | AllAddressedSymbol x -> (get_addressed_string x)
+  | AllVecSymbol x -> get_vec_string x
 
 let rec dot_allsym_list = function
   | h::t -> ((dot_allsym h) ^ if (List.length t <> 0) then "," else " ") ^ (dot_allsym_list t)

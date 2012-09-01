@@ -10,6 +10,7 @@ LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
 ERRORDIR=$(COMP_HOME)/Error
 LIBDIR=$(COMP_HOME)/lib
 LANGDIR=$(COMP_HOME)/Abstract
+VIPRDIR=$(COMP_HOME)/VIPR
 VECDIR=$(COMP_HOME)/Vectorization
 PARSEDIR=$(COMP_HOME)/Parsing
 ANALYSISDIR=$(COMP_HOME)/Checking
@@ -44,6 +45,7 @@ METISLDIR=/macports-1.9.1/lib
 DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/lib
 DOTLIB=odot.cmxa
 VECLIB=veclang.cmxa
+VIPRLIB=vipr.cmxa
 
 all: compiler
 
@@ -53,10 +55,10 @@ run:
 
 compiler:
 	$(CC) -I $(VECDIR) -I $(DOTDIR) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR)	\
-	 -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
+	 -I $(VIPRDIR) -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
 	-I $(METISDIR) -I $(BATTERIES) $(LLVMLIB) $(STRLIB) $(BIGARRAYLIB)	\
 	$(UNIXLIB) $(NUMSLIB) $(BATLIBB) -I $(ERRORDIR) $(DOTLIB)	\
-	 -I $(XMLDIR) $(XMLLIB) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(REWRITES)	\
+	 -I $(XMLDIR) $(XMLLIB) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(VIPRLIB) $(CODEGEN) $(REWRITES)	\
 	$(ANALYSIS) $(OPTIMIZATIONS) $(VECLIB) -I $(CODEGENDIR) $(CODEGENLIB) -I	\
 	$(METISLDIR) -I $(LIBDIR) $(METISLIB) -cc clang -cclib -lstdc++	\
 	 -ccopt -rdynamic $(SRC) -o $(TARGETC)

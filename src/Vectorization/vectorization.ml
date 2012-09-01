@@ -11,17 +11,32 @@ struct
     | FCall _ -> true
     | _ -> false
 
-  let is_typed_symbol x = List.fold_right (fun x y -> (match x with | AllAddressedSymbol _ -> true | _ -> false) && y) x true
+  let is_typed_symbol x = 
+    let ret = List.fold_right (fun x y -> (match x with | AllTypedSymbol _ as s -> Dot.dot_allsym s; true
+      | _ -> false) && y) x true in
+    let () = IFDEF DEBUG THEN print_endline ("Assign lvalue not AddressedSymbol or Vector Type") ELSE () ENDIF in ret
 
   let rec is_par_safe_to_convert = function
-    | Assign (y,x,_) -> not (is_fcall x) && (not (is_typed_symbol y))
-    | Block (x,_) -> List.fold_right (fun x y -> is_par_safe_to_convert x && y) x true
-    | Split (x,_) -> is_par_safe_to_convert x
+    | Assign (y,x,_) -> 
+      let ret = (not (is_fcall x)) && (not (is_typed_symbol y)) in
+      let () = IFDEF DEBUG THEN print_endline ("Assign can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
+      ret
+    | Block (x,_) -> 
+      let ret = List.fold_right (fun x y -> is_par_safe_to_convert x && y) x true in
+      let () = IFDEF DEBUG THEN print_endline ("Block can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
+      ret
+    | Split (x,_) -> 
+      let ret = is_par_safe_to_convert x in
+      let () = IFDEF DEBUG THEN print_endline ("Split can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
+      ret
     | Par _ | For _ | CaseDef _ | Escape _ | VarDecl _ -> false
     | _ -> true
 
   let process_par = function
-    | Par (_,_,z,lc) -> is_par_safe_to_convert z
+    | Par (_,_,z,lc) -> 
+      let ret = is_par_safe_to_convert z in
+      let () = IFDEF DEBUG THEN print_endline ("Par can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
+      ret
     | _ as s -> raise (Internal_compiler_error ("Got a non par stmt for checking: " ^ (Dot.dot_stmt s)))
 
 end 
@@ -85,6 +100,7 @@ struct
   let rec get_const lc = function
     | Const _ as s -> s
     | Brackets (x,lc) -> get_const lc x
+    | Cast (x,v,lc) -> get_const lc v
     | Opposite (x,lc) -> 
       let r = get_const lc x in
       (match r with
@@ -107,8 +123,14 @@ struct
   (* This is for the store side *)
   let build_inverse_shuffle_mask s e st lc = 
     let tot = ref (build_counter_mask s e) in
+    let () = IFDEF DEBUG THEN print_endline "Counter mask" ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN Array.iter (fun x -> print_endline ((string_of_int x) ^ ",")) !tot ELSE () ENDIF in
     let sm = build_shuffle_mask s e st lc in
+    let () = IFDEF DEBUG THEN print_endline "Shuffle mask" ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN Array.iter (fun x -> print_endline ((string_of_int x) ^ ",")) sm ELSE () ENDIF in
     let () = Array.iter (fun i -> tot := (Array.filter (fun x ->  x <> i) !tot)) sm in 
+    let () = IFDEF DEBUG THEN print_endline "Inverse mask" ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN Array.iter (fun x -> print_endline ((string_of_int x) ^ ",")) !tot ELSE () ENDIF in
     !tot
       
   let build_permute_mask tot first second lc = 
@@ -142,23 +164,34 @@ struct
 	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " array sizes not const"))
 
   let rec get_index_to_conv lc index = function
-    | VarRef (x,_) as s -> index = x
+    | VarRef (x,_) as s -> 
+      let ret = (get_symbol index) = (get_symbol x) in
+      let () = IFDEF DEBUG THEN print_endline ("Index " ^ (get_symbol index) ^ " = " ^ (get_symbol x)) ELSE () ENDIF in
+      ret
     | Brackets (x,_) -> get_index_to_conv lc index x
     | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " cannot find the index in the Par index list"))
 
   let get_index_to_convert lc index counter = function
-    | DimSpecExpr x -> get_index_to_conv lc index x
+    | DimSpecExpr x -> 
+      let ret = get_index_to_conv lc index x in
+      let () = IFDEF DEBUG THEN print_endline (string_of_bool ret) ELSE () ENDIF in 
+      ret
 
   let index_to_convert_to lc index = function
     | BracDim l -> List.findi (get_index_to_convert lc index) l
       
   let check_index lc index = function
-    | BracDim l -> List.filter (get_index_to_convert lc index 0) l
+    | BracDim l -> 
+      let ret = List.filter (get_index_to_convert lc index 0) l in
+      let () = IFDEF DEBUG THEN print_endline (" GOT list length : " ^ (string_of_int (List.length ret))) ELSE () ENDIF in
+      ret
 
   let build_addressed_symbol_vec index symbol_table vstart vend vstride lc = function
     | AddressedSymbol (x,_,y,lc) -> 
+      let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
+					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
       if (List.length (check_index lc index (List.hd y)) <> 1) then 
-	raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " cannot handle more/less than one indexing with same par index!!"));
+	raise (Error ((Reporting.get_line_and_column lc) ^ " cannot handle more/less than one indexing with same par index!!"));
       let (index_to_convert,_) = (index_to_convert_to lc index) (List.hd y) in
       let () = IFDEF DEBUG THEN print_endline ("Trying to convert index: " ^ (string_of_int index_to_convert)) ELSE () ENDIF in
       (* First get the typed symbol from the symbol_table *)
@@ -174,21 +207,30 @@ struct
 		List.flatten (List.map (fun x -> 
 		  (match x with | BracDim x -> List.map (get_com_dims lc) x)) x))) in
       (* Now make sure that all dimensions match *)
-      if List.length y = List.length com_list then
+      let () = IFDEF DEBUG THEN print_endline ((string_of_int (List.length com_list))) ELSE () ENDIF in
+      let dref_dims = (match (List.hd y) with | BracDim x -> List.length x) in
+      (* The first if statement checks that we are dereferencing the correct array dimensions *)
+      if dref_dims = List.length com_list then
 	if access_size <= (match (List.nth com_list index_to_convert)  with | Const (_,x,_) -> (int_of_string x) 
 	  | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " array indices not const"))) then
 	  let ce = ColonExpr (Const (DataTypes.Int32s, string_of_int vstart, lc),Const(DataTypes.Int32s, string_of_int vend, lc),
 			      Const(DataTypes.Int32s, string_of_int vstride, lc),lc) in
-	  let dl = match (List.hd y) with | BracDim x -> 
+	  let dl = match (List.hd y) with | BracDim x ->
 	    List.map (fun (DimSpecExpr x) -> if (get_index_to_conv lc index x) then DimSpecExpr ce else DimSpecExpr x) x in
 	  VecAddress (x, BracDim dl,lc)
 	else raise (Error ((Reporting.get_line_and_column lc) ^ " dereferencing more dimensions than the allowed size for the array!! "))
       else raise (Error ((Reporting.get_line_and_column lc) ^ " iteration vector of the par loop does not fit into the size of the declared array for this dimension"))
 
   let build_vecs index symbol_table vstart vend vstride lc = function
-    | AllAddressedSymbol x -> AllVecSymbol (build_addressed_symbol_vec index symbol_table vstart vend vstride lc x)
+    | AllAddressedSymbol x -> 
+      let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
+					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
+      AllVecSymbol (build_addressed_symbol_vec index symbol_table vstart vend vstride lc x)
     | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got non addressed symbol assignment, currently this is not supported!!"))
 
+  let build_counter_mask s e =  Array.init (e-s+1) (fun i -> i)
+
+    
   let rec build_vec_simexpr_1 index symbol_table vstart vend vstride lc = function
     | Plus (x,y,lc) -> Plus (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
     build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
@@ -210,18 +252,29 @@ struct
     | Cast (x,y,lc) -> Cast (x,build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
     | Opposite (x,lc) -> Opposite (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, lc)
     | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
-    | VarRef _ | VecRef _ | Constvector _ as s -> s
-    | Const (x,y,lc) -> 
+    | Const (x,y,lc) ->
       (* Special case expand the vector to the required size and give a const vector back!! *)
-      let size = (vend - vstart + 1)/vend in Constvector (x,(Array.init size (fun i -> Const (x,y,lc))),lc)
+      let size = (vend - vstart + 1)/vstride in 
+      let () = IFDEF DEBUG THEN print_endline ("Array size: " ^ (string_of_int size)) ELSE () ENDIF in
+      Constvector (x,(Array.init size (fun i -> Const (x,y,lc))),lc)
     | AddrRef (x,lc) -> VecRef (build_addressed_symbol_vec index symbol_table vstart vend vstride lc x, lc)
+    | VarRef (x,lc) as s -> 
+      (* Induction variables can only be of type Int32s *)
+      if (get_symbol x) = (get_symbol index) then 
+	let size = (vend - vstart + 1)/vstride in
+	let counter = ref vstart in
+	let ar = Array.init size (fun i -> let ret = !counter in counter := !counter + vstride; ret) in
+	let ar = Array.map (fun x -> Const(DataTypes.Int32s, (string_of_int x), lc)) ar in
+	Constvector (DataTypes.Int32s, ar, lc)
+      else raise (Error ((Reporting.get_line_and_column lc) ^ "Not an induction loop: " ^ Dot.dot_simpleexpr s))
+    | VecRef _ | Constvector _ as s -> s
 
   let build_vec_simexpr index symbol_table vstart vend vstride lc = function
     | SimExpr x -> SimExpr (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x)
     | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "trying to convert a non simple expression to vec type"))
 
   let rec build_data_parallel_vectors index symbol_table vstart vend vstride = function
-    | Block (x,lc) -> Block (List.map (build_data_parallel_vectors index symbol_table vstride vend vstride) x, lc)
+    | Block (x,lc) -> Block (List.map (build_data_parallel_vectors index symbol_table vstart vend vstride) x, lc)
     | Assign (x,y,lc) ->
       (* Now start making the changes to the assign statement *)
       let lvals = List.map (build_vecs index symbol_table vstart vend vstride lc) x in
@@ -235,6 +288,8 @@ struct
       (*First get the size of the vector *)
       (* FIXME: This needs to be extended to affine strides and bounds!! *)
       let (vstart,vend,vstride) = get_par_bounds y in
+      let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
+					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
       (* Now build the internal data-parallel vectors *)
       build_data_parallel_vectors x symbol_table vstart vend vstride z
     | _ as s -> raise (Internal_compiler_error (" Cannot parallelize : " ^ (Dot.dot_stmt s)))

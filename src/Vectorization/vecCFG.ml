@@ -149,6 +149,7 @@ let rec make_cfg r e = function
     let outl = get_it lc z in
     let symbol_table = ref [] in
     let () = Vectorization.Convert.build_symbol_table symbol_table w in
+    symbol_table := (y@z) @ !symbol_table;
     let node = make_stmt !symbol_table [] w in
     Topnode (e, name, r, [inl;outl;node])
 and get_it lc = function

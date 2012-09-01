@@ -13,7 +13,7 @@ let get_tfs = function
       match x with Symbol (x,lc) -> 
 	(try
 	   let _ = Hashtbl.find tbl x in
-	   raise (Error (("Filter: " ^ x) ^ " multiply defined" ^ Reporting.get_line_and_column lc))
+	   raise (Error (("Filter: " ^ x) ^ " multiply defined " ^ Reporting.get_line_and_column lc))
 	 with
 	   | Not_found -> Hashtbl.add tbl x (t,r)))
   | _ -> ()
@@ -75,7 +75,11 @@ let rec get_main_ref m = function
 
 (* This thing gives the starting node *)
 let rec check_ast = function
-  | Program x as s -> get_filters s; 
+  | Program x as s -> 
+    (* Clear the nested_names and tbl *)
+    let () = Stack.clear nested_names in
+    let () = Hashtbl.clear tbl in
+    get_filters s; 
     let m = ref None in
     get_main_ref m x;
     let (mm,r) = match !m with 

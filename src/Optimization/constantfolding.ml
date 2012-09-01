@@ -801,10 +801,10 @@ struct
       
   let rec get_const_value = function
     | Cast (x,y,_) as s -> 
-      let () = print_endline ("getting the const value from a cast " ^ (Dot.dot_simpleexpr s))  in
+      (* let () = print_endline ("getting the const value from a cast " ^ (Dot.dot_simpleexpr s))  in *)
       (match y with
 	| Const (_,r,lc) as t -> 
-	  let () = print_endline ("Sending const value " ^ Dot.dot_simpleexpr t) in
+	  (* let () = print_endline ("Sending const value " ^ Dot.dot_simpleexpr t) in *)
 	  Const (x,r,lc)
 	| Brackets (x,_) -> get_const_value x
 	| _ -> s)

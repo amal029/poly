@@ -13,12 +13,12 @@ CC=ocamlopt
 all: veclang.cmxa
 
 veclang.cmxa: check
-	$(CC) $(OCMLOPTS) *.cmx -o $@
+	$(CC) $(OCMLOPTS) vectorization.cmx vecCFG.cmx -o $@
 
 check:
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
 	-I $(LANGDIR) -I $(DOTDIR) -I $(ERRORDIR) $(ERRORLIB) $(LANGLIB) $(DOTLIB) -c vectorization.ml
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
 	-I $(LANGDIR) -I $(DOTDIR) -I $(ERRORDIR) $(ERRORLIB) $(LANGLIB) $(DOTLIB) -c vecCFG.ml
 
 clean:

@@ -1,20 +1,21 @@
-zeros out T[M] par i in 0:M-1 T[i] = 0
+zeros out T[M] par i in 0:M-1:1 T[i] = 0
 ones out T[M] par i in 0:M-1 T[i] = 1
 
-read_set in R[M] out O[M] for i in 0:M-1 O[i] = R[i]
-read_set2 in R[M][M] out O[M][M] for i in 0:M-1 for j in 0:M-1 O[i][j] = R[i][j]
+read_set in R[M] out O[M] par i in 0:M-1 O[i] = R[i] + (R[i]*i/R[i])
+read_set2 in R[M][M] out O[M][M] par i in 0:M-1 par j in 0:M-1 O[i][j] = R[i][j]+R[i][j]
 
-heroes out T[M][N] par i in 0:M-1 for j in 0:N-1 T[i][j] = 0
-heroes2 out T[M][N] par i in 0:M-1 for j in 0:N-1 T[i][j] = 4
+heroes out T[M][N] par i in 0:M-1 par j in 0:N-1 T[i][j] = j*j
+heroes2 out T[M][N] par i in 0:M-1 par j in 0:N-1 T[i][j] = 4
 
 rso in I out O O = I
-rso2 in I[M] out O[M] for i in 0:M-1 O[i] = I[i]
+rso2 in I[M] out O[M] par i in 0:M-1 O[i] = I[i]
 
 main
 {
-  var size = 2
-  var Array[size]; 
+  var size = 7
+  var Array[size];
   Array = zeros ()
+  Array = ones ()
   /* print the array */
   int ret = extern print_array (size,Array)
   /* print the ret value */
@@ -33,23 +34,24 @@ main
   /* print the ret value */
   ret = extern p1 (ret)
 
-  var Vrray2[size][size] = heroes2()
-  Vrray = read_set2(Vrray2)
+  /* var Vrray2[size][size] = heroes2() */
+  /* ret = extern print_array2 (size,Vrray2) */
+  /* Vrray = read_set2(Vrray2) */
 
   /* print a 2D array */
-  ret = extern print_array2 (size,Vrray)
+  /* ret = extern print_array2 (size,Vrray) */
   /* print the ret value */
   ret = extern p1 (ret)
   
-  var NA[size] = ones()
-  var NAA[size] = zeros()
-  ret = extern print_array (size,NAA)
-  for i in 0:size-1 NAA[i] = rso (NA[i])
-  ret = extern print_array (size,NAA)
+  /* var NA[size] = ones() */
+  /* var NAA[size] = zeros() */
+  /* ret = extern print_array (size,NAA) */
+  /* for i in 0:size-1 NAA[i] = rso (NA[i]) */
+  /* ret = extern print_array (size,NAA) */
   
-  var NA2[size][size] = heroes2()
-  var NAA2[size][size] = heroes()
-  ret = extern print_array2 (size,NAA2)
-  for i in 0:size-1 NAA2[i] = rso2(NA2[i])
-  ret = extern print_array2(size,NAA2)
+  /* var NA2[size][size] = heroes2() */
+  /* var NAA2[size][size] = heroes() */
+  /* ret = extern print_array2 (size,NAA2) */
+  /* for i in 0:size-1 NAA2[i] = rso2(NA2[i]) */
+  /* ret = extern print_array2(size,NAA2) */
 }

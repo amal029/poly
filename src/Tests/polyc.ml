@@ -2,6 +2,7 @@ open Batteries;;
 
 let usage_msg = "Usage: polyc [options] <filename>\nsee -help for more options" in
 try
+  let compile = ref true in
   let file_name = ref "" in
   let decompile_flag = ref false in
   let version = ref false in
@@ -9,20 +10,37 @@ try
   let llvm = ref false in
   let graph_part = ref false in
   let load_modules = ref [] in
+  let vectorize = ref false in
+  let vipr = ref false in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag, " Decompile to stg-lang");
+		      ("-O3", Arg.Set vectorize, " Vectorize code");
+		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part, 
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
 		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file output.ll");
 		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files (>= llvm-3.2)");
 		      ("-v", Arg.Set version, "  Get the compiler version")] (fun x -> file_name := x) usage_msg in
-  if !version then print_endline "Poly compiler version alpha"
+
+  if !version then begin print_endline "Poly compiler version alpha"; compile := false end
   else 
-    (* Initialize the error reporting structures *)
-    let in_chan = open_in !file_name in
-    let () = print_endline "....Lexing and parsing..." in
-    let lexbuf = Lexing.from_channel in_chan in
-    let ast = Parser.ast Lexer.lexer lexbuf in 
+    let ast =
+      (if (!vipr) then
+	  let in_chan = open_in !file_name in
+	  let () = print_endline "....Lexing and parsing VIPR file..." in
+	  let lexbuf = Lexing.from_channel in_chan in
+	  let ast = ViprParser.ast ViprLexer.lexer lexbuf in
+	  (* Close the input channel *)
+	  let () = close_in in_chan in
+	  Vipr2poly.process ast
+       else 
+	  (* Initialize the error reporting structures *)
+	  let in_chan = open_in !file_name in
+	  let () = print_endline "....Lexing and parsing..." in
+	  let lexbuf = Lexing.from_channel in_chan in
+	  let ast = Parser.ast Lexer.lexer lexbuf in
+	  (* Close the input channel *)
+	  let () = close_in in_chan in ast) in
     (* The first type inference: simple ML type inference engine*)
     let () = print_endline "...ML type inference....." in
     let ast = Type_inference.Simple.infer_ast ast in
@@ -47,9 +65,6 @@ try
     let () = print_endline "....Performing constant folding..." in
     let cfg1 = Constantfolding.Constantfolding.fold tbl cfg in
     (* Make the llvm backend code here *)
-    if !dot then
-      let () = Dot.build_program_dot cfg1 "output1/output1.dot" in ()
-    else ();
     let () = print_endline "....First order dependent type inference..." in
     let cfgt = Type_inference.First_order.infer_filternode false cfg1 in
     (* If decompile option is given then just decompile to andrew lang*)
@@ -62,6 +77,18 @@ try
     let llvm_file = (List.hd slist) in
     let file_name = ((List.hd slist) ^ ".xml") in
     (* By default do not always produce llvm IR *)
+    let cfgt = 
+      if !vectorize then
+	let () = print_endline "....Decompiling to AST......" in
+	let ast = DecompiletoAST.decompile cfgt in
+	let () = print_endline "....Vectorizing......" in
+	let fcfgv = Fcfg.check_ast ast in
+	(* Now call the vectorization function on this *)
+	VecCFG.check_fcfg fcfgv
+      else cfgt in
+    if !dot then
+      let () = Dot.build_program_dot cfgt "output1/output1.dot" in ()
+    else ();
     if !llvm then
       let () = print_endline ".....Generating LLVM IR..." in
       let () = MyLlvm.compile !load_modules llvm_file cfgt in ()
@@ -83,8 +110,6 @@ try
       let () = MetisDriver.generate_metis_file "2" "011" (llvm_file ^ ".our.grf") og in
       let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in ()
     else ();
-    (* Close the input channel *)
-    let () = close_in in_chan in ()
 with
   | End_of_file -> exit 0
   | Sys_error  _ -> print_endline usage_msg

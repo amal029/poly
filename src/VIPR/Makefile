@@ -18,13 +18,13 @@ vipr.cmxa: check
 
 check:
 	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR) -I $(ERRORDIR) -c vipr.ml
-	$(YACC) -v parser.mly
-	$(LEX) lexer.mll
-	$(CC) -c parser.mli
-	$(CC) -c lexer.ml
-	$(CC) -c parser.ml
+	$(YACC) -v viprParser.mly
+	$(LEX) viprLexer.mll
+	$(CC) -c viprParser.mli
+	$(CC) -c viprLexer.ml
+	$(CC) -c viprParser.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(BATTERIES) -I $(LANGDIR) -I $(ERRORDIR) -c vipr2poly.ml
 
 
 clean:
-	rm -rf *.cm* *.o *.a parser.ml lexer.ml parser.mli
+	rm -rf *.cm* *.o *.a viprParser.ml viprLexer.ml viprParser.mli *.output
