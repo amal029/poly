@@ -29,17 +29,30 @@ extern void print_array (int size, int A[size], int *ret){
   *ret = i;
 }
 
-extern void print_array2 (int size, int A[size][size], int *ret){
-  int i =0,j =0;
-  for (i=0;i<size;++i){
-    for(j=0;j<size;++j){
-      fprintf(stdout,"%d\t",A[i][j]);
-    }
-    fprintf(stdout,"\n");
+/* extern void print_array2 (int size, int *A, int *ret){ */
+extern void print_array2( int size, int s2, int* A , int *ret)
+{
+  int i=0,j=0;
+  for( i = 0; i<size; ++i ) {
+    for( j = 0; j < s2; ++j )
+       printf( "%d\t", *A++ );
+    A += j & 1;
+    printf( "\n" );
   }
-  fprintf(stdout,"\n");
-  *ret = (i+j);
+  printf( "\n" );
+  *ret = i*j;
 }
+
+/*   int i =0,j =0; */
+/*   for (i=0;i<size;++i){ */
+/*     for(j=0;j<size;++j){ */
+/*       fprintf(stdout,"%d\t",A[i][j]); */
+/*     } */
+/*     fprintf(stdout,"\n"); */
+/*   } */
+/*   fprintf(stdout,"\n"); */
+/*   *ret = (i+j); */
+/* } */
 
 extern void print_array3 (int size, int A[size][size][size], int *ret){
   int i =0,j =0,k=0;

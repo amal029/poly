@@ -18,7 +18,7 @@ try
 		      ("-graph-part", Arg.Set graph_part, 
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
-		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file output.ll");
+		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file <file>.ll");
 		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files (>= llvm-3.2)");
 		      ("-v", Arg.Set version, "  Get the compiler version")] (fun x -> file_name := x) usage_msg in
 

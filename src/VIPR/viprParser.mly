@@ -50,11 +50,11 @@ statementlist:
 ;
 statement : 
     | TOP If rExpression statement statement TCP                              { Vipr.If ($3,$4,$5) }
-    | TOP TFor storage expression rExpression statement statement TCP          { Vipr.For ($3,$4,$5,$6,$7) }
-    | TOP TPar storage expression rExpression statement statement TCP          { Vipr.Par($3,$4,$5,$6,$7) }
+    | TFor storage expression rExpression statement statement { Vipr.For ($2,$3,$4,$5,$6) }
+    | TPar storage expression rExpression statement statement { Vipr.Par($2,$3,$4,$5,$6) }
     | TOP Declare storage TCP                                                 { Vipr.Declare $3 }
-    | TOP DeclareFun proc TCP                                                 { Vipr.DeclareFun $3 }
-    | TOP DeclareEntry proc TCP                                               { Vipr.DeclareEntry $3 }
+    | DeclareFun proc { Vipr.DeclareFun $2 }
+    | DeclareEntry proc { Vipr.DeclareEntry $2 }
     | TOP Assign reference expression TCP                                     { Vipr.Assign ($3,$4) }
     | TOP DeclareAndAssign storage expression TCP                             { Vipr.DeclareAndAssign ($3,$4) }
     | TOP DeclareArrayConst storage TLbrack numList TRbrack TCP                       { Vipr.DeclareArrayConst ($3, $5) }
@@ -104,13 +104,13 @@ expression :
 reference : 
     | TOP StaticArrayRef literal index TCP                            { Vipr.StaticArrayRef ($3,$4) }
     | TOP DynamicArrayRef literal index TCP                           { Vipr.DynamicArrayRef ($3,$4) }
-    | TOP VariableRef literal TCP                                     { Vipr.VariableRef $3 }
+    | TOP VariableRef literal TCP { Vipr.VariableRef $3 }
     | TOP Constant num TCP                                            { Vipr.Constant $3 }
 ;
 
 storage : 
-    | TOP Array literal typ TCP                                        { Vipr.Array ($3,$4) }
-    | TOP Variable literal groundType TCP                               { Vipr.Variable ($3,$4) }
+    | Array literal typ { Vipr.Array ($2,$3) }
+    | TOP Variable literal groundType TCP { Vipr.Variable ($3,$4) }
     | TOP Subarray literal typ typ index TCP                          { Vipr.Subarray ($3,$4,$5,$6) }
 ;
 
@@ -120,7 +120,7 @@ index :
 ;
 
 literal : 
-    | TSymbol                                                             { $1 }
+    | Quote TSymbol Quote                                                         { $2 }
 ;
 
 expressionList : 
@@ -129,20 +129,20 @@ expressionList :
 ;
 
 op:
-    | TPow {Vipr.POW}
-    | TPlus {Vipr.PLUS}
-    | TMinus {Vipr.MINUS}
-    | TDiv {Vipr.DIV}
-    | TTimes {Vipr.TIMES}
-    | TMod {Vipr.MOD}
-    | TEqualEqual {Vipr.EQEQ}
-    | TEqual {Vipr.EQ}
-    | TLessEqual {Vipr.LEQ}
-    | TLess {Vipr.LT}
-    | TGreaterEqual {Vipr.GEQ}
-    | TGreater {Vipr.GT}
-    | TRShift {Vipr.RSHIFT}
-    | TLShift {Vipr.LSHIFT}
+    | Quote TPow Quote {Vipr.POW}
+    | Quote TPlus Quote {Vipr.PLUS}
+    | Quote TMinus Quote {Vipr.MINUS}
+    | Quote TDiv Quote {Vipr.DIV}
+    | Quote TTimes Quote {Vipr.TIMES}
+    | Quote TMod Quote {Vipr.MOD}
+    | Quote TEqualEqual Quote {Vipr.EQEQ}
+    | Quote TEqual Quote {Vipr.EQ}
+    | Quote TLessEqual Quote {Vipr.LEQ}
+    | Quote TLess Quote {Vipr.LT}
+    | Quote TGreaterEqual Quote {Vipr.GEQ}
+    | Quote TGreater Quote {Vipr.GT}
+    | Quote TRShift Quote {Vipr.RSHIFT}
+    | Quote TLShift Quote {Vipr.LSHIFT}
 ;
 
 typ : 

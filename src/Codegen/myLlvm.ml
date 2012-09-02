@@ -49,6 +49,10 @@ let _ =  PassManager.initialize the_fpm
 
 let target_data = 
 Llvm_target.TargetData.create "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
+(* Set the target triple *)
+let () = set_target_triple "x86_64-apple-darwin10.0.0" the_module 
+let () = set_data_layout "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" 
+  the_module
 
 let fcall_names = Hashtbl.create 10
 let func_name_counter = ref 1
@@ -624,6 +628,8 @@ let codegen_fcall lc declarations = function
 	(* get the param types from the params *)
 	let () = IFDEF DEBUG THEN print_endline ("getting " ^ name ^ " param types") ELSE () ENDIF in
 	let param_types = Array.map (fun x -> type_of x) (params callee) in
+	(* Set the alignment for the parameters *)
+	let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
 	let callee_attrs = (function_attr callee) in
 	let callee = (match lookup_function name the_module with
 	  | Some x -> x

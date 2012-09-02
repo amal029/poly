@@ -109,9 +109,30 @@ struct
 	| _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " not of type const: " ^ (Dot.dot_simpleexpr s))))
     | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " not of type const: " ^ (Dot.dot_simpleexpr s)))
 
+  let get_access_size s e st = 
+    let counter = ref s in
+    let ss = ref 1 in
+    (try
+       while true do
+	 if (!counter + st) <= e then
+	   begin
+	     counter := !counter + st;
+	     ss := !ss + 1;
+	   end
+	 else raise (Internal_compiler_error "Done")
+       done;
+     with | _ -> ()); !ss
+
+  (* let get_access_size s e st =  *)
+  (*   let ss = ((e-s+1)/st) in *)
+  (*   let srem = (e-s+1) mod st in *)
+  (*   if srem = 0 then ss *)
+  (*   else let rem = (e-s+1)/srem in let ss = ss + (rem - st) in ss *)
+
   let build_shuffle_mask s e st lc = 
     let shuffle_mask = 
-      (try Array.init ((e-s+1)/st) (fun i -> s)
+      (try 
+	 Array.init (get_access_size s e st) (fun i -> s)
        with
 	 | _ as s -> print_endline (Reporting.get_line_and_column lc); raise s) in
     (* Now make the elements of the array correctly!! *)
@@ -197,7 +218,8 @@ struct
       (* First get the typed symbol from the symbol_table *)
       let symbol =  try get symbol_table (get_symbol x) with | Not_found -> 
 	raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " var not found in symbol table")) in 
-      let access_size = (vend - vstart + 1)/vstride in
+      (* let access_size = (vend - vstart + 1)/vstride in *)
+      let access_size = get_access_size vstart vend vstride in
       (* Get the size of the complex symbol *)
       let com_list = 
 	(match symbol with 
@@ -254,14 +276,16 @@ struct
     | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
     | Const (x,y,lc) ->
       (* Special case expand the vector to the required size and give a const vector back!! *)
-      let size = (vend - vstart + 1)/vstride in 
+      (* let size = (vend - vstart + 1)/vstride in  *)
+      let size = get_access_size vstart vend vstride in
       let () = IFDEF DEBUG THEN print_endline ("Array size: " ^ (string_of_int size)) ELSE () ENDIF in
       Constvector (x,(Array.init size (fun i -> Const (x,y,lc))),lc)
     | AddrRef (x,lc) -> VecRef (build_addressed_symbol_vec index symbol_table vstart vend vstride lc x, lc)
     | VarRef (x,lc) as s -> 
       (* Induction variables can only be of type Int32s *)
       if (get_symbol x) = (get_symbol index) then 
-	let size = (vend - vstart + 1)/vstride in
+	(* let size = (vend - vstart + 1)/vstride in *)
+	let size = get_access_size vstart vend vstride in
 	let counter = ref vstart in
 	let ar = Array.init size (fun i -> let ret = !counter in counter := !counter + vstride; ret) in
 	let ar = Array.map (fun x -> Const(DataTypes.Int32s, (string_of_int x), lc)) ar in

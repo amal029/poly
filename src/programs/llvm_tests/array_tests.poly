@@ -1,10 +1,13 @@
 zeros out T[M] par i in 0:M-1:1 T[i] = 0
-ones out T[M] par i in 0:M-1 T[i] = 1
+zeros2 out T[M][M] par i in 0:M-1 par j in 0:M-1 T[i][j] = 0
 
-read_set in R[M] out O[M] par i in 0:M-1 O[i] = R[i] + (R[i]*i/R[i])
+ones out T[M] par i in 0:M-1:3 T[i] = 1
+
+read_set in R[M] out O[M] par i in 0:M-1:2 O[i] = R[i] + (i*i)
 read_set2 in R[M][M] out O[M][M] par i in 0:M-1 par j in 0:M-1 O[i][j] = R[i][j]+R[i][j]
+non1stride in R[M][M] out O[M][M] par i in 0:M-1 par j in 0:M-1:2 O[i][j] = R[i][j]+R[i][j]
 
-heroes out T[M][N] par i in 0:M-1 par j in 0:N-1 T[i][j] = j*j
+heroes out T[M][N] par i in 0:M-1 par j in 0:N-1 T[i][j] = (j+1)*(j+1)
 heroes2 out T[M][N] par i in 0:M-1 par j in 0:N-1 T[i][j] = 4
 
 rso in I out O O = I
@@ -12,36 +15,41 @@ rso2 in I[M] out O[M] par i in 0:M-1 O[i] = I[i]
 
 main
 {
-  var size = 7
+  var size = 3
+  var s2 = (size+1) 
   var Array[size];
   Array = zeros ()
-  Array = ones ()
+  /* Array = ones () */
   /* print the array */
-  int ret = extern print_array (size,Array)
   /* print the ret value */
-  ret = extern p1 (ret)
-  var array[size] = ones()
+  /* ret = extern p1 (ret) */
+  var array[size] = zeros()
+  array = ones()
+  /* int ret = extern print_array (size,array) */
   Array = read_set(array)
   /* print the array */
-  ret = extern print_array (size,Array)
+  /* int ret = extern print_array (size,Array) */
   /* print the ret value */
-  ret = extern p1 (ret)
+  /* ret = extern p1 (ret) */
 
-  var Vrray[size][size] = heroes()
+  var Varray[size][s2] = heroes()
+  /* /\* Varray = heroes2() *\/ */
 
-  /* print a 2D array */
-  ret = extern print_array2 (size,Vrray)
-  /* print the ret value */
-  ret = extern p1 (ret)
-
-  /* var Vrray2[size][size] = heroes2() */
-  /* ret = extern print_array2 (size,Vrray2) */
-  /* Vrray = read_set2(Vrray2) */
-
-  /* print a 2D array */
+  /* /\* print a 2D array *\/ */
   /* ret = extern print_array2 (size,Vrray) */
-  /* print the ret value */
-  ret = extern p1 (ret)
+  /* /\* print the ret value *\/ */
+  /* /\* ret = extern p1 (ret) *\/ */
+
+  /* var Vrray2[size][s2] = heroes2() */
+  /* ret = extern print_array2 (size,Vrray2) */
+  /* Varray = read_set2(Vrray2) */
+  /* Vrray2 = non1stride(Varray) */
+
+  /* /\* print a 2D array *\/ */
+  int ret = extern print_array2 (size,s2,Varray)
+  /* /\* int ret = extern print_array2 (size,Varray) *\/ */
+  /* /\* print the ret value *\/ */
+  /* /\* ret = extern p1 (ret) *\/ */
   
   /* var NA[size] = ones() */
   /* var NAA[size] = zeros() */
