@@ -68,7 +68,40 @@ let rec make_stmt symbol_table list = function
        if (Vectorization.SafeToConvert.process_par s) then
 	 (* We will vectorize the damn thing completely!! *)
 	 (* This thing will always give a block back!! *)
+	 (* 
+	    First we need to calculate the iteration space for this thing! 
+	    
+	    Then 
+
+	    1.) If the next statement is a par statement then we will
+	    call this same function but with setting the conversion to
+	    COLLAPSE constructor and sending the iteration vector space
+	    of myself.
+	    
+	    We will check the safety conditions for collapse before
+	    calling collapse.
+
+	    --> Safe conditions that might vectorize the par loop
+            statements inside.
+
+	    a.) R[i][j] = R[i][j] + 1 i.e., all the indices need to be
+	    separate and should only be associated with constants (or
+	    later on invariants).
+
+	    2.) If the next statement is a simple statement then I will
+	    just call convert as it is now.
+
+	    
+	    3.) If the next statement is a for or it cannot be collapsed
+	    then I will Give an error. --> I will then call the loop
+	    interchange function which will send a new loop statement
+	    (just for this loop) with the loops interchanged I will then
+	    call normal
+	    
+
+	 *)
 	 let enode =  make_block symbol_table list in (* This is where I will continue to *)
+	 (* Check if your child is a par stmt, if it is then call yourself!! *)
 	 let (vec_block as s ) = Vectorization.Convert.convert symbol_table s in
 	 let x = (match vec_block with | Block (x,_) -> x | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ " not of Block type"))) in
 	 let n = make_block symbol_table x in (* This is my own list *)

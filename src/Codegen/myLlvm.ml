@@ -48,10 +48,12 @@ let _ =  PassManager.initialize the_fpm
 (* let () = Llvm_target.TargetData.add (Llvm_executionengine.ExecutionEngine.target_data exec_engine) the_fpm *)
 
 let target_data = 
-Llvm_target.TargetData.create "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
+Llvm_target.TargetData.create
+"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:128-s0:64:64-f80:128:128-n8:16:32:64"
 (* Set the target triple *)
 let () = set_target_triple "x86_64-apple-darwin10.0.0" the_module 
-let () = set_data_layout "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" 
+let () = set_data_layout
+"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:128-s0:64:64-f80:128:128-n8:16:32:64" 
   the_module
 
 let fcall_names = Hashtbl.create 10
@@ -105,7 +107,10 @@ let create_entry_block_alloca f vn t =
 
 let create_entry_block_alloca_array f vn t size = 
   let builder = builder_at context (instr_begin (entry_block f)) in
-  build_alloca t vn builder
+  let ret = build_alloca t vn builder in
+  let amd = mdstring context "align 128" in
+  (* let () = set_metadata ret 0 amd in *) ret
+  
 
 let drop_dimspec_expr counter_list counter = function
   | DimSpecExpr x ->

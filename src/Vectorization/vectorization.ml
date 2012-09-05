@@ -25,11 +25,7 @@ struct
       let ret = List.fold_right (fun x y -> is_par_safe_to_convert x && y) x true in
       let () = IFDEF DEBUG THEN print_endline ("Block can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
       ret
-    | Split (x,_) -> 
-      let ret = is_par_safe_to_convert x in
-      let () = IFDEF DEBUG THEN print_endline ("Split can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
-      ret
-    | Par _ | For _ | CaseDef _ | Escape _ | VarDecl _ -> false
+    | Split _ | CaseDef _ | Escape _ | VarDecl _ -> false
     | _ -> true
 
   let process_par = function
@@ -49,7 +45,7 @@ struct
   open CFG
   module Array = Batteries.Array
   module List = Batteries.List
-
+    
   exception Internal_compiler_error of string
   exception Error of string
 
