@@ -1,6 +1,6 @@
 (**
 
-   Wed Sep  5 12:08:23 IST 2012
+   Thu Sep  6 14:22:07 IST 2012
    
    Purpose: 
    
@@ -17,7 +17,8 @@ open Vectorization
 
 module Array = Batteries.Array
 module List = Batteries.List
-
+module Int = Batteries.Int
+module Float = Batteries.Float
 
 
 let build_collapsed_addressed_symbol_vec indices limits symbol_table ls = function
@@ -58,46 +59,108 @@ let build_collapsed_vecs indices limits symbol_table lc = function
     AllVecSymbol (build_collapsed_addressed_symbol_vec indices limits symbol_table lc x)
   | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got non addressed symbol assignment, currently this is not supported!!"))
 
+
+let strech_looking_at_child size list = 
+  Array.of_list (List.map (fun x -> Array.to_list (Array.init size (fun i -> x))) list)
+
+let strech_looking_at_parent size list = 
+  Array.of_list (List.flatten (Array.to_list (Array.init size (fun i -> list))))
+
+
 let rec build_collaped_vec_simexpr_1 indices limits symbol_table lc = function
-  | Plus (x,y,lc) -> Plus (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, 
-			   build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
-  | Minus (x,y,lc) -> Minus (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, 
-			     build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
-  | Times (x,y,lc) -> Times (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, 
-			     build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
-  | Div (x,y,lc) -> Div (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, 
-			 build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
-  | Pow (x,y,lc) -> Pow (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, 
-			 build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
-  | Mod (x,y,lc) -> Mod (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, 
-			 build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
-  | Rshift (x,y,lc) -> Rshift (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, 
-			       build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
-  | Lshift (x,y,lc) -> Lshift (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, 
-			       build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
+  | Plus (x,y,lc) -> 
+    let l = build_collaped_vec_simexpr_1 indices limits symbol_table lc x in
+    let r = build_collaped_vec_simexpr_1 indices limits symbol_table lc y in
+    Plus (l,r,lc)
+
+  | Minus (x,y,lc) -> 
+    let l = build_collaped_vec_simexpr_1 indices limits symbol_table lc x in
+    let r = build_collaped_vec_simexpr_1 indices limits symbol_table lc y in
+    Times (l,r,lc)
+
+  | Div (x,y,lc) -> 
+    let l = build_collaped_vec_simexpr_1 indices limits symbol_table lc x in
+    let r = build_collaped_vec_simexpr_1 indices limits symbol_table lc y in
+    Div (l,r,lc)
+
+  | Pow (x,y,lc) -> 
+    let l = build_collaped_vec_simexpr_1 indices limits symbol_table lc x in
+    let r = build_collaped_vec_simexpr_1 indices limits symbol_table lc y in
+    Pow (l,r,lc)
+
+  | Mod (x,y,lc) -> 
+    let l = build_collaped_vec_simexpr_1 indices limits symbol_table lc x in
+    let r = build_collaped_vec_simexpr_1 indices limits symbol_table lc y in
+    Mod (l,r,lc)
+
+  | Rshift (x,y,lc) -> 
+    let l = build_collaped_vec_simexpr_1 indices limits symbol_table lc x in
+    let r = build_collaped_vec_simexpr_1 indices limits symbol_table lc y in
+    Rshift (l,r,lc)
+
+  | Lshift (x,y,lc) -> 
+    let l = build_collaped_vec_simexpr_1 indices limits symbol_table lc x in
+    let r = build_collaped_vec_simexpr_1 indices limits symbol_table lc y in
+    Lshift (l,r,lc)
+
   | Brackets (x,lc) -> Brackets (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, lc)
-  | Cast (x,y,lc) -> Cast (x,build_collaped_vec_simexpr_1 indices limits symbol_table lc y, lc)
+
+  (* FIXME: (Improve) Cannot cast need to make a vector type cast!! *)
+  | Cast (x,y,lc) -> 
+    let l = build_collaped_vec_simexpr_1 indices limits symbol_table lc y in
+    (* If this is a const matrix then it is easy to cast else for now give an error type!! *)
+    (match l with 
+      | Constvector (_,x1,lc) -> Constvector(x,x1,lc)
+      | _ -> raise (Internal_compiler_error "Cannot cast non const vector types yet!! "))
+
   | Opposite (x,lc) -> Opposite (build_collaped_vec_simexpr_1 indices limits symbol_table lc x, lc)
+
   | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
+
   | Const (x,y,lc) ->
       (* Special case expand the vector to the required size and give a const vector back!! *)
       (* let size = (vend - vstart + 1)/vstride in  *)
-    let size = get_access_size vstart vend vstride in
+    let size = List.fold_right(fun (vstart,vend,vstride) x -> (get_access_size vstart vend vstride) * x) limits 1 in
     let () = IFDEF DEBUG THEN print_endline ("Array size: " ^ (string_of_int size)) ELSE () ENDIF in
     Constvector (x,(Array.init size (fun i -> Const (x,y,lc))),lc)
+
   | AddrRef (x,lc) -> VecRef (build_collapsed_addressed_symbol_vec indices limits symbol_table lc x, lc)
+
   | VarRef (x,lc) as s ->
     (* Induction variables can only be of type Int32s *)
     if List.exists (fun i -> (get_symbol x) = (get_symbol i)) indices then
       let (index,_) = List.findi (fun i -> (get_symbol i) = (get_symbol x)) indices in
       let (vstart,vend,vstride) = List.nth limits index in
-      (* Now get the limit [index], which has this symbol *)
-      let size = get_access_size vstart vend vstride in
+      (* This is your own repitition vector *)
+      let my_size = get_access_size vstart vend vstride in
+      (* Get the repitition vectors above you *)
+      let (plist, clist) = List.split_at index limits in
+      let plist = List.take index plist in
+      let parent_size = 
+	if plist <> [] then
+	  List.fold_right(fun (vstart,vend,vstride) x -> (get_access_size vstart vend vstride) * x) plist 1 
+	else 0 in
+      let child_size = 
+	if clist <> [] then
+	  List.fold_right(fun (vstart,vend,vstride) x -> (get_access_size vstart vend vstride) * x)  clist 1 
+	else 0 in
+      (* Build your own shuffle mask *)
       let counter = ref vstart in
       let ar = Array.init size (fun i -> let ret = !counter in counter := !counter + vstride; ret) in
+    (* Now we need to strech this constant array by first looking at child and then looking at parent *)
+      let ar = if clist <> [] then strech_looking_at_child child_size (Array.to_list ar) else ar in
+      let ar = if plist <> [] then strech_looking_at_parent parent_size (Array.to_list ar) else ar in
       let ar = Array.map (fun x -> Const(DataTypes.Int32s, (string_of_int x), lc)) ar in
       Constvector (DataTypes.Int32s, ar, lc)
-    else raise (Error ((Reporting.get_line_and_column lc) ^ "Not an induction loop: " ^ Dot.dot_simpleexpr s))
+    (* Now we start taking care of scalars, which are tops as well *)
+    else 
+      (* First get the definition of the variable *)
+      (* We have assumed that this scalar is invariant in the loop *)
+      let symbol = try get symbol_table (get_symbol x) with | Not_found -> raise (Internal_compiler_error "Symbol being dereferenced cannot be found in the table!") in
+      let typ = (match symbol with | SimTypedSymbol (x,_,_) -> x) in
+      let size = List.fold_right(fun (vstart,vend,vstride) x -> (get_access_size vstart vend vstride) * x) limits 1 in
+      Constvector (x, Array.init size (fun i -> s),lc)
+
   | VecRef _ | Constvector _ as s -> s
 
 let build_collapsed_vec_simexpr indices limits symbol_table lc = function
@@ -119,6 +182,9 @@ let rec collapse_par indices limits symbol_table = function
     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
 					     ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
     collapse_par (indices @ [x])  (limits@[(vstart,vend,vstride)]) symbol_table z
+  | For _ -> 
+    (* Just call loop interchange here!! *)
+    raise (Internal_compiler_error " Cannot collapse loops, because For detected, you should apply loop interchange")
   | _ -> build_collapsed_data_parallel_vectors x symbol_table vstart vend vstride z
 
 let convert gsymbol_table = function

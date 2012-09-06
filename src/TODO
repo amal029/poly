@@ -69,3 +69,15 @@ Sun Aug 12 19:18:41 IST 2012
 
 
 
+Thu Sep  6 17:49:40 IST 2012
+
+1.) Implement vectorization for loop indices 
+
+2.) Change the myLlvm.ml file to generate correct indices for collapsed
+loops. Just remember this formula: it is
+
+Sum (access_size of all parents) + child_element: this will give the
+shuffle mask!!
+
+3.) Look up prgram/llvm_tests/ the new ml file to see how to promote
+scalar variables.
