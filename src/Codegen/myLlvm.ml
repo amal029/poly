@@ -750,6 +750,7 @@ let codegen_stmt f declarations = function
 		  let inver_s = build_shufflevector vtpt uptl mask "shuff_vec" builder in
 		  let () = IFDEF DEBUG THEN dump_value inver_s ELSE () ENDIF in
 		  (* Build the permutation mask for shuffling things in!! *)
+		  (* These need to be changed look at loopCollapse *)
 		  let tot = Vectorization.Convert.build_counter_mask s e in
 		  let first = Vectorization.Convert.build_inverse_shuffle_mask s e st lc in
 		  let second = Vectorization.Convert.build_shuffle_mask s e st lc in

@@ -48,9 +48,80 @@ struct
     
   exception Internal_compiler_error of string
   exception Error of string
+      
+  (* Calculate the shuffle mask *)
+  let get_access_size symbol ll = match (List.find (fun (x,y) -> (symbol = x)) ll) with | (_,x) -> x
+
+  let process_vectors access_sizes f1 f2 = function
+    | (Constvector (i1,d,x,_) , Constvector (i2,d,y,lc)) ->
+      Constvector (None,d,(Array.map2 (fun (Const(d,x,_),Const(t,y,_)) -> Constantfolding.Constantpropogation.process (VConst.VConst(d,x)) (VConst.VConst(t,y)) f1 f2) x y),
+		   lc)
+    | _ -> raise (Internal_compiler_error "")
+
+
+  let rec calculate_shuffle_mask access_sizes lc = function
+  | Plus (x,y,lc) ->
+    let l = calculate_shuffle_mask access_sizes lc x in
+    let r = calculate_shuffle_mask access_sizes lc y in
+    process_vectors access_sizes Int.add Float.add
+
+  | Minus (x,y,lc) -> 
+    let l = calculate_shuffle_mask access_sizes lc x in
+    let r = calculate_shuffle_mask access_sizes lc y in
+    process_vectors access_sizes Int.sub Float.sub
+
+  | Times (x,y,lc) -> 
+    let l = calculate_shuffle_mask access_sizes lc x in
+    let r = calculate_shuffle_mask access_sizes lc y in
+    process_vectors access_sizes Int.mul Float.mul
+
+  | Div (x,y,lc) -> 
+    let l = calculate_shuffle_mask access_sizes lc x in
+    let r = calculate_shuffle_mask access_sizes lc y in
+    process_vectors access_sizes Int.div Float.div
+
+  | Pow (x,y,lc) -> 
+    let l = calculate_shuffle_mask access_sizes lc x in
+    let r = calculate_shuffle_mask access_sizes lc y in
+    process_vectors access_sizes Int.pow Float.pow
+
+  | Mod (x,y,lc) -> 
+    let l = calculate_shuffle_mask access_sizes lc x in
+    let r = calculate_shuffle_mask access_sizes lc y in
+    process_vectors access_sizes Int.rem Float.modulo
+
+  | Rshift (x,y,lc) -> 
+    let l = calculate_shuffle_mask access_sizes lc x in
+    let r = calculate_shuffle_mask access_sizes lc y in
+    process_vectors access_sizes Constantfolding.Constantpropogation.lsl Constantfolding.Constantpropogation.lsd
+
+  | Lshift (x,y,lc) -> 
+    let l = calculate_shuffle_mask access_sizes lc x in
+    let r = calculate_shuffle_mask access_sizes lc y in
+    process_vectors access_sizes Constantfolding.Constantpropogation.lsr Constantfolding.Constantpropogation.lsd
+
+  | Brackets (x,lc) -> calculate_shuffle_mask access_sizes lc
+
+  (* FIXME: (Improve) Cannot cast need to make a vector type cast!! *)
+  | Cast (x,y,lc) -> raise (Internal_compiler_error "Cannot cast non const vector types yet!! ")
+
+  | Opposite (x,lc) -> raise (Internal_compiler_error "Cannot do opposite vectors yet!! ")
+
+  | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
+
+  | Const (x,y,lc) ->raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a Const"))
+
+  | AddrRef (x,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a AddrRef"))
+
+  | VarRef (x,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VarRef"))
+  | VecRef (x,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VecRef"))
+  | Constvector (i1,d,ar,lc) ->
+    let num1 = try get_access_size (match i1 with Some i1 -> get_access_size i1 access_sizes with | Not_found -> raise (Internal_compiler_error "") | None -> 1) in
+    Constvector (i1, d, Array.map (fun (Const(d,x,lc)) -> let num1 = ((int_of_string x) * num1) in Const(d,(string_of_int num1),lc)),lc)
 
   let get_symbol_lc = function
     | Symbol(_,lc) -> lc
+
   let get_addressed_symbol_lc = function
     | AddressedSymbol(_,_,_,lc) -> lc
       
@@ -105,19 +176,19 @@ struct
 	| _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " not of type const: " ^ (Dot.dot_simpleexpr s))))
     | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " not of type const: " ^ (Dot.dot_simpleexpr s)))
 
-  let get_access_size s e st = 
-    let counter = ref s in
-    let ss = ref 1 in
-    (try
-       while true do
-	 if (!counter + st) <= e then
-	   begin
-	     counter := !counter + st;
-	     ss := !ss + 1;
-	   end
-	 else raise (Internal_compiler_error "Done")
-       done;
-     with | _ -> ()); !ss
+  let get_access_size s e st = ((e - s)/st) + 1
+    (* let counter = ref s in *)
+    (* let ss = ref 1 in *)
+    (* (try *)
+    (*    while true do *)
+    (* 	 if (!counter + st) <= e then *)
+    (* 	   begin *)
+    (* 	     counter := !counter + st; *)
+    (* 	     ss := !ss + 1; *)
+    (* 	   end *)
+    (* 	 else raise (Internal_compiler_error "Done") *)
+    (*    done; *)
+    (*  with | _ -> ()); !ss *)
 
   (* let get_access_size s e st =  *)
   (*   let ss = ((e-s+1)/st) in *)
@@ -138,11 +209,10 @@ struct
   let build_counter_mask s e =  Array.init (e-s+1) (fun i -> i)
 
   (* This is for the store side *)
-  let build_inverse_shuffle_mask s e st lc = 
-    let tot = ref (build_counter_mask s e) in
+  let build_inverse_shuffle_mask cmask sm lc = 
+    let tot = ref cmask in
     let () = IFDEF DEBUG THEN print_endline "Counter mask" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN Array.iter (fun x -> print_endline ((string_of_int x) ^ ",")) !tot ELSE () ENDIF in
-    let sm = build_shuffle_mask s e st lc in
     let () = IFDEF DEBUG THEN print_endline "Shuffle mask" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN Array.iter (fun x -> print_endline ((string_of_int x) ^ ",")) sm ELSE () ENDIF in
     let () = Array.iter (fun i -> tot := (Array.filter (fun x ->  x <> i) !tot)) sm in 
@@ -180,6 +250,7 @@ struct
 	| Const _ as s -> s 
 	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " array sizes not const"))
 
+  (* TODO: Change this function to accept all types of simple expressions except for AddrRef just skip that one!! *)
   let rec get_index_to_conv lc index = function
     | VarRef (x,_) as s -> 
       let ret = (get_symbol index) = (get_symbol x) in

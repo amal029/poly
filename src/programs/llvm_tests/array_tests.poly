@@ -16,11 +16,11 @@ rso2 in I[M] out O[M] par i in 0:M-1 O[i] = I[i]
 
 main
 {
-  var size = 2
+  var size = 3
   var s2 = (size+1) 
   var Array[size];
   Array = zeros ()
-  /* Array = ones () */
+  Array = ones ()
   /* print the array */
   /* print the ret value */
   /* ret = extern p1 (ret) */

@@ -148,12 +148,13 @@ struct
     | Cast of DataTypes.t * simpleExpr  * (line * column)
     | ColonExpr of simpleExpr * simpleExpr * simpleExpr * (line * column)
     | Opposite of simpleExpr * (line * column)
-    | Constvector of DataTypes.t * simpleExpr array * (line * column)
+    | Constvector of string option * DataTypes.t * simpleExpr array * (line * column)
+    | Vector of DataTypes.t * simpleExpr array * (line * column)
     | VecRef of vecaddresssymbol * (line * column)
   and addressedSymbol =
       AddressedSymbol of symbol * angledim list * dimspec list * (line * column)
   and vecaddresssymbol =
-      VecAddress of symbol * dimspec * (line * column)
+      VecAddress of symbol * (string * int) list * simpleExpr list * (line * column)
   and dimSpecExpr =
     | DimSpecExpr of simpleExpr
   and angledim =
@@ -184,7 +185,7 @@ struct
     | AllAddressedSymbol of addressedSymbol
     | AllSymbol of symbol
     | AllTypedSymbol of typedSymbol
-    | AllVecSymbol of vecaddresssymbol
+    | AllVecSymbol of int array * vecaddresssymbol
 
 
   type stmt = 
