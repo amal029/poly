@@ -48,9 +48,10 @@ struct
     
   exception Internal_compiler_error of string
   exception Error of string
+  exception Ignore of string
       
   (* Calculate the shuffle mask *)
-  let get_access_size symbol ll = match (List.find (fun (x,y) -> (symbol = x)) ll) with | (_,x) -> x
+  let get_access_size_n symbol ll = match (List.find (fun (x,y) -> (symbol = x)) ll) with | (_,x) -> x
 
   let process_vectors access_sizes f1 f2 = function
     | (Constvector (i1,d,x,_) , Constvector (i2,d,y,lc)) ->
@@ -103,21 +104,21 @@ struct
   | Brackets (x,lc) -> calculate_shuffle_mask access_sizes lc
 
   (* FIXME: (Improve) Cannot cast need to make a vector type cast!! *)
-  | Cast (x,y,lc) -> raise (Internal_compiler_error "Cannot cast non const vector types yet!! ")
+  | Cast _ -> raise (Internal_compiler_error "Cannot cast non const vector types yet!! ")
 
-  | Opposite (x,lc) -> raise (Internal_compiler_error "Cannot do opposite vectors yet!! ")
+  | Opposite _ -> raise (Internal_compiler_error "Cannot do opposite vectors yet!! ")
 
   | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
 
-  | Const (x,y,lc) ->raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a Const"))
+  | Const _ ->raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a Const"))
 
-  | AddrRef (x,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a AddrRef"))
+  | AddrRef _-> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a AddrRef"))
 
-  | VarRef (x,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VarRef"))
-  | VecRef (x,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VecRef"))
-  | Constvector (i1,d,ar,lc) ->
-    let num1 = try get_access_size (match i1 with Some i1 -> get_access_size i1 access_sizes with | Not_found -> raise (Internal_compiler_error "") | None -> 1) in
-    Constvector (i1, d, Array.map (fun (Const(d,x,lc)) -> let num1 = ((int_of_string x) * num1) in Const(d,(string_of_int num1),lc)),lc)
+  | VarRef _ -> raise (Ignore ((Reporting.get_line_and_column lc) ^ " erroroneously got a VarRef"))
+  | VecRef _ | Vector -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VecRef"))
+  | Constvector (i1,d,ar,lc) as s -> s
+    (* let num1 = try get_access_size_n (match i1 with Some i1 -> get_access_size_n i1 access_sizes with | Not_found -> raise (Internal_compiler_error "") | None -> 1) in *)
+    (* Constvector (i1, d, Array.map (fun (Const(d,x,lc)) -> let num1 = ((int_of_string x) * num1) in Const(d,(string_of_int num1),lc)),lc) *)
 
   let get_symbol_lc = function
     | Symbol(_,lc) -> lc
@@ -137,6 +138,31 @@ struct
   let get_typed_symbol = function
     | SimTypedSymbol (_,x,_) -> get_symbol x
     | ComTypedSymbol (_,x,_) -> get_addressed_symbol x
+
+  let rec get_updated_shuffle_mask counter sm consts pis = function
+    | h::t -> 
+      let donnes = List.map (fun pi -> update_const_vector pi h) pis in
+      let df = List.filter (fun x -> (x)) donnes in
+      if (List.length df > 1 ) then raise (Internal_compiler_error "");
+      let donne = else if List.length df = 1 then true else false in
+      (if donne then
+	  (* Multiply the const.(0) with all the consts in the array of sm *)
+	  let cont_val = match (List.nth counter consts) with | Const (_,x,_) -> (int_of_string x) in
+	  Array.map ( * const_val) (List.nth counter sm)
+       else sm) :: get_updated_shuffle_mask (counter+1) sm consts pis t
+    | [] -> []
+      
+  and rec update_const_vector pi = function
+    | Plus (x,y,_) | Minus (x,y,_) | Times (x,y,_)
+    | Pow (x,y,_) | Div (x,y,_) | Mod (x,y,_) 
+    | Rshift (x,y,_) | Lshift (x,y,_) -> get_used_indices pi x;  get_used_indices  pi y
+    | Const _ -> false
+    | Opposite (x,_) -> update_const_vector pi x
+    | Brackets (x,_) -> update_const_vector pi x
+    | VarRef (x,_) -> ((get_symbol x) = (get_symbol pi))
+    | _ -> raise (Internal_compiler_error "")
+
+
 
   let exists declarations s = 
     List.exists (fun x -> (get_typed_symbol x) = s ) declarations
@@ -274,114 +300,114 @@ struct
       let () = IFDEF DEBUG THEN print_endline (" GOT list length : " ^ (string_of_int (List.length ret))) ELSE () ENDIF in
       ret
 
-  let build_addressed_symbol_vec index symbol_table vstart vend vstride lc = function
-    | AddressedSymbol (x,_,y,lc) -> 
-      let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
-					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
-      if (List.length (check_index lc index (List.hd y)) <> 1) then 
-	raise (Error ((Reporting.get_line_and_column lc) ^ " cannot handle more/less than one indexing with same par index!!"));
-      let (index_to_convert,_) = (index_to_convert_to lc index) (List.hd y) in
-      let () = IFDEF DEBUG THEN print_endline ("Trying to convert index: " ^ (string_of_int index_to_convert)) ELSE () ENDIF in
-      (* First get the typed symbol from the symbol_table *)
-      let symbol =  try get symbol_table (get_symbol x) with | Not_found -> 
-	raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " var not found in symbol table")) in 
-      (* let access_size = (vend - vstart + 1)/vstride in *)
-      let access_size = get_access_size vstart vend vstride in
-      (* Get the size of the complex symbol *)
-      let com_list = 
-	(match symbol with 
-	  | ComTypedSymbol (_,x,_) -> 
-	    (match x with
-	      | AddressedSymbol (_,_,x,lc) ->
-		List.flatten (List.map (fun x -> 
-		  (match x with | BracDim x -> List.map (get_com_dims lc) x)) x))) in
-      (* Now make sure that all dimensions match *)
-      let () = IFDEF DEBUG THEN print_endline ((string_of_int (List.length com_list))) ELSE () ENDIF in
-      let dref_dims = (match (List.hd y) with | BracDim x -> List.length x) in
-      (* The first if statement checks that we are dereferencing the correct array dimensions *)
-      if dref_dims = List.length com_list then
-	if access_size <= (match (List.nth com_list index_to_convert)  with | Const (_,x,_) -> (int_of_string x) 
-	  | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " array indices not const"))) then
-	  let ce = ColonExpr (Const (DataTypes.Int32s, string_of_int vstart, lc),Const(DataTypes.Int32s, string_of_int vend, lc),
-			      Const(DataTypes.Int32s, string_of_int vstride, lc),lc) in
-	  let dl = match (List.hd y) with | BracDim x ->
-	    List.map (fun (DimSpecExpr x) -> if (get_index_to_conv lc index x) then DimSpecExpr ce else DimSpecExpr x) x in
-	  VecAddress (x, BracDim dl,lc)
-	else raise (Error ((Reporting.get_line_and_column lc) ^ " dereferencing more dimensions than the allowed size for the array!! "))
-      else raise (Error ((Reporting.get_line_and_column lc) ^ " iteration vector of the par loop does not fit into the size of the declared array for this dimension"))
+  (* let build_addressed_symbol_vec index symbol_table vstart vend vstride lc = function *)
+  (*   | AddressedSymbol (x,_,y,lc) ->  *)
+  (*     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart) *)
+  (* 					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in *)
+  (*     if (List.length (check_index lc index (List.hd y)) <> 1) then  *)
+  (* 	raise (Error ((Reporting.get_line_and_column lc) ^ " cannot handle more/less than one indexing with same par index!!")); *)
+  (*     let (index_to_convert,_) = (index_to_convert_to lc index) (List.hd y) in *)
+  (*     let () = IFDEF DEBUG THEN print_endline ("Trying to convert index: " ^ (string_of_int index_to_convert)) ELSE () ENDIF in *)
+  (*     (\* First get the typed symbol from the symbol_table *\) *)
+  (*     let symbol =  try get symbol_table (get_symbol x) with | Not_found ->  *)
+  (* 	raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " var not found in symbol table")) in  *)
+  (*     (\* let access_size = (vend - vstart + 1)/vstride in *\) *)
+  (*     let access_size = get_access_size vstart vend vstride in *)
+  (*     (\* Get the size of the complex symbol *\) *)
+  (*     let com_list =  *)
+  (* 	(match symbol with  *)
+  (* 	  | ComTypedSymbol (_,x,_) ->  *)
+  (* 	    (match x with *)
+  (* 	      | AddressedSymbol (_,_,x,lc) -> *)
+  (* 		List.flatten (List.map (fun x ->  *)
+  (* 		  (match x with | BracDim x -> List.map (get_com_dims lc) x)) x))) in *)
+  (*     (\* Now make sure that all dimensions match *\) *)
+  (*     let () = IFDEF DEBUG THEN print_endline ((string_of_int (List.length com_list))) ELSE () ENDIF in *)
+  (*     let dref_dims = (match (List.hd y) with | BracDim x -> List.length x) in *)
+  (*     (\* The first if statement checks that we are dereferencing the correct array dimensions *\) *)
+  (*     if dref_dims = List.length com_list then *)
+  (* 	if access_size <= (match (List.nth com_list index_to_convert)  with | Const (_,x,_) -> (int_of_string x)  *)
+  (* 	  | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " array indices not const"))) then *)
+  (* 	  let ce = ColonExpr (Const (DataTypes.Int32s, string_of_int vstart, lc),Const(DataTypes.Int32s, string_of_int vend, lc), *)
+  (* 			      Const(DataTypes.Int32s, string_of_int vstride, lc),lc) in *)
+  (* 	  let dl = match (List.hd y) with | BracDim x -> *)
+  (* 	    List.map (fun (DimSpecExpr x) -> if (get_index_to_conv lc index x) then DimSpecExpr ce else DimSpecExpr x) x in *)
+  (* 	  VecAddress (x, BracDim dl,lc) *)
+  (* 	else raise (Error ((Reporting.get_line_and_column lc) ^ " dereferencing more dimensions than the allowed size for the array!! ")) *)
+  (*     else raise (Error ((Reporting.get_line_and_column lc) ^ " iteration vector of the par loop does not fit into the size of the declared array for this dimension")) *)
 
-  let build_vecs index symbol_table vstart vend vstride lc = function
-    | AllAddressedSymbol x -> 
-      let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
-					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
-      AllVecSymbol (build_addressed_symbol_vec index symbol_table vstart vend vstride lc x)
-    | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got non addressed symbol assignment, currently this is not supported!!"))
+  (* let build_vecs index symbol_table vstart vend vstride lc = function *)
+  (*   | AllAddressedSymbol x ->  *)
+  (*     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart) *)
+  (* 					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in *)
+  (*     AllVecSymbol (build_addressed_symbol_vec index symbol_table vstart vend vstride lc x) *)
+  (*   | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got non addressed symbol assignment, currently this is not supported!!")) *)
 
   let build_counter_mask s e =  Array.init (e-s+1) (fun i -> i)
 
     
-  let rec build_vec_simexpr_1 index symbol_table vstart vend vstride lc = function
-    | Plus (x,y,lc) -> Plus (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
-    build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Minus (x,y,lc) -> Minus (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
-    build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Times (x,y,lc) -> Times (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
-    build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Div (x,y,lc) -> Div (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
-    build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Pow (x,y,lc) -> Pow (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
-    build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Mod (x,y,lc) -> Mod (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
-    build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Rshift (x,y,lc) -> Rshift (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
-    build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Lshift (x,y,lc) -> Lshift (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, 
-    build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Brackets (x,lc) -> Brackets (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, lc)
-    | Cast (x,y,lc) -> Cast (x,build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc)
-    | Opposite (x,lc) -> Opposite (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, lc)
-    | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
-    | Const (x,y,lc) ->
-      (* Special case expand the vector to the required size and give a const vector back!! *)
-      (* let size = (vend - vstart + 1)/vstride in  *)
-      let size = get_access_size vstart vend vstride in
-      let () = IFDEF DEBUG THEN print_endline ("Array size: " ^ (string_of_int size)) ELSE () ENDIF in
-      Constvector (x,(Array.init size (fun i -> Const (x,y,lc))),lc)
-    | AddrRef (x,lc) -> VecRef (build_addressed_symbol_vec index symbol_table vstart vend vstride lc x, lc)
-    | VarRef (x,lc) as s -> 
-      (* Induction variables can only be of type Int32s *)
-      if (get_symbol x) = (get_symbol index) then 
-	(* let size = (vend - vstart + 1)/vstride in *)
-	let size = get_access_size vstart vend vstride in
-	let counter = ref vstart in
-	let ar = Array.init size (fun i -> let ret = !counter in counter := !counter + vstride; ret) in
-	let ar = Array.map (fun x -> Const(DataTypes.Int32s, (string_of_int x), lc)) ar in
-	Constvector (DataTypes.Int32s, ar, lc)
-      else raise (Error ((Reporting.get_line_and_column lc) ^ "Not an induction loop: " ^ Dot.dot_simpleexpr s))
-    | VecRef _ | Constvector _ as s -> s
+  (* let rec build_vec_simexpr_1 index symbol_table vstart vend vstride lc = function *)
+  (*   | Plus (x,y,lc) -> Plus (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x,  *)
+  (*   build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Minus (x,y,lc) -> Minus (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x,  *)
+  (*   build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Times (x,y,lc) -> Times (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x,  *)
+  (*   build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Div (x,y,lc) -> Div (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x,  *)
+  (*   build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Pow (x,y,lc) -> Pow (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x,  *)
+  (*   build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Mod (x,y,lc) -> Mod (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x,  *)
+  (*   build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Rshift (x,y,lc) -> Rshift (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x,  *)
+  (*   build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Lshift (x,y,lc) -> Lshift (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x,  *)
+  (*   build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Brackets (x,lc) -> Brackets (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, lc) *)
+  (*   | Cast (x,y,lc) -> Cast (x,build_vec_simexpr_1 index symbol_table vstart vend vstride lc y, lc) *)
+  (*   | Opposite (x,lc) -> Opposite (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x, lc) *)
+  (*   | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr")) *)
+  (*   | Const (x,y,lc) -> *)
+  (*     (\* Special case expand the vector to the required size and give a const vector back!! *\) *)
+  (*     (\* let size = (vend - vstart + 1)/vstride in  *\) *)
+  (*     let size = get_access_size vstart vend vstride in *)
+  (*     let () = IFDEF DEBUG THEN print_endline ("Array size: " ^ (string_of_int size)) ELSE () ENDIF in *)
+  (*     Constvector (x,(Array.init size (fun i -> Const (x,y,lc))),lc) *)
+  (*   | AddrRef (x,lc) -> VecRef (build_addressed_symbol_vec index symbol_table vstart vend vstride lc x, lc) *)
+  (*   | VarRef (x,lc) as s ->  *)
+  (*     (\* Induction variables can only be of type Int32s *\) *)
+  (*     if (get_symbol x) = (get_symbol index) then  *)
+  (* 	(\* let size = (vend - vstart + 1)/vstride in *\) *)
+  (* 	let size = get_access_size vstart vend vstride in *)
+  (* 	let counter = ref vstart in *)
+  (* 	let ar = Array.init size (fun i -> let ret = !counter in counter := !counter + vstride; ret) in *)
+  (* 	let ar = Array.map (fun x -> Const(DataTypes.Int32s, (string_of_int x), lc)) ar in *)
+  (* 	Constvector (DataTypes.Int32s, ar, lc) *)
+  (*     else raise (Error ((Reporting.get_line_and_column lc) ^ "Not an induction loop: " ^ Dot.dot_simpleexpr s)) *)
+  (*   | VecRef _ | Constvector _ as s -> s *)
 
-  let build_vec_simexpr index symbol_table vstart vend vstride lc = function
-    | SimExpr x -> SimExpr (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x)
-    | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "trying to convert a non simple expression to vec type"))
+  (* let build_vec_simexpr index symbol_table vstart vend vstride lc = function *)
+  (*   | SimExpr x -> SimExpr (build_vec_simexpr_1 index symbol_table vstart vend vstride lc x) *)
+  (*   | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "trying to convert a non simple expression to vec type")) *)
 
-  let rec build_data_parallel_vectors index symbol_table vstart vend vstride = function
-    | Block (x,lc) -> Block (List.map (build_data_parallel_vectors index symbol_table vstart vend vstride) x, lc)
-    | Assign (x,y,lc) ->
-      (* Now start making the changes to the assign statement *)
-      let lvals = List.map (build_vecs index symbol_table vstart vend vstride lc) x in
-      let rvals = build_vec_simexpr index symbol_table vstart vend vstride lc y in
-      Assign (lvals,rvals,lc)
-    | Noop -> Noop
-    | _ as s -> raise (Internal_compiler_error (("Got erroneously: ") ^ (Dot.dot_stmt s)))
+  (* let rec build_data_parallel_vectors index symbol_table vstart vend vstride = function *)
+  (*   | Block (x,lc) -> Block (List.map (build_data_parallel_vectors index symbol_table vstart vend vstride) x, lc) *)
+  (*   | Assign (x,y,lc) -> *)
+  (*     (\* Now start making the changes to the assign statement *\) *)
+  (*     let lvals = List.map (build_vecs index symbol_table vstart vend vstride lc) x in *)
+  (*     let rvals = build_vec_simexpr index symbol_table vstart vend vstride lc y in *)
+  (*     Assign (lvals,rvals,lc) *)
+  (*   | Noop -> Noop *)
+  (*   | _ as s -> raise (Internal_compiler_error (("Got erroneously: ") ^ (Dot.dot_stmt s))) *)
 
-  let convert symbol_table = function
-    | Par (x,y,z,lc) -> 
-      (*First get the size of the vector *)
-      (* FIXME: This needs to be extended to affine strides and bounds!! *)
-      let (vstart,vend,vstride) = get_par_bounds y in
-      let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
-					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
-      (* Now build the internal data-parallel vectors *)
-      build_data_parallel_vectors x symbol_table vstart vend vstride z
-    | _ as s -> raise (Internal_compiler_error (" Cannot parallelize : " ^ (Dot.dot_stmt s)))
+  (* let convert symbol_table = function *)
+  (*   | Par (x,y,z,lc) ->  *)
+  (*     (\*First get the size of the vector *\) *)
+  (*     (\* FIXME: This needs to be extended to affine strides and bounds!! *\) *)
+  (*     let (vstart,vend,vstride) = get_par_bounds y in *)
+  (*     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart) *)
+  (* 					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in *)
+  (*     (\* Now build the internal data-parallel vectors *\) *)
+  (*     build_data_parallel_vectors x symbol_table vstart vend vstride z *)
+  (*   | _ as s -> raise (Internal_compiler_error (" Cannot parallelize : " ^ (Dot.dot_stmt s))) *)
 end 

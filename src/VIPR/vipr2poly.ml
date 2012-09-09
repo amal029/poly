@@ -137,9 +137,11 @@ and process_stmt = function
     (* 1.) We send a block back with a.) A comtyped symbol declaration
        b.) A vector assignment to this declaration *)
     let re = process_storage storage in
-    let rev = get_vec_declare re in
+    (* let rev = get_vec_declare re in *)
     let sev = get_const_vector expression in
-    Language.Language.Block ([ Language.Language.VarDecl (re,get_lc);Language.Language.Assign([rev],Language.Language.SimExpr sev,get_lc)],get_lc)
+    (* Language.Language.Block ([ Language.Language.VarDecl (re,get_lc);Language.Language.Assign([Language.Language.AllTypedSymbol re] *)
+    (* 												 ,Language.Language.SimExpr sev,get_lc)],get_lc) *)
+    Language.Language.Assign([Language.Language.AllTypedSymbol re],Language.Language.SimExpr sev,get_lc)
   | Block x -> Language.Language.Block ((List.map process_stmt x), get_lc)
   | Noop -> Language.Language.Noop
   | For (x,y,z,s1,s2) -> 

@@ -149,8 +149,8 @@ struct
     | ColonExpr of simpleExpr * simpleExpr * simpleExpr * (line * column)
     | Opposite of simpleExpr * (line * column)
     | Constvector of string option * DataTypes.t * simpleExpr array * (line * column)
-    | Vector of DataTypes.t * simpleExpr array * (line * column)
-    | VecRef of vecaddresssymbol * (line * column)
+    | Vector of DataTypes.t * simpleExpr * int * (line * column)
+    | VecRef of int array * vecaddresssymbol * (line * column)
   and addressedSymbol =
       AddressedSymbol of symbol * angledim list * dimspec list * (line * column)
   and vecaddresssymbol =
