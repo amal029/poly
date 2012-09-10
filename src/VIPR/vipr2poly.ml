@@ -88,13 +88,16 @@ let rec process_procedure = function
 
 and get_vec_declare = function
   | Language.Language.ComTypedSymbol (_,x,_) -> (match x with 
-      | Language.Language.AddressedSymbol (x,_,h::[],lc) -> Language.Language.AllVecSymbol (Language.Language.VecAddress (x,h,lc)))
+      | Language.Language.AddressedSymbol (x,_,h::[],lc) -> 
+	let epr = (match h with Language.Language.BracDim x -> 
+	  (match (List.hd x) with Language.Language.DimSpecExpr x -> x)) in
+	Language.Language.AllVecSymbol ([||], (Language.Language.VecAddress (x,[],[epr],lc))),lc)
   | _ -> raise (Internal_compiler_error "Tried to convert a non aggregate type to a vector type")
 
 (* In this function I am hoping that VIPR only contains const types!! *)
 and get_const_vector lt =
   let ctyp = parse_const_type (List.hd lt) in
-  Language.Language.Constvector (ctyp,Array.of_list (List.map (fun x -> Language.Language.Const (ctyp,x,get_lc)) lt),get_lc)
+  Language.Language.Constvector (None,ctyp,Array.of_list (List.map (fun x -> Language.Language.Const (ctyp,x,get_lc)) lt),get_lc)
 
 and get_loop_index = function
   | Language.Language.SimTypedSymbol (_,x,_) -> x 

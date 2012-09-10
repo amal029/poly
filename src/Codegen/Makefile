@@ -1,3 +1,4 @@
+BATTERIES=$(HOME)/batteries-included/_build/src
 COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
@@ -10,6 +11,7 @@ LANGLIB=language.cmxa
 LLVMLIB=llvm.cmxa llvm_executionengine.cmxa llvm_bitreader.cmxa
 ERRORLIB=error.cmxa
 DOTLIB=codegen.cmxa
+BATLIBBOPT=batteries.cmxa
 OCMLOPTS=-a
 OCMXALDEBUG=-g
 SRC=andrewxml.ml myLlvm.ml
@@ -24,8 +26,8 @@ backend.cmxa: check
 check: 
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
 	   $(XMLDIR) -I $(VECDIR) -I $(DOTDIR) -I $(LLVMDIR) -I $(ERRORDIR)		\
-	   $(DOTLIB) $(ERRORLIB) $(XMLLIB) $(LANGLIB) $(LLVMLIB)	\
-	  $(OCAMLDEBUG) -c $(SRC)
+	   -I $(BATTERIES) $(DOTLIB) $(ERRORLIB) $(XMLLIB) $(LANGLIB) $(LLVMLIB)	\
+	  $(BATLIBBOPT) $(OCAMLDEBUG) -c $(SRC)
 
 clean:
 	rm -rf *cm* *o *a *mli

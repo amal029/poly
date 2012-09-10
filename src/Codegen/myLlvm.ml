@@ -7,6 +7,8 @@ open Llvm_scalar_opts
 exception Error of string
 exception Internal_compiler_error of string
 
+module List = Batteries.List
+
 let context = global_context ()
 let the_module = create_module context "poly jit"
 let builder = builder context
@@ -72,7 +74,7 @@ let user_modules = ref []
 let get_symbol = function
   | Symbol (x,_) -> x
 let get_vec_symbol = function
-  | VecAddress (x,_,_) -> get_symbol x
+  | VecAddress (x,_,_,_) -> get_symbol x
 let get_addressed_symbol = function
   | AddressedSymbol (x,_,_,_) -> get_symbol x
 let get_typed_symbol = function
@@ -198,8 +200,8 @@ let rec get_simexpr_type declarations = function
   | Brackets (x,_) -> get_simexpr_type declarations x
   | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_typed_type x
   | AddrRef (x,_) -> let (x,_) = get declarations (get_addressed_symbol x) in get_typed_type x
-  | VecRef (x,_) -> let (x,_) = get declarations (get_vec_symbol x) in get_typed_type x
-  | Constvector (x,_,lc) -> get_data_types lc x
+  | VecRef (_,x,_) -> let (x,_) = get declarations (get_vec_symbol x) in get_typed_type x
+  | Constvector (_,x,_,lc) -> get_data_types lc x
   | _ -> raise (Internal_compiler_error ("Unsupported simple expr"))
 
 let rec get_exact_simexpr_type declarations = function
@@ -211,8 +213,8 @@ let rec get_exact_simexpr_type declarations = function
   | Brackets (x,_) -> get_exact_simexpr_type declarations x
   | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_exact_typed_type x
   | AddrRef (x,lc) -> let (x,_) = get declarations (get_addressed_symbol x) in get_exact_typed_type x
-  | VecRef (x,lc) -> let (x,_) = get declarations (get_vec_symbol x) in get_exact_typed_type x
-  | Constvector (x,_,_) -> x
+  | VecRef (_,x,lc) -> let (x,_) = get declarations (get_vec_symbol x) in get_exact_typed_type x
+  | Constvector (_,x,_,_) -> x
   | _ as s -> raise (Internal_compiler_error (("Unsupported simple expr") ^ Dot.dot_simpleexpr s))
 
 let derefence_pointer pointer =
@@ -381,29 +383,35 @@ let rec codegen_simexpr declarations = function
     let dll = List.filter (fun x -> (match x with Constvector _ -> false | _ -> true)) ll in
     let ce = List.filter (fun x -> (match x with Constvector _ -> true | _ -> false)) ll in
     (* Now make the address symbol *)
-    let vptr = 
+    let vptr =
       if dll <> [] then
-	let aptr = AddrRef (AddressedSymbol (name,[],[BracDim dll],lc),lc) in
+	let aptr = AddrRef (AddressedSymbol (name,[],[BracDim (List.map (fun x -> DimSpecExpr x) dll)],lc),lc) in
 		(* Now load the vector with the returned pointer *)
-	codegen_simexpr !declarations aptr
-      else match get !declarations (get_vec_symbol x) with | (_,x) -> x in
+	codegen_simexpr declarations aptr
+      else match get declarations (get_vec_symbol x) with | (_,x) -> x in
     let () = IFDEF DEBUG THEN dump_value vptr ELSE () ENDIF in
     (* Now build the shuffle mask *)
-    let (vptr,tot_size) =
-      if (List.length ce) = 1 then vptr 
+    let (vptr,vtyp) =
+      if (List.length ce) = 1 then 
+	let symbol = match get declarations (get_vec_symbol x) with | (x,_) -> x in
+	let dtype = (match symbol with ComTypedSymbol (dtype,_,_) -> dtype) in (vptr,dtype)
       else
-	let symbol = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
+	let symbol = match get declarations (get_vec_symbol x) with | (x,_) -> x in
 	(* Only the first elements, which are not being convereted into vector types *)
-	let indices_converted = List.drop (List.length dll) ll in
-	let (dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x) -> 
+	let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
+	let indices_converted = Array.to_list indices_converted in
+	let (ddtype, dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) -> 
 	  (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
 	    (* First we need to filter out the ones, which will be converted *)
-	    let to_calc = List.mapi (fun i (DimSpecExpr x) -> if (List.exists (= i) indices_converted) then x) x in
-	    (((get_llvm_primitive_type lc dtype) context)),(List.fold_right (fun (Const (_,x,_)) y -> (int_of_string x) * y) to_calc 1)))
+	    let to_calc = List.mapi (fun i (DimSpecExpr x) -> if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
+	    let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
+	    (dtype, (((get_llvm_primitive_type lc dtype) context)),
+	     (List.fold_right (fun (Const (_,x,_)) y -> (int_of_string x) * y) to_calc 1))))
 	  | _ -> raise (Internal_compiler_error "Not a comptyed symbol")) in 
-	((build_bitcast vptr (pointer_type (vector_type dtype tot_size))), tot_size) in
+	(build_bitcast vptr (pointer_type (vector_type dtype tot_size)) "bitcast" builder, ddtype) in
     let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of (derefence_pointer vptr))))) in
-    build_shufflevector (derefence_pointer vptr) uptl mask "shuff_vec" builder
+    build_shufflevector (derefence_pointer vptr) uptl 
+      (const_vector (Array.map (fun x -> const_int (i32_type context) x) mask)) "shuff_vec" builder
       
 
   (* Generating the const vector *)
@@ -416,27 +424,27 @@ let rec codegen_simexpr declarations = function
     const_vector ca
 
   | Vector (dt,sa,size,lc) -> 
-    let x = (match sa.(0) with VarRef (x,_) -> x | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Vector does not contain VarRef types!!"))
+    let x = (match sa with VarRef (x,_) -> x | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Vector does not contain VarRef types!!"))) in
     let (symbol,alloca) = get declarations (get_symbol x) in
-    let dt = (match symbol with SimTypedSymbol (x,_,_) -> x | _ -> raise (Error " Currently we do not support direct assignment to vector type when optimizing run witihtou -O3")) in
     (* derefrence the pointer to get the value *)
     let value = (derefence_pointer alloca) in
     (* build a new alloc of size <1 x type> vector *)
     let datatype = get_llvm_primitive_type lc dt in
     let datatype = vector_type (datatype context) 1 in
-    let datatype1 = vector_type (datatype context) 1 in
-    let one_vec_alloca = create_entry_block_alloca f ("__" ^ (get_symbol x)) datatype in
+    let one_vec_alloca = build_alloca datatype ("__" ^ (get_symbol x)) builder in
     (* build a new alloc of size <size x type> vector *)
-    let datatype = vector_type (datatype context) size in
-    let __RES = create_entry_block_alloca f ("__RES" ^ (get_symbol x)) datatype in
+    let datatype = vector_type ((get_llvm_primitive_type lc dt) context) size in
+    (* let __RES = build_alloca datatype ("__RES" ^ (get_symbol x)) builder in *)
     let __value = (derefence_pointer one_vec_alloca) in
     (* Insert the element value --> __value *)
     let __resvec = build_insertelement __value value (const_int (i32_type context) 0) "__resvec" builder in
     (* Now strech the vector to __RES with zeros *)
-    let udefvector = (undef datatype1) in
-    let __r1 = build_shufflevector __resvec undefvector (const_vector (Array.init (fun i -> (const_int (i32_type context) 0)))) "__r1" builder in
+    let undefvector = (undef datatype) in
+     build_shufflevector __resvec undefvector
+       (const_vector (Array.init size (fun i -> (const_int (i32_type context) 0)))) "__r1" builder
     (* Now just store the damn thing into the memory *)
-    build_store __r1 __RES builder
+    (* let _ = build_store __r1 __RES builder in *)
+    (* derefence_pointer __RES *)
 
 
   | TStar | TStarStar -> raise (Error "TStar and TStartStar currently not supported in LLVM IR generation")
@@ -734,33 +742,38 @@ let codegen_stmt f declarations = function
 
 	    | AllVecSymbol (mask,x) -> 
 	      (* FIXME: Make this go away later on!! *)
-	      let (name,ll,access_sizes) = (match x with VecAddress (x,access_sizes,ll,_) -> (x,ll)) in
+	      let (name,ll) = (match x with VecAddress (x,_,ll,_) -> (x,ll)) in
 	      let dll = List.filter (fun x -> (match x with Constvector _ -> false | _ -> true)) ll in
 	      let ce = List.filter (fun x -> (match x with Constvector _ -> true | _ -> false)) ll in
 	      (* Now make the address symbol *)
-	      let vptr = 
+	      let vptr =
 		if dll <> [] then
-		  let aptr = AddrRef (AddressedSymbol (name,[],[BracDim dll],lc),lc) in
+		  let aptr = AddrRef (AddressedSymbol (name,[],[BracDim (List.map (fun x -> DimSpecExpr x) dll)],lc),lc) in
 		(* Now load the vector with the returned pointer *)
 		codegen_simexpr !declarations aptr
 		else match get !declarations (get_vec_symbol x) with | (_,x) -> x in
 	      let () = IFDEF DEBUG THEN dump_value vptr ELSE () ENDIF in
 	      (* If there is only one ce then do not bitcast, else bitcast to total vector size *)
 	      let (vptr,tot_size) =
-		if (List.length ce) = 1 then vptr 
+		if (List.length ce) = 1 then (vptr,(vector_size (type_of vptr)))
 		else
 		  let symbol = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
 		  (* Only the first elements, which are not being convereted into vector types *)
-		  let indices_converted = List.drop (List.length dll) ll in
-		  let (dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x) -> 
+		  let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
+		  let indices_converted = Array.to_list indices_converted in
+		  let (dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) -> 
 		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
 			(* First we need to filter out the ones, which will be converted *)
-		      let to_calc = List.mapi (fun i (DimSpecExpr x) -> if (List.exists (= i) indices_converted) then x) x in
-		      (((get_llvm_primitive_type lc dtype) context)),(List.fold_right (fun (Const (_,x,_)) y -> (int_of_string x) * y) to_calc 1)))
+		      let to_calc = List.mapi (fun i (DimSpecExpr x) -> 
+			if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
+		      let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
+		      (((get_llvm_primitive_type lc dtype) context)),(List.fold_right 
+									(fun (Const (_,x,_)) y -> (int_of_string x) * y) to_calc 1)))
 		    | _ -> raise (Internal_compiler_error "Not a comptyed symbol")) in 
-		  ((build_bitcast vptr (pointer_type (vector_type dtype tot_size))), tot_size) in
+		  ((build_bitcast vptr (pointer_type (vector_type dtype tot_size)) "bitcast" builder), tot_size) in
 	      (* Now build the inverse shuffle mask *)
 	      let mask1 = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
+	      let first = mask in
 	      (* Now again shuffle with the complete length of the vector, but put rval first and then put *)
 	      let _ =
 		if Array.length mask1 <> 0 then
@@ -769,7 +782,8 @@ let codegen_stmt f declarations = function
 		  let vtpt = (derefence_pointer vptr) in
 		  let () = IFDEF DEBUG THEN dump_value vtpt ELSE () ENDIF in
 		  let dv = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
-		  let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
+		  let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) 
+		    | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
 		  let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vtpt)))) in
 		  let () = IFDEF DEBUG THEN dump_value uptl ELSE () ENDIF in
 		  let inver_s = build_shufflevector vtpt uptl mask "shuff_vec" builder in
@@ -778,8 +792,8 @@ let codegen_stmt f declarations = function
 		  (* These need to be changed look at loopCollapse *)
 		  let tot = Vectorization.Convert.build_counter_mask 0 tot_size in
 		  (* Second is the shuffle mask itself, it is the inverse of inverse double negative = positive *)
-		  let second = Vectorization.Convert.build_inverse_shuffle_mask tot mask in
-		  let mask = Vectorization.Convert.build_permute_mask tot mask second lc in
+		  let second = Vectorization.Convert.build_inverse_shuffle_mask tot first lc in
+		  let mask = Vectorization.Convert.build_permute_mask tot first second lc in
 		  let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
 		  let mask = const_vector (Array.map (codegen_simexpr !declarations) mask) in
 		  let () = IFDEF DEBUG THEN dump_value mask ELSE () ENDIF in
