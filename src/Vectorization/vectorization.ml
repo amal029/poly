@@ -17,11 +17,11 @@ struct
     let () = IFDEF DEBUG THEN print_endline ("Assign lvalue not AddressedSymbol or Vector Type") ELSE () ENDIF in ret
 
   let rec is_par_safe_to_convert = function
-    | Assign (y,x,_) -> 
+    | Assign (y,x,lc) -> 
       let ret = (not (is_fcall x)) && (not (is_typed_symbol y)) in
-      let () = IFDEF DEBUG THEN print_endline ("Assign can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
+      let () = IFDEF DEBUG THEN print_endline ("Assign at stmt "^ (Reporting.get_line_and_column lc) ^ "can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
       ret
-    | Block (x,_) -> 
+    | Block (x,lc) -> 
       let ret = List.fold_right (fun x y -> is_par_safe_to_convert x && y) x true in
       let () = IFDEF DEBUG THEN print_endline ("Block can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
       ret

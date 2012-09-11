@@ -106,7 +106,7 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc = 
 	  if (List.exists (fun x -> x = i) indices_converted) then x 
 	  else TStar) x in
 	let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
-	((List.fold_right (fun (Const (_,x,_)) y -> (int_of_string x) * y) to_calc 1),to_calc)))
+	(((List.fold_right (fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1),to_calc)))
       | _ -> raise (Internal_compiler_error "")) in
     (* First get the parent indices *)
     let to_calc = List.map (fun (Const(_,x,_)) -> (int_of_string x)) to_calc in
@@ -121,12 +121,17 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc = 
     (* Induction variables can only be of type Int32s (for now)!! *)
     if List.exists (fun i -> (get_symbol x) = (get_symbol i)) indices then
       let (index,_) = List.findi (fun i t -> (get_symbol t) = (get_symbol x)) indices in
+      let () = IFDEF DEBUG THEN print_endline ("Var ref index: " ^ (string_of_int index)) ELSE () ENDIF in
       let (vstart,vend,vstride) = List.nth limits index in
       (* This is your own repitition vector *)
       let my_size = get_access_size vstart vend vstride in
       (* Get the repitition vectors above you *)
-      let (plist, clist) = List.split_at index limits in
-      let plist = List.take (index-1) plist in
+      let () = IFDEF DEBUG THEN print_endline (get_symbol x) ELSE () ENDIF in
+      let (plist, clist) = List.split_at (index+1) limits in
+      let () = IFDEF DEBUG THEN print_endline ("Parent list size before take: " ^ (string_of_int (List.length plist))) ELSE () ENDIF in
+      let plist = List.take index plist in
+      let () = IFDEF DEBUG THEN print_endline ("Parent list size: " ^ (string_of_int (List.length plist))) ELSE () ENDIF in
+      let () = IFDEF DEBUG THEN print_endline ("Child list size: " ^ (string_of_int (List.length clist))) ELSE () ENDIF in
       let parent_size = 
 	if plist <> [] then
 	  List.fold_right(fun (vstart,vend,vstride) x -> (get_access_size vstart vend vstride) * x) plist 1 
@@ -171,7 +176,8 @@ and build_collapsed_addressed_symbol_vec indices limits symbol_table lc = functi
 let build_collapsed_vecs indices limits symbol_table lc = function
   | AllAddressedSymbol x ->
     let () = IFDEF DEBUG THEN List.iter (fun (vstart,vend,vstride) -> 
-      print_endline ("par bounds: (start:) " ^ (string_of_int vstart) ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride))) limits ELSE () ENDIF in
+      print_endline ("LVALUE par bounds: (start:) " 
+		     ^(string_of_int vstart) ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride))) limits ELSE () ENDIF in
     let vecad = build_collapsed_addressed_symbol_vec indices limits symbol_table lc x in
     let (access_sizes,dims) = (match vecad with | VecAddress (_,x,y,_) -> (x,y)) in
     let shuffle_mask = List.mapi (fun i x -> try (i,(calculate_shuffle_mask access_sizes lc x)) with | Ignore _ -> (i,x) | _ -> raise (Internal_compiler_error "")) dims in
@@ -179,21 +185,32 @@ let build_collapsed_vecs indices limits symbol_table lc = function
     (* First we need to get the integer variables from these *)
     let indices_converted = List.map (fun (x,_) -> x) shuffle_mask in
     let shuffle_mask = List.map (fun (_,Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) shuffle_mask in
+    let () = IFDEF DEBUG THEN print_endline "The shuffle_mask is: " ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN List.iter (fun x -> (Array.iter (fun x -> print_endline (string_of_int x)) x); print_endline "") shuffle_mask ELSE () ENDIF in
     let symbol = try get symbol_table (get_symbol (match x with | AddressedSymbol (x,_,_,_) -> x)) with 
       | Not_found -> raise (Internal_compiler_error "Symbol being dereferenced cannot be found in the table!") in
+    let () = IFDEF DEBUG THEN print_endline "Calculating the tot_size" ELSE () ENDIF in
     let (tot_size,to_calc) = (match symbol with ComTypedSymbol (_,x,_) -> 
       (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
 	(* First we need to filter out the ones, which will be converted *)
 	let to_calc = List.mapi (fun i (DimSpecExpr x) -> if (List.exists (fun x -> x = i) indices_converted) then x else TStar) x in
 	let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
-	((List.fold_right (fun (Const (_,x,_)) y -> (int_of_string x) * y) to_calc 1),to_calc)))
+	(((List.fold_right (fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1),to_calc)))
       | _ -> raise (Internal_compiler_error "")) in
     let to_calc = List.map (fun (Const(_,x,_)) -> (int_of_string x)) to_calc in
+    let () = IFDEF DEBUG THEN print_endline "The shuffle_mask is: " ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN print_endline (string_of_int (List.length shuffle_mask)) ELSE () ENDIF in
     let shuffle_mask = List.mapi (fun i x -> 
       let to_calc = List.drop (i+1) to_calc in
       let multiplicand = List.fold_right (fun x y -> x * y) to_calc 1 in
       Array.map (fun x -> x * multiplicand) x) shuffle_mask in
-    let shuffle_mask = List.reduce (Array.map2 (+)) shuffle_mask in
+    let () = IFDEF DEBUG THEN print_endline "The shuffle_mask after multplication is: " ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN print_endline ("Length: " ^ (string_of_int (List.length shuffle_mask))) ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN List.iter (fun x -> (Array.iter (fun x -> print_endline (string_of_int x) ) x)) shuffle_mask ELSE () ENDIF in
+    let rsm = Array.init (Array.length (List.hd shuffle_mask)) (fun i -> 0) in
+    let () = List.iter (fun x -> Array.iteri (fun i x -> rsm.(i) <- rsm.(i) + x) x) shuffle_mask in
+    let shuffle_mask = rsm in
+    let () = IFDEF DEBUG THEN print_endline ("tot_size: " ^ (string_of_int tot_size)) ELSE () ENDIF in
     let tot_mask = build_counter_mask 0 tot_size in
     let inv_mask = build_inverse_shuffle_mask tot_mask shuffle_mask lc in
     AllVecSymbol (inv_mask, vecad)

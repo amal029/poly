@@ -15,11 +15,6 @@ extern void p1 (int a, int* ret){
   fprintf(stdout,"Got a single value: %d\n",a);
   *ret = 1;
 }
-extern void p1 (int a, int* ret){
-
-  fprintf(stdout,"Got a single value: %d\n",a);
-  *ret = 1;
-}
 
 extern void p2 (int a, int b, int *ret){
   fprintf (stdout, "Got values: %d, %d\n", a, b);
@@ -35,7 +30,7 @@ extern void print_array (int size, int A[size], int *ret){
 }
 
 /* extern void print_array2 (int size, int *A, int *ret){ */
-extern void print_array2( int size, int s2, int* A , int *ret)
+extern void print_array2(int size, int s2, int* A , int *ret)
 {
   int i=0,j=0;
   for( i = 0; i<size; ++i ) {
