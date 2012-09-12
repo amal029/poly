@@ -51,7 +51,7 @@ try
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () = MyLlvm.compile !load_modules llvm_file cfg in ()
+	let () = MyLlvm.compile !vipr !load_modules llvm_file cfg in ()
       else ();
 
     else 
@@ -112,7 +112,7 @@ try
       else ();
       if !llvm then
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () = MyLlvm.compile !load_modules llvm_file cfgt in ()
+	let () = MyLlvm.compile !vipr !load_modules llvm_file cfgt in ()
       else ();
       if !decompile_flag then
 	let () = print_endline "....Decompiling to AST......" in

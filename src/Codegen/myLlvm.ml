@@ -1153,7 +1153,7 @@ let codegen_output_params the_function declarations input_size outputs =
 	let () = add_param_attr ai Attribute.Noalias in
 	add_to_declarations s ai declarations)) output_params
 
-let llvm_topnode = function
+let llvm_topnode vipr = function
   | Topnode (fcall,name,_,cfg_list) -> 
     let func_name = name ^ (string_of_int !func_name_counter) in
     (*Increment the func_name counter *)
@@ -1164,8 +1164,8 @@ let llvm_topnode = function
     (* You need to build the function prototype here *)
     let inputs = decompile_filter_params (List.nth cfg_list 0) in
     let outputs = decompile_filter_params (List.nth cfg_list 1) in
-    let the_function = (if name = "main" then
-      codegen_prototype name inputs outputs else codegen_prototype func_name inputs outputs) in
+    let the_function = 
+      (if name = "main" then codegen_prototype (if not vipr then name else ("__"^name)) inputs outputs else codegen_prototype func_name inputs outputs) in
     (* You need to build the function body here using the prototype you got before*)
     let bb = append_block context "entry" the_function in
     position_at_end bb builder;
@@ -1186,19 +1186,19 @@ let llvm_topnode = function
        | e -> delete_function the_function; raise e)
   | Null -> raise (Internal_compiler_error "Hit a Null fcall expression while producing llvm IR")
 
-let rec llvm_filter_node filename = function
+let rec llvm_filter_node vipr filename = function
   | Filternode (topnode, ll) -> 
-    let () = List.iter (fun x -> llvm_filter_node filename x) ll in 
-    let the_function = llvm_topnode topnode in
+    let () = List.iter (fun x -> llvm_filter_node vipr filename x) ll in 
+    let the_function = llvm_topnode vipr topnode in
     (match topnode with Topnode(_,n,_,_) ->
       if n = "main" then
-    	(* let () = dump_module the_module in *)
+    	let () = dump_module the_module in
     	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".bc") then ()
     	else raise (Error ("Could not write the llvm module to output.ll file")) in ()
       (* let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in () *)
       else ())
 
-let compile modules filename cfg = 
+let compile vipr modules filename cfg = 
   (* Set the modules that need to be loaded *)
   (* Try loading the memory buffer file *)
   (* Go through all the files and do it!!*)
@@ -1216,7 +1216,7 @@ let compile modules filename cfg =
   (*   | None -> raise (Internal_compiler_error ("Could not find function print, even after adding the module"))) ELSE () ENDIF in *)
   (* Set the user ssupported modules *)
   user_modules := modules;
-  let () = llvm_filter_node filename cfg in ()
+  let () = llvm_filter_node vipr filename cfg in ()
   (* (\* free the jit *\) *)
   (* Llvm_executionengine.ExecutionEngine.dispose exec_engine *)
 
