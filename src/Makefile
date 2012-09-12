@@ -9,9 +9,9 @@ compile:
 	$(MAKE) -C Abstract/ all
 	$(MAKE) -C Error/ all
 	$(MAKE) -C Parsing/ all
+	$(MAKE) -C backend/ all
 	$(MAKE) -C VIPR/ all
 	$(MAKE) -C Rewrites/ fcheck
-	$(MAKE) -C backend/ all
 	$(MAKE) -C Rewrites/ decompile
 	$(MAKE) -C Rewrites/ fcfg
 	$(MAKE) -C Optimization/ all

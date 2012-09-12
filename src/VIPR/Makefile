@@ -1,6 +1,7 @@
 LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
 ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 BATTERIES=$(HOME)/batteries-included/_build/src
+DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
 LANGLIB=language.cmxa
 ERRORLIB=error.cmxa
 BATLIBBOPT=batteries.cmxa
@@ -17,13 +18,13 @@ vipr.cmxa: check
 
 
 check:
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR) -I $(ERRORDIR) -c vipr.ml
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I $(ERRORDIR) -c vipr.ml
 	$(YACC) -v viprParser.mly
 	$(LEX) viprLexer.mll
 	$(CC) -c viprParser.mli
 	$(CC) -c viprLexer.ml
 	$(CC) -c viprParser.ml
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(BATTERIES) -I $(LANGDIR) -I $(ERRORDIR) -c vipr2poly.ml
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(DOTDIR) -I $(BATTERIES) -I $(LANGDIR) -I $(ERRORDIR) -c vipr2poly.ml
 
 
 clean:

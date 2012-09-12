@@ -1,7 +1,56 @@
 open Vipr
 module List = Batteries.List
+module Int = Batteries.Int
+module Float = Batteries.Float
 
 exception Internal_compiler_error of string
+
+let (lsd) x y = raise (Internal_compiler_error ("Hit lsd by mistake"))
+
+let get_value = function
+  | Language.Consts.VConst (_,x) -> x
+  | _ -> raise (Internal_compiler_error ("Value Top undefined or not supported by the native architecure"))
+
+let is_int_type = function
+  | Language.DataTypes.Int8
+  | Language.DataTypes.Int16
+  | Language.DataTypes.Int32
+  | Language.DataTypes.Int64
+  | Language.DataTypes.Int8s
+  | Language.DataTypes.Int16s
+  | Language.DataTypes.Int32s
+  | Language.DataTypes.Int64s -> true
+  | _ -> false
+
+let get_data_type lvalue rvalue = lvalue
+
+let get_data_type_float lvalue rvalue = lvalue
+
+let process lvalue rvalue func_int func_float = 
+  let ttype = (match lvalue with | Language.Consts.VConst(x,_) -> x | Language.Consts.Top x -> x) in
+  if ((match lvalue with | Language.Consts.VConst (_,_) -> true | _ -> false)  && (match rvalue with | Language.Consts.VConst (_,_) -> true | _ -> false)) then
+    if((match lvalue with | Language.Consts.VConst (x,_) -> is_int_type x
+      | _ -> false)  && 
+	  (match rvalue with | Language.Consts.VConst (x,_) ->  is_int_type x
+	    | _ -> false)) then
+      try 
+	let value = (func_int (int_of_string (get_value lvalue)) (int_of_string (get_value rvalue))) in
+	let dt = get_data_type (match lvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure "")) 
+	  (match rvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure "")) in
+	Language.Consts.VConst (dt, (string_of_int value))
+      with
+	| Failure _ -> raise (Internal_compiler_error 
+				(("Value " ^ ((get_value lvalue) ^" or ")) ^ (get_value rvalue ^ "undefined or not supported by the native architecure ")))
+    else
+      try
+	let dt = get_data_type_float (match lvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure "")) 
+	  (match rvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure "")) in
+	let value = (func_float (float_of_string (get_value lvalue)) (float_of_string (get_value rvalue))) in
+	Language.Consts.VConst (dt,(string_of_float value))
+      with
+	| Failure _ -> raise (Internal_compiler_error 
+				(("Value " ^ ((get_value lvalue) ^" or ")) ^ (get_value rvalue ^ "undefined or not supported by the native architecure ")))
+  else Language.Consts.Top ttype
 
 let counter = ref 1
 
@@ -9,6 +58,8 @@ let get_lc =
   counter := !counter + 1; (!counter, !counter)
 
 let process_symbol x = Language.Language.Symbol (x,get_lc)
+
+let get_symbol (Language.Language.Symbol (x,_)) = x
 
 let process_gt_of_types = function
   | Ground x -> x
@@ -122,9 +173,77 @@ and get_loop_end = function
   | Language.Language.And (x,_,_) | Language.Language.Or (x,_,_) 
   | Language.Language.Rackets (x,_) -> get_loop_end x
 
-and get_loop_stride = function
-  | Language.Language.Assign (_,x,_) -> (match x with | Language.Language.SimExpr x -> x 
-      | _ -> raise (Internal_compiler_error "Loop index cannot be incremented in a function"))
+(*FIXME: This evaluate_stride_expression assumes a lot of different
+  things, especially that everything is a constant *)
+and evaluate_stride_expression index start = function
+
+  | Language.Language.Plus (x,y,_) -> 
+    let l = evaluate_stride_expression index start x in
+    let r = evaluate_stride_expression index start y in
+    process l r Int.add Float.add
+
+  | Language.Language.Minus (x,y,_) -> 
+    let l = evaluate_stride_expression index start x in
+    let r = evaluate_stride_expression index start y in
+    process l r Int.sub Float.sub
+
+  | Language.Language.Times (x,y,_) -> 
+    let l = evaluate_stride_expression index start x in
+    let r = evaluate_stride_expression index start y in
+    process l r Int.mul Float.mul
+
+  | Language.Language.Div (x,y,lc) -> 
+    let l = evaluate_stride_expression index start x in
+    let r = evaluate_stride_expression index start y in
+    process l r Int.div Float.div
+
+  | Language.Language.Pow (x,y,lc) -> 
+    let l = evaluate_stride_expression index start x in
+    let r = evaluate_stride_expression index start y in
+    process l r Int.pow Float.pow
+
+  | Language.Language.Lshift (x,y,lc) -> 
+    let l = evaluate_stride_expression index start x in
+    let r = evaluate_stride_expression index start y in
+    let () = IFDEF DEBUG THEN print_endline "Carrying out LSHIFT" ELSE () ENDIF in
+    process l r (lsl) (lsd)
+
+  | Language.Language.Rshift (x,y,lc) -> 
+    let l = evaluate_stride_expression index start x in
+    let r = evaluate_stride_expression index start y in
+    let () = IFDEF DEBUG THEN print_endline "Carrying out RSHIFT" ELSE () ENDIF in
+    process l r (lsr) (lsd)
+
+  | Language.Language.Mod (x,y,lc) -> 
+    let l = evaluate_stride_expression index start x in
+    let r = evaluate_stride_expression index start y in
+    process l r Int.rem Float.modulo
+
+  | Language.Language.Brackets (x,lc) -> evaluate_stride_expression index start x
+
+  | Language.Language.Const (d,x,_) -> Language.Consts.VConst(d,x)
+
+  | Language.Language.Cast (d,x,_) -> 
+    let x = evaluate_stride_expression index start x in
+    (match x with 
+      | Language.Consts.VConst (_,x) -> Language.Consts.VConst (d,x)
+      | _ -> raise (Internal_compiler_error "Cannot cast a non const type"))
+      
+  | Language.Language.VarRef (x,_) -> if (get_symbol x) = (get_symbol index) then 
+      (match start with Language.Language.Const (d,x,_) -> Language.Consts.VConst (d,x)
+	| _ -> raise (Internal_compiler_error "Loop start type not a constant")) 
+    else raise (Internal_compiler_error "Currently all free variables in loop strides need to be loop induction variable only")
+
+  | _ -> raise (Internal_compiler_error "POLY DOES NOT SUPPORT ANYTHING ELSE")
+
+and get_loop_stride index start = function
+  | Language.Language.Assign (_,x,lc) -> 
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_expr x) ELSE () ENDIF in
+    let vconst_stride = evaluate_stride_expression index start (match x with | Language.Language.SimExpr x -> x 
+      | _ -> raise (Internal_compiler_error "Not function calls in stride calcs")) in
+    (match vconst_stride with
+      | Language.Consts.VConst (x,y) -> Language.Language.Const(x,y,lc)
+      | _ -> (match x with | Language.Language.SimExpr x -> x | _ -> raise (Internal_compiler_error "Loop expression cannot be incremented in a function type")))
   | _ -> raise (Internal_compiler_error " Currently poly only supports assignment to loop strides")
 
 and process_stmt = function
@@ -164,7 +283,7 @@ and process_stmt = function
     let e = process_rexpr z in
     let e = get_loop_end e in
     let str = process_stmt s1 in
-    let str = get_loop_stride str in
+    let str = get_loop_stride index start str in
     let body = process_stmt s2 in
     Language.Language.For (index,Language.Language.ColonExpr (start,e,str,get_lc), body,get_lc)
   | Par (x,y,z,s1,s2) ->
@@ -174,7 +293,7 @@ and process_stmt = function
     let e = process_rexpr z in
     let e = get_loop_end e in
     let str = process_stmt s1 in
-    let str = get_loop_stride str in
+    let str = get_loop_stride index start str in
     let body = process_stmt s2 in
     Language.Language.Par (index,Language.Language.ColonExpr (start,e,str,get_lc), body,get_lc)
   | CallFun (id,inputs,outputs) -> 

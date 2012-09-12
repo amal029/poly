@@ -13,7 +13,7 @@ all: build
 
 
 build: buildodot
-	$(CC) -a *.cmx -o codegen.cmxa
+	$(CC) -a stream_dot.cmx dot.cmx -o codegen.cmxa
 
 buildodot:
 	# $(CC) -I $(LANGDIR) -I $(ODOTDIR) -I $(TYPEINFERENCEDIR) -i dot.ml

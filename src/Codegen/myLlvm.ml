@@ -1192,7 +1192,7 @@ let rec llvm_filter_node filename = function
     let the_function = llvm_topnode topnode in
     (match topnode with Topnode(_,n,_,_) ->
       if n = "main" then
-    	let () = dump_module the_module in
+    	(* let () = dump_module the_module in *)
     	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".bc") then ()
     	else raise (Error ("Could not write the llvm module to output.ll file")) in ()
       (* let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in () *)
