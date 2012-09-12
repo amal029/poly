@@ -154,7 +154,7 @@ struct
   and addressedSymbol =
       AddressedSymbol of symbol * angledim list * dimspec list * (line * column)
   and vecaddresssymbol =
-      (* simpleExpr list is the list of constant arrays *)
+      (* simpleExpr list is the list of constant arrays or expression of const arrays *)
       VecAddress of symbol * (string * int) list * simpleExpr list * (line * column)
   and dimSpecExpr =
     | DimSpecExpr of simpleExpr

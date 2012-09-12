@@ -35,6 +35,7 @@ rule lexer = parse
   | "If" {ViprParser.If}
   | "Program" {ViprParser.Program}
   | "Ground" {ViprParser.Ground}
+  | "abs" {ViprParser.TAbs}
   | "Aggregate" {ViprParser.Aggregate}
   | "Tile" {ViprParser.Tile}
   | "LitTrue" {ViprParser.LitTrue}

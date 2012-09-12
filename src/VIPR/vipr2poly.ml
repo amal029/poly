@@ -18,6 +18,7 @@ let process_gt_of_types = function
 let process_dims_of = function
   | Ground _ -> raise (Internal_compiler_error ("A ground type does not have any dims"))
   | Aggregate (il,dt) -> Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const (dt, (string_of_int x), get_lc))) il)
+  (* This is wrong : FIXME *)
   | Tile (il,dt,yl) -> Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const (dt, (string_of_int x), get_lc))) (il@yl))
 
 let process_storage = function
@@ -27,7 +28,7 @@ let process_storage = function
   | Subarray (x,y,z,i) -> raise (Internal_compiler_error "Currently subarrays are not handled in poly, because poly does not know what subarrays really are?")
 
 let parse_const_type const = 
-  let r = Str.regexp_string "[0-9]+\.[0-9]+" in 
+  let r = Str.regexp_string "[0-9]+\\.[0-9]+" in 
   if Str.string_match r const 0 then Language.DataTypes.Float32 else Language.DataTypes.Int32s
 
 let rec process_index = function
@@ -63,6 +64,7 @@ and process_binop x y = function
   | MOD -> Language.Language.Mod (process_simexpr x, process_simexpr y, get_lc)
   | RSHIFT -> Language.Language.Rshift (process_simexpr x, process_simexpr y, get_lc)
   | LSHIFT -> Language.Language.Lshift (process_simexpr x, process_simexpr y, get_lc)
+  | ABS -> raise (Internal_compiler_error "ABS NOT SUPPORTED IN POLY")
   | _ -> raise (Internal_compiler_error " Mathematical operation tried without math operators")
 
 let r_process_op s1 s2 = function
@@ -90,18 +92,26 @@ and get_vec_declare = function
   | Language.Language.ComTypedSymbol (_,x,_) -> (match x with 
       | Language.Language.AddressedSymbol (x,_,h::[],lc) -> 
 	let epr = (match h with Language.Language.BracDim x -> 
-	  (match (List.hd x) with Language.Language.DimSpecExpr x -> x)) in
-	Language.Language.AllVecSymbol ([||], (Language.Language.VecAddress (x,[],[epr],lc))),lc)
+	  (* This can be a list of constants only!! *)
+	  let cmap = List.map (fun (Language.Language.DimSpecExpr x) -> 
+	    (match x with Language.Language.Const (_,v,_) -> (int_of_string v) | _ -> raise (Internal_compiler_error "Dimensions not of type const!!"))) x in
+	  let tot_size = List.fold_right (fun x y -> x*y) cmap 1 in
+	  (* Build the counter mask for storing stuff in *)
+	  let ar = Array.init (tot_size - 1) (fun i -> i) in 
+	  let ar = Array.map (fun x -> Language.Language.Const (Language.DataTypes.Int32s, (string_of_int x), lc)) ar in
+	  Language.Language.Constvector (None,Language.DataTypes.Int32s,ar,lc)) in
+	Language.Language.AllVecSymbol ([||], (Language.Language.VecAddress (x,[],[epr],lc))))
   | _ -> raise (Internal_compiler_error "Tried to convert a non aggregate type to a vector type")
 
 (* In this function I am hoping that VIPR only contains const types!! *)
 and get_const_vector lt =
   let ctyp = parse_const_type (List.hd lt) in
+  let () = IFDEF DEBUG THEN print_endline ("The type is: " ^ (Language.DataTypes.print_datatype ctyp)) ELSE () ENDIF in
   Language.Language.Constvector (None,ctyp,Array.of_list (List.map (fun x -> Language.Language.Const (ctyp,x,get_lc)) lt),get_lc)
 
 and get_loop_index = function
   | Language.Language.SimTypedSymbol (_,x,_) -> x 
-  | _ -> raise (Internal_compiler_error "For index not of var type")
+  | _ -> raise (Internal_compiler_error "For index not of simple variable type")
 
 and get_loop_end = function
   | Language.Language.EqualTo (_,x,_) -> x
@@ -140,11 +150,11 @@ and process_stmt = function
     (* 1.) We send a block back with a.) A comtyped symbol declaration
        b.) A vector assignment to this declaration *)
     let re = process_storage storage in
-    (* let rev = get_vec_declare re in *)
+    let rev = get_vec_declare re in
     let sev = get_const_vector expression in
-    (* Language.Language.Block ([ Language.Language.VarDecl (re,get_lc);Language.Language.Assign([Language.Language.AllTypedSymbol re] *)
-    (* 												 ,Language.Language.SimExpr sev,get_lc)],get_lc) *)
-    Language.Language.Assign([Language.Language.AllTypedSymbol re],Language.Language.SimExpr sev,get_lc)
+    Language.Language.Block ([Language.Language.VarDecl (re,get_lc);
+			       Language.Language.Assign([rev],Language.Language.SimExpr sev,get_lc)],get_lc)
+    (* Language.Language.Assign([Language.Language.AllTypedSymbol re],Language.Language.SimExpr sev,get_lc) *)
   | Block x -> Language.Language.Block ((List.map process_stmt x), get_lc)
   | Noop -> Language.Language.Noop
   | For (x,y,z,s1,s2) -> 
@@ -192,7 +202,10 @@ let process = function
   | Program x ->
     let f = List.filter (fun x -> (match x with DeclareEntry _ | DeclareFun _ -> true | _ -> false)) x in
     let fs = List.map (fun x -> (match x with 
-      | DeclareEntry x -> Language.Language.DefMain (process_procedure x, None, get_lc) 
+      | DeclareEntry x -> 
+	let proc = process_procedure x in
+	let proc = (match proc with Language.Language.Filter(x,y,z,t) -> Language.Language.Filter (Language.Language.Symbol ("main",get_lc),y,z,t)) in
+	Language.Language.DefMain (proc, None, get_lc) 
       | DeclareFun x -> Language.Language.Def (process_procedure x, None, get_lc)
       | _ -> raise (Internal_compiler_error "Could not filter procedures out!!"))) f in
     let s = List.filter (fun x -> (match x with DeclareEntry _ | DeclareFun _ -> false | _ -> true)) x in

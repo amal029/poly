@@ -39,7 +39,7 @@ let get_new_num_instr lc curr = function
     let stride = get_const_value s lc z in
     let start = get_const_value s lc x in
     let bound = get_const_value s lc y in
-    curr * (bound - start + 1) / stride 
+    curr * (((bound - start)/stride)+1)
   | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " loop expression not a colon-expression"))
 
 (* let set_edge_parent parent = function *)
@@ -282,15 +282,24 @@ and process_stmt declarations list filters num_instr num_vec = function
     let me = process_stmt declarations [] filters ni num_vec stmt in
     (* Replace the end of me *)
     replace_empty_actor child me 
-  | Par (x,y,stmt,lc) -> 
+  | Par (x,y,stmt,lc) as s -> 
     (* Here we do the exact same as the for stmt, but increment the num_vec instead *)
     let child = process_list declarations filters num_instr num_vec list in
     let give = if num_vec = 0 then 1 else num_vec in
     let nv = get_new_num_instr lc give y in
     let () = IFDEF DEBUG THEN print_endline ("Par: " ^ (string_of_int nv)) ELSE () ENDIF in
     let me = process_stmt declarations [] filters num_instr nv stmt in
-    (* Replace the end of me *)
     replace_empty_actor child me
+    (* The code below produces the graph, but the number of edges do not match: FIXME*)
+    (* let me = process_stmt declarations [] filters num_instr 1 stmt in *)
+    (* let mes = Array.init nv (fun i -> me) in *)
+    (* let mes = Array.to_list mes in *)
+    (* let join_edge = Edge (None, child) in *)
+    (* let myjoin = TaskJoin (s,num_instr,nv,join_edge) in *)
+    (* let mes = List.map (fun x -> replace_empty_actor myjoin x) mes in *)
+    (* let edge_list = List.map (fun x -> Edge (None, x)) mes in *)
+    (* let ret = TaskSplit (s,num_instr,nv,edge_list) in ret *)
+    (* Replace the end of me *)
   | Split (x,lc) as s -> 
     let child = process_list declarations filters num_instr num_vec list in
     let stmts = (match x with | Block (x,_) -> x | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " Split is not of Block type!!"))) in

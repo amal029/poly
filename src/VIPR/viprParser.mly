@@ -22,7 +22,7 @@
 /* Constant constructors */
 %token TPlus TMinus TTimes TDiv TPow TOP TCP TEqual TOB TCB TComma TLess TLessEqual TGreater TGreaterEqual TEqualEqual TMod
 %token And Or Where Quote If Program Ground Aggregate Tile LitTrue LitFalse StaticIndex DynamicIndex Array Variable Subarray
-%token TLbrack TRbrack TColon TCase TEof TLShift TRShift TVar StaticArrayRef DynamicArrayRef VariableRef Constant Ref
+%token TLbrack TRbrack TColon TCase TEof TLShift TRShift TVar StaticArrayRef DynamicArrayRef VariableRef Constant Ref TAbs
 %token TMain TIn TOut TOtherwise TPar TFor Binop Unop Brackets Cast RBinop RBrackets And Or Not Procedure Declare
 %token TInt8 TInt16 TInt32 TInt64 TInt8s TInt16s TInt32s TInt64s TFloat8 TFloat32 TFloat64 TFloat16 DeclareFun Assign
 %token TExtern TSplit DeclareEntry DeclareAndAssign DeclareArrayConst CallFun Block Noop Boolean None
@@ -50,11 +50,11 @@ statementlist:
 ;
 statement : 
     | TOP If rExpression statement statement TCP                              { Vipr.If ($3,$4,$5) }
-    | TFor storage expression rExpression statement statement { Vipr.For ($2,$3,$4,$5,$6) }
-    | TPar storage expression rExpression statement statement { Vipr.Par($2,$3,$4,$5,$6) }
+    | TOP TFor storage expression rExpression statement statement TCP { Vipr.For ($3,$4,$5,$6,$7) }
+    | TOP TPar storage expression rExpression statement statement TCP { Vipr.Par($3,$4,$5,$6,$7) }
     | TOP Declare storage TCP                                                 { Vipr.Declare $3 }
-    | DeclareFun proc { Vipr.DeclareFun $2 }
-    | DeclareEntry proc { Vipr.DeclareEntry $2 }
+    | TOP DeclareFun proc TCP { Vipr.DeclareFun $3 }
+    | TOP DeclareEntry proc TCP { Vipr.DeclareEntry $3 }
     | TOP Assign reference expression TCP                                     { Vipr.Assign ($3,$4) }
     | TOP DeclareAndAssign storage expression TCP                             { Vipr.DeclareAndAssign ($3,$4) }
     | TOP DeclareArrayConst storage TLbrack numList TRbrack TCP                       { Vipr.DeclareArrayConst ($3, $5) }
@@ -109,7 +109,7 @@ reference :
 ;
 
 storage : 
-    | Array literal typ { Vipr.Array ($2,$3) }
+    | TOP Array literal typ TCP { Vipr.Array ($3,$4) }
     | TOP Variable literal groundType TCP { Vipr.Variable ($3,$4) }
     | TOP Subarray literal typ typ index TCP                          { Vipr.Subarray ($3,$4,$5,$6) }
 ;
@@ -143,6 +143,7 @@ op:
     | Quote TGreater Quote {Vipr.GT}
     | Quote TRShift Quote {Vipr.RSHIFT}
     | Quote TLShift Quote {Vipr.LSHIFT}
+    | Quote TAbs Quote {Vipr.ABS}
 ;
 
 typ : 

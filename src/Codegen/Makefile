@@ -24,7 +24,7 @@ backend.cmxa: check
 	$(CC) -a *.cmx -o $@
 
 check: 
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(LANGDIR) -I	\
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\
 	   $(XMLDIR) -I $(VECDIR) -I $(DOTDIR) -I $(LLVMDIR) -I $(ERRORDIR)		\
 	   -I $(BATTERIES) $(DOTLIB) $(ERRORLIB) $(XMLLIB) $(LANGLIB) $(LLVMLIB)	\
 	  $(BATLIBBOPT) $(OCAMLDEBUG) -c $(SRC)

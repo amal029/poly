@@ -5,7 +5,7 @@ zeros2 out T[M][M] par i in 0:M-1 par j in 0:M-1 T[i][j] = 0
 ones out T[M] par i in 0:M-1:3 T[i] = 1
 
 read_set in R[M] out O[M] par i in 0:M-1:2 O[i] = R[i] + (i*i)
-read_set2 in R[M][N] out O[M][N] par i in 0:M-1 par j in 0:N-1 O[i][j] = R[i][j]
+read_set2 in R[M][N] out O[M][N] par i in 0:M-1 par j in 0:N-1 {O[i][j] = R[i][j] O[i][j] = R[i][j]}
 non1stride in R[M][N] out O[M][N] par i in 0:M-1 par j in 0:N-1:2 O[i][j] = R[i][j]+R[i][j]
 
 for_par out R[M][N] for i in 0:M-1 par j in 0:N-1 R[i][j] = 1

@@ -887,17 +887,17 @@ struct
 	    | VConst (x,y) -> Const(x,y,lc)
 	    | _ -> Div(lvalue,rvalue,lc))
 	| (Const(x,y,lc), (_ as s)) ->
-	  let () = print_endline "Converting div to mul" in
+	  (* let () = print_endline "Converting div to mul" in *)
 	  let one = VConst(x,"1") in
 	  (match (Constantpropogation.process one (VConst(x,y)) Int.div Float.div) with
 	      | VConst (x,y) -> Times (Const (x,y,lc), s, lc)
 	      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " error while converting fdiv to fmul")))
 	| ((_ as s),Const(x,y,lc)) ->
-	  let () = print_endline "Converting div to mul 2" in
+	  (* let () = print_endline "Converting div to mul 2" in *)
 	  let one = VConst(x,"1") in
 	  (match (Constantpropogation.process one (VConst(x,y)) Int.div Float.div) with
 	      | VConst (x,y) -> 
-		let () = print_endline ("Converting div to mul 2 val: " ^ y) in
+		(* let () = print_endline ("Converting div to mul 2 val: " ^ y) in *)
 		Times (s, Const (x,y,lc),lc)
 	      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " error while converting fdiv to fmul")))
 	| _ -> Div(lvalue,rvalue,lc))

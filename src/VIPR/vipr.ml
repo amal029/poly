@@ -21,6 +21,7 @@ type op =
   | RSHIFT
   | LSHIFT
   | OPP
+  | ABS
 
 type index =
   | StaticIndex of int list
