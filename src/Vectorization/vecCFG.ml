@@ -40,12 +40,16 @@ let rec make_stmt symbol_table list = function
     get_new_block my_end_node snode
       
   | For (x,y,z,lc) as s -> 
+    (* Add the loop induction variable to the symbol_table *)
+    let rsym = symbol_table in
+    symbol_table := (SimTypedSymbol (DataTypes.Int32s, x, lc)):: !symbol_table; 
     let node = make_block symbol_table list in (* This is where I continue to *)
     let enode = Endnode (s,node,1) in
     (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)
     let (vinit,vend,vstride,lcc) = (match y with | ColonExpr (x,y,z,l) -> (x,y,z,l) | _ -> failwith "Loop cannot have any, but colonExpr") in
     let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc), 
 			       (build_loop symbol_table vend vstride lc enode x z)) in
+    symbol_table := !rsym;
     Startnode (s, vinitode)
   | Par (x,y,z,lc) as s ->
     (* Par can be converted to a vector intruction possibly!! *)
@@ -102,7 +106,7 @@ let rec make_stmt symbol_table list = function
 	 *)
 	 let enode =  make_block symbol_table list in (* This is where I will continue to *)
 	 (* Check if your child is a par stmt, if it is then call yourself!! *)
-	 let (vec_block as s ) = LoopCollapse.convert symbol_table s in
+	 let (vec_block as s ) = LoopCollapse.convert !symbol_table s in
 	 let x = (match vec_block with | Block (x,_) -> x | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ " not of Block type"))) in
 	 let n = make_block symbol_table x in (* This is my own list *)
 	 let snode = Startnode (s,n) in
@@ -113,12 +117,15 @@ let rec make_stmt symbol_table list = function
        | Vectorization.Convert.Error e | Vectorization.Convert.Internal_compiler_error e -> 
 	 let () = print_endline ("Warning: not converting par statement " ^ (Dot.dot_stmt s) ^ " to a vector") in 
 	 let () = print_endline ("Because of :" ^ e) in
+	 let rsym = symbol_table in
+	 symbol_table := (SimTypedSymbol (DataTypes.Int32s, x, lc)):: !symbol_table; 
 	 let node = make_block symbol_table list in (* This is where I continue to *)
 	 let enode = Endnode (s,node,1) in
 	 (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)
 	 let (vinit,vend,vstride,lcc) = (match y with | ColonExpr (x,y,z,lc) -> (x,y,z,lc) | _ -> failwith "Loop cannot have any, but colonExpr") in
 	 let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc), 
 				    (build_loop symbol_table vend vstride lc enode x z)) in
+	 symbol_table := !rsym;
 	 Startnode (s, vinitode))
 
   | CaseDef (x,_) as s ->
@@ -183,7 +190,7 @@ let rec make_cfg r e = function
     let symbol_table = ref [] in
     let () = Vectorization.Convert.build_symbol_table symbol_table w in
     symbol_table := (y@z) @ !symbol_table;
-    let node = make_stmt !symbol_table [] w in
+    let node = make_stmt symbol_table [] w in
     Topnode (e, name, r, [inl;outl;node])
 and get_it lc = function
   | h :: t -> Squarenode (VarDecl (h,lc), get_it lc t)

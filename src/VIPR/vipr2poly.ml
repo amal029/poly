@@ -137,21 +137,19 @@ let rec process_rexpr = function
 
 
 let rec process_procedure = function
-  | Procedure (x,y,z,s) -> Language.Language.Filter (process_symbol x, List.map process_storage y, List.map process_storage z, process_stmt s)
+  | Procedure (x,y,z,s) -> Language.Language.Filter (process_symbol x, List.map process_storage y, List.map process_storage z, List.hd (process_stmt s))
 
 and get_vec_declare = function
   | Language.Language.ComTypedSymbol (_,x,_) -> (match x with 
-      | Language.Language.AddressedSymbol (x,_,h::[],lc) -> 
+      | Language.Language.AddressedSymbol (r,_,h::[],lc) -> 
+	let () = IFDEF DEBUG THEN print_endline ("The symbol is: " ^ (get_symbol r)) ELSE () ENDIF in
 	let epr = (match h with Language.Language.BracDim x -> 
 	  (* This can be a list of constants only!! *)
 	  let cmap = List.map (fun (Language.Language.DimSpecExpr x) -> 
 	    (match x with Language.Language.Const (_,v,_) -> (int_of_string v) | _ -> raise (Internal_compiler_error "Dimensions not of type const!!"))) x in
-	  let tot_size = List.fold_right (fun x y -> x*y) cmap 1 in
-	  (* Build the counter mask for storing stuff in *)
-	  let ar = Array.init (tot_size - 1) (fun i -> i) in 
-	  let ar = Array.map (fun x -> Language.Language.Const (Language.DataTypes.Int32s, (string_of_int x), lc)) ar in
-	  Language.Language.Constvector (None,Language.DataTypes.Int32s,ar,lc)) in
-	Language.Language.AllVecSymbol ([||], (Language.Language.VecAddress (x,[],[epr],lc))))
+	  let arl = List.map (fun x -> (Array.init (x - 1) (fun i -> Language.Language.Const (Language.DataTypes.Int32s, (string_of_int i),lc)))) cmap in 
+	  List.map (fun x -> Language.Language.Constvector (None,Language.DataTypes.Int32s,x,lc)) arl) in
+	Language.Language.AllVecSymbol ([||], (Language.Language.VecAddress (r,[],epr,lc))))
   | _ -> raise (Internal_compiler_error "Tried to convert a non aggregate type to a vector type")
 
 (* In this function I am hoping that VIPR only contains const types!! *)
@@ -248,54 +246,54 @@ and get_loop_stride index start = function
 
 and process_stmt = function
   | If (x,y,z) -> 
-    let clause = Language.Language.Clause (process_rexpr x, process_stmt y, get_lc) in
-    let otherwise = Language.Language.Otherwise (process_stmt z, get_lc) in
+    let clause = Language.Language.Clause (process_rexpr x, List.hd (process_stmt y), get_lc) in
+    let otherwise = Language.Language.Otherwise (List.hd (process_stmt z), get_lc) in
     let case = Language.Language.Case ([clause],otherwise,get_lc) in
-    Language.Language.CaseDef (case,get_lc)
-  | Declare x -> Language.Language.VarDecl (process_storage x, get_lc)
+    [Language.Language.CaseDef (case,get_lc)]
+  | Declare x -> [Language.Language.VarDecl (process_storage x, get_lc)]
   | Assign (x,expr) -> 
     let re = process_reference x in
     let re = (match re with | Language.Language.AddrRef (x,_) -> 
       Language.Language.AllAddressedSymbol x | Language.Language.VarRef (x,_) -> Language.Language.AllSymbol x 
       | _ -> raise (Internal_compiler_error "Cannot assign to const")) in
     let se = process_simexpr expr in
-    Language.Language.Assign ([re],Language.Language.SimExpr se,get_lc)
+    [Language.Language.Assign ([re],Language.Language.SimExpr se,get_lc)]
   | DeclareAndAssign (storage,expression) ->
     let re = process_storage storage in
     let ex = process_simexpr expression in
-    Language.Language.Assign ([Language.Language.AllTypedSymbol re], Language.Language.SimExpr ex,get_lc)
+    [Language.Language.Assign ([Language.Language.AllTypedSymbol re], Language.Language.SimExpr ex,get_lc)]
   | DeclareArrayConst (storage,expression) -> 
     (* Make this into a vector type *)
     (* 1.) We send a block back with a.) A comtyped symbol declaration
        b.) A vector assignment to this declaration *)
     let re = process_storage storage in
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_typed_symbol re) ELSE () ENDIF in
     let rev = get_vec_declare re in
     let sev = get_const_vector expression in
-    Language.Language.Block ([Language.Language.VarDecl (re,get_lc);
-			       Language.Language.Assign([rev],Language.Language.SimExpr sev,get_lc)],get_lc)
+    [Language.Language.VarDecl (re,get_lc);Language.Language.Assign([rev],Language.Language.SimExpr sev,get_lc)]
     (* Language.Language.Assign([Language.Language.AllTypedSymbol re],Language.Language.SimExpr sev,get_lc) *)
-  | Block x -> Language.Language.Block ((List.map process_stmt x), get_lc)
-  | Noop -> Language.Language.Noop
+  | Block x -> [Language.Language.Block (List.flatten (List.map process_stmt x), get_lc)]
+  | Noop -> [Language.Language.Noop]
   | For (x,y,z,s1,s2) -> 
     let index = process_storage x in
     let index = get_loop_index index in
     let start = process_simexpr y in
     let e = process_rexpr z in
     let e = get_loop_end e in
-    let str = process_stmt s1 in
+    let str = List.hd (process_stmt s1) in
     let str = get_loop_stride index start str in
-    let body = process_stmt s2 in
-    Language.Language.For (index,Language.Language.ColonExpr (start,e,str,get_lc), body,get_lc)
+    let body = List.hd (process_stmt s2) in
+    [Language.Language.For (index,Language.Language.ColonExpr (start,e,str,get_lc), body,get_lc)]
   | Par (x,y,z,s1,s2) ->
     let index = process_storage x in
     let index = get_loop_index index in
     let start = process_simexpr y in
     let e = process_rexpr z in
     let e = get_loop_end e in
-    let str = process_stmt s1 in
+    let str = List.hd (process_stmt s1) in
     let str = get_loop_stride index start str in
-    let body = process_stmt s2 in
-    Language.Language.Par (index,Language.Language.ColonExpr (start,e,str,get_lc), body,get_lc)
+    let body = List.hd (process_stmt s2) in
+    [Language.Language.Par (index,Language.Language.ColonExpr (start,e,str,get_lc), body,get_lc)]
   | CallFun (id,inputs,outputs) -> 
     let id = process_symbol id in
     (* Just check that none of them are things that I cannot consume *)
@@ -314,7 +312,7 @@ and process_stmt = function
       | Language.Language.VarRef (x,_) -> Language.Language.AllSymbol x 
       | _ -> raise (Internal_compiler_error " No other type but AddrRef and VarRef can be allocated in assign"))) outputs in
     let fc = Language.Language.Call (id,inputs,get_lc) in
-    Language.Language.Assign (outputs,Language.Language.FCall (fc,false), get_lc)
+    [Language.Language.Assign (outputs,Language.Language.FCall (fc,false), get_lc)]
   | _ -> raise (Internal_compiler_error "Filters can not be declared inside other filters!!")
 
 let process = function

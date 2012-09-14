@@ -63,6 +63,7 @@ let rec dot_simpleexpr = function
     let sm = Array.fold_right (fun x y -> (string_of_int x) ^ y) ar " " in
     sm ^ ("<" ^ get_vec_string x ^ ">")
   | Constvector (_,d,x,_) ->(("(" ^ DataTypes.print_datatype d) ^ ")") ^ "< " ^ (Array.fold_right (fun x y -> dot_simpleexpr x ^ "," ^ y) x "") ^ " >"
+  | Vector (d,x,l,_) ->"<" ^ (DataTypes.print_datatype d) ^ " " ^ (dot_simpleexpr x) ^ "(" ^ (string_of_int l) ^ ")>" 
 
 and get_addressed_string = function
   | AddressedSymbol (x,_,z,_) -> 

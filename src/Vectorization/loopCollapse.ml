@@ -149,7 +149,9 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc = 
       let ar = Array.map (fun x -> Const(DataTypes.Int32s, (string_of_int x), lc)) ar in
       Constvector (Some (get_symbol x), DataTypes.Int32s, ar, lc)
     (* Now we start taking care of scalars, which are tops as well *)
-    else if index_arg then raise (Internal_compiler_error " Index argument ")
+    else if index_arg then 
+      let () = IFDEF DEBUG THEN print_endline ("We are raising invaraint indexing error for index: " ^ (get_symbol x)) ELSE () ENDIF in
+      raise (Internal_compiler_error " Index argument ")
     else
       (* First get the definition of the variable *)
       (* We have assumed that this scalar is invariant in the loop *)
@@ -165,8 +167,18 @@ and build_collapsed_addressed_symbol_vec indices limits symbol_table lc = functi
     (* First attach yourself into array_inverse *)
     let yexpr = (match (List.hd (y)) with BracDim x -> x) in
     let converted = ref false in
-    let yexpr = List.map (fun (DimSpecExpr x) -> try let ret = build_collaped_vec_simexpr_1 true indices limits symbol_table lc x in converted := true; ret with 
-      | _ -> if !converted then raise (Error "Currently we do not support interchanged, but not transposed access to multi-dimensional Arrays") else x) yexpr in
+    let yexpr = List.map (fun (DimSpecExpr x) -> 
+      try 
+	let ret = build_collaped_vec_simexpr_1 true indices limits symbol_table lc x in 
+	converted := true; 
+	let () = IFDEF DEBUG THEN print_endline ("Converted is: " ^ (string_of_bool !converted)) ELSE () ENDIF in
+	ret 
+      with 
+	| _ -> 
+	  let () = IFDEF DEBUG THEN print_endline ("Converted is: " ^ (string_of_bool !converted)) ELSE () ENDIF in
+	  if !converted then raise (Error "Currently we do not support interchanged, but not transposed access to multi-dimensional Arrays") 
+	  else x) yexpr in
+    if not !converted then raise (Error "Cannot convert to vector type try -O4");
     let access_sizes = List.map2 (fun (x,y,z) v -> ((get_symbol v),(get_access_size x y z))) limits indices in
     let lone = match (List.nth access_sizes (List.length access_sizes - 1)) with | (x,_) -> x in
     let access_sizes = List.rev (List.tl (List.rev access_sizes)) in

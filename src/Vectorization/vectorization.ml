@@ -182,7 +182,8 @@ struct
     | Assign (x,_,lc) -> List.iter (fun x -> (match x with | AllTypedSymbol x -> symbol_table := x :: !symbol_table | _ -> ())) x
     | Block (x,_) -> List.iter (build_symbol_table symbol_table) x
     | CaseDef (x,lc) -> build_case_symbol_table symbol_table x
-    | For (_,_,x,_) | Par (_,_,x,_) | Split (x,_) -> build_symbol_table symbol_table x
+    | For (s,_,x,lc) | Par (s,_,x,lc) -> symbol_table := (SimTypedSymbol (DataTypes.Int32s, s, lc)):: !symbol_table; build_symbol_table symbol_table x
+    | Split (x,_) ->  build_symbol_table symbol_table x
     | Escape _ -> ()
     | Noop -> ()
   and build_case_symbol_table symbol_table = function

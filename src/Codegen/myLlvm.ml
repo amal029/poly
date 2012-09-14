@@ -430,25 +430,32 @@ let rec codegen_simexpr declarations = function
 	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got a const vector with non constants in them")))) sa in
     const_vector ca
 
-  | Vector (dt,sa,size,lc) -> 
+  | Vector (dt,sa,size,lc) as s -> 
+    let () = IFDEF DEBUG THEN print_endline "Building the Vector instruction" ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     let x = (match sa with VarRef (x,_) -> x | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Vector does not contain VarRef types!!"))) in
     let (symbol,alloca) = get declarations (get_symbol x) in
     (* derefrence the pointer to get the value *)
     let value = (derefence_pointer alloca) in
+    let () = IFDEF DEBUG THEN dump_value value ELSE () ENDIF in
     (* build a new alloc of size <1 x type> vector *)
     let datatype = get_llvm_primitive_type lc dt in
     let datatype = vector_type (datatype context) 1 in
+    let datatype1 = datatype in
     let one_vec_alloca = build_alloca datatype ("__" ^ (get_symbol x)) builder in
+    let () = IFDEF DEBUG THEN dump_value one_vec_alloca ELSE () ENDIF in
     (* build a new alloc of size <size x type> vector *)
     let datatype = vector_type ((get_llvm_primitive_type lc dt) context) size in
     (* let __RES = build_alloca datatype ("__RES" ^ (get_symbol x)) builder in *)
     let __value = (derefence_pointer one_vec_alloca) in
+    let () = IFDEF DEBUG THEN dump_value __value ELSE () ENDIF in
     (* Insert the element value --> __value *)
     let __resvec = build_insertelement __value value (const_int (i32_type context) 0) "__resvec" builder in
+    let () = IFDEF DEBUG THEN dump_value __resvec ELSE () ENDIF in
     (* Now strech the vector to __RES with zeros *)
-    let undefvector = (undef datatype) in
-     build_shufflevector __resvec undefvector
-       (const_vector (Array.init size (fun i -> (const_int (i32_type context) 0)))) "__r1" builder
+    let undefvector = (undef datatype1) in
+    let () = IFDEF DEBUG THEN dump_value undefvector ELSE () ENDIF in
+    build_shufflevector __resvec undefvector (const_vector (Array.init size (fun i -> (const_int (i32_type context) 0)))) "__r1" builder
     (* Now just store the damn thing into the memory *)
     (* let _ = build_store __r1 __RES builder in *)
     (* derefence_pointer __RES *)
@@ -769,7 +776,7 @@ let codegen_stmt f declarations = function
 	      (* If there is only one ce then do not bitcast, else bitcast to total vector size *)
 	      let () = IFDEF DEBUG THEN print_endline ("length of CE: " ^ (string_of_int (List.length ce))) ELSE () ENDIF in
 	      let (vptr,tot_size) =
-		if (List.length ce) = 1 then 
+		if (List.length ce) = 1 then
 		  let () = IFDEF DEBUG THEN print_endline "Trying to get the vector size" ELSE () ENDIF in
 		  let symbol = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
 		  let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
@@ -848,7 +855,7 @@ let codegen_stmt f declarations = function
 		      strech inver_s (vector_size (type_of inver_s)) (vector_size (type_of rval))  vtyp !declarations else inver_s in
 		  let resptr = build_shufflevector inver_s rval mask "shuff_vec" builder in
 		  build_store resptr vptr builder
-		else 
+		else
 		  (* Just store the whole rval in here!! *)
 		  (* FIXME: This will break in case of par i in 0:1 par j in 0:3 A[j] = 1 being vectorized*)
 		  let () = IFDEF DEBUG THEN print_endline "Storing the vector" ELSE () ENDIF in
