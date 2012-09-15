@@ -99,7 +99,8 @@ struct
   let infer_call_argument declarations = function
     | CallAddrressedArgument x -> 
       if (exists declarations (get_addressed_symbol x)) then
-	(get_typed_type (get declarations (get_addressed_symbol x)))
+	let typ = (get_typed_type (get declarations (get_addressed_symbol x))) in
+	let () = IFDEF DEBUG THEN print_endline (DataTypes.print_datatype typ) ELSE () ENDIF in typ
       else raise (Error ((Reporting.get_line_and_column (get_addressed_symbol_lc x)) ^ ("Variable " ^ (get_addressed_symbol x)) ^ " is unbound"))
     | CallSymbolArgument x -> 
       if (exists declarations (get_symbol x)) then
@@ -650,8 +651,8 @@ struct
     | AddressedSymbol (_,_,x,lc) -> get_brac_dim_list x
   let get_dim_param = function
     | SimTypedSymbol (_,_,_) -> []
-    | ComTypedSymbol (_,y,_) -> 
-      (* let () = print_endline ("getting dims from: " ^ (get_typed_symbol s)) in *)
+    | ComTypedSymbol (_,y,_) as s -> 
+      let () = print_endline ("getting dims from: " ^ (get_typed_symbol s)) in
       get_dims_2 y
   let rec get_dim_params = function
     | h::t -> 
@@ -661,7 +662,7 @@ struct
 
   let infer_filter = function
     | Filter (x,y,z,w) ->
-      let () = print_string (("Filter " ^ (get_symbol x)) ^ " : ") in
+      let () = print_string (("Filter: " ^ (get_symbol x)) ^ " : ") in
       (* If the declarations are Addr type then the dims are also vars that can be accessed *)
       let dim_decs = get_dim_params (y@z) in
       let declarations = ref ((y @ z) @ dim_decs) in
@@ -990,7 +991,11 @@ struct
 	  | AllSymbol x -> Simple.get_symbol x | AllTypedSymbol x -> Simple.get_typed_symbol x)) x in
 	let fvardecs = List.map (fun x -> Simple.get !declarations x) fvardecsyms in
 	(* Put the fvardecs and fargdecs in a hashmap *)
-	let () = Hashtbl.add fcall_map s (fargdecs@fvardecs) in s 
+	let () = IFDEF DEBUG THEN print_endline "ADDING TO HASHMAP" ELSE () ENDIF in
+	let () = IFDEF DEBUG THEN print_endline (Dot.dot_stmt s) ELSE () ENDIF in
+	let torep = (fvardecs@fargdecs) in
+	let () = IFDEF DEBUG THEN List.iter (fun x -> print_endline (Dot.dot_typed_symbol x)) torep ELSE () ENDIF in
+	let () = Hashtbl.add fcall_map s torep in s
     | Block (x,lc) as s ->
       let vcopy = !declarations in
       let _ = infer_stmt_list declarations x in
@@ -1081,6 +1086,7 @@ struct
     | Startnode (stmt,x) -> Startnode(stmt, (infer_cfg declarations x))
     (* We need to infer these stmts *)
     | Squarenode (stmt,x) ->
+      let () = IFDEF DEBUG THEN print_endline "Entering square node" ELSE () ENDIF in
       let () = IFDEF DEBUG THEN print_endline (Dot.dot_stmt stmt) ELSE () ENDIF in
       let s = (infer_stmt declarations stmt) in
       Squarenode(s,(infer_cfg declarations x))
@@ -1117,7 +1123,12 @@ struct
       let x = (match x with 
 	| VarDecl (x,_) as s ->
 	  (match x with 
-	    | SimTypedSymbol (x,y,lc) -> (match x with DataTypes.Poly _ -> VarDecl (SimTypedSymbol (t,y,lc),lc) | _ -> s)
+	    | SimTypedSymbol (x,y,lc) -> 
+	      let () = IFDEF DEBUG THEN print_endline "Trying to replace in function signature" ELSE () ENDIF in
+	      let () = IFDEF DEBUG THEN print_endline (Simple.get_symbol y) ELSE () ENDIF in
+	      (match x with DataTypes.Poly _ -> 
+		let () = IFDEF DEBUG THEN print_endline ("Replacing poly with : " ^ (DataTypes.print_datatype t)) ELSE () ENDIF in
+		VarDecl (SimTypedSymbol (t,y,lc),lc) | _ -> s)
 	    | ComTypedSymbol (x,y,lc) -> (match x with DataTypes.Poly _ -> VarDecl (ComTypedSymbol (t,y,lc),lc) | _ -> s))
 	| _ -> raise (Internal_compiler_error "Inputs/Outputs not of type VarDecl")) in
       Squarenode (x, replace_in_ou counter type_list y)
@@ -1141,7 +1152,7 @@ struct
 	     else raise (Internal_compiler_error ("Signature for filter " ^ t ^ " not found in the hashtbl"))) in
       (* Now replace the inputs and outputs with the correct primitive types *)
       let temp = List.rev y in
-      let y = replace_ins_outs (ref 0) filter_signature [(List.nth temp 0) ; (List.nth temp 1)] in
+      let y = replace_ins_outs (ref 0) (filter_signature) [(List.nth temp 0) ; (List.nth temp 1)] in
       (* Now put the cfg_stmts in the y list *)
       let y = y @ [(List.nth temp 2)] in
       (* let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) (List.rev y))) in *)

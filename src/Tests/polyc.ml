@@ -9,6 +9,7 @@ try
   let dot = ref false in
   let llvm = ref false in
   let graph_part = ref false in
+  let graph_tile = ref false in
   let load_modules = ref [] in
   let vectorize = ref false in
   let vipr = ref false in
@@ -17,6 +18,7 @@ try
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part, 
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
+		      ("-graph-tile", Arg.Set graph_tile, " Option with -graph-part, used to tile the loops");
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
 		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file <file>.ll");
 		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files (>= llvm-3.2)");
@@ -106,7 +108,11 @@ try
 	  let fcfgv = Fcfg.check_ast ast in
 	  (* Now call the vectorization function on this *)
 	  VecCFG.check_fcfg fcfgv
-	else cfgt in
+	else 
+	  (* let ast = DecompiletoAST.decompile cfgt in *)
+	  (* let fcfg = Fcfg.check_ast ast in *)
+	  (* Cfg.check_fcfg fcfg in  *)
+	  cfgt in
       if !dot then
 	let () = Dot.build_program_dot cfgt "output1/output1.dot" in ()
       else ();
@@ -125,11 +131,11 @@ try
 	let () = print_endline "......Graph part decompiling to AST....." in
 	let ast = DecompiletoAST.decompile cfgt in
 	let () = print_endline "....Producing the stream graph......" in
-	let (stream_graph,metis_graph,og) = MyStream.build_stream_graph ast in
+	let (stream_graph,metis_graph,og) = MyStream.build_stream_graph !graph_tile ast in
 	let () = print_endline "....Writing the metis graph file......" in
 	let () = MetisDriver.generate_metis_file "1" "011" (llvm_file ^ ".grf") metis_graph in
-	let () = MetisDriver.generate_metis_file "2" "011" (llvm_file ^ ".our.grf") og in
-	let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in ()
+	let () = MetisDriver.generate_metis_file "2" "011" (llvm_file ^ ".our.grf") og in ()
+	(* let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in () *)
       else ()
 
 with

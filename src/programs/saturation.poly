@@ -2,7 +2,7 @@ read_input_data out O[N][M] par i in 0:N-1 par j in 0:M-1 O[i,j] = (int8)0
 
 gray in yin out yout, uout, vout
 {
-  yout = (int8)yin
+  yout = yin
   uout = 128
   vout = 128
 }
@@ -82,7 +82,7 @@ out
     greyg[height][width],
     greyb[height][width]
 {
-  var greyy
+  int8 greyy
   var greyu
   var greyv
 
@@ -125,8 +125,8 @@ where (height%2==0 && width%2 == 0)
 
 main
 {
-    var height = 720
-    var width = 1280
+    var height = 1280
+    var width = 720
     int8 origy[height][width] = read_input_data()
     int8 origu[height/2][width/2] = read_input_data()
     int8 origv[height/2][width/2] = read_input_data()
@@ -134,5 +134,5 @@ main
     int8 satu[(height/2)][(width/2)] = read_input_data()
     int8 satv[(height/2)][(width/2)] = read_input_data()
       
-    (saty, satu, satv) = ENTER (origy,origu,origv) 
+    (saty, satu, satv) = ENTER (origy,origu,origv)
 }

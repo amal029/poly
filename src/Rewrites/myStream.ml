@@ -24,6 +24,9 @@ open StreamGraph
 exception Error of string
 exception Internal_compiler_error of string
 
+let graph_tile = ref false
+let counter = ref 0
+
 (* Currently the simple expressions in a loop are considered constant *)
 let rec get_const_value s lc = function
   | Const (_,x,_) -> int_of_string x
@@ -72,6 +75,56 @@ let rec debug = function
   | TaskSplit (x,y,z,c) -> print_endline ("Task split: " ^ (Dot.dot_stmt x)); List.iter (fun x -> debug (get_edge_child x)) c
   | TaskJoin (x,y,z,c) -> print_endline ("Task Join: " ^ (Dot.dot_stmt x)); debug (get_edge_child c)
   | EmptyActor -> print_endline "Empty actor"
+
+let change_stmt_location i = function
+  | Assign (x,y,(l,c)) -> Assign (x,y,(l, (c+i)))
+  | Split (x,(l,c)) -> Split (x,(l, (c+i)))
+  | Par (x,y,z,(l,c)) -> Par (x,y,z,(l, (c+i)))
+  | Noop -> Escape ("",(i,i))
+  | Escape (y,(l,c)) -> Escape (y,(l, (c+i)))
+  | CaseDef (x,(l,c)) -> CaseDef (x,(l, (c+i)))
+  | _ -> raise (Internal_compiler_error "Incorrect type of stmt when replacing Par stmt columns")
+
+let change_typed_symbol i = function
+  | SimTypedSymbol (x,y,(l,c)) -> SimTypedSymbol (x,y,(l,(c+i)))
+  | ComTypedSymbol (x,y,(l,c)) -> ComTypedSymbol (x,y,(l,(c+i)))
+
+
+let rec replace_stmt = function
+
+  | Store (t,x) ->
+    counter := !counter + 1;
+    let t = change_typed_symbol !counter t in
+    let children = List.map(fun x -> replace_stmt (get_edge_child x)) x in
+    let weights = List.map (fun x -> get_edge_weight x) x in
+    let edges = List.map2 (fun w c -> Edge (w, c)) weights children in
+    Store (t,edges)
+
+  | Seq (x,y,z,c) -> 
+    counter := !counter + 1;
+    let x = change_stmt_location !counter x in
+    let weight = get_edge_weight c in
+    let c2 = replace_stmt (get_edge_child c) in
+    let edge = Edge (weight, c2) in
+    let ret = Seq (x,y,z,edge) in (* set_edge_parent ret edge; *) ret
+
+  | TaskSplit (x,y,z,c) ->
+    counter := !counter + 1;
+    let x = change_stmt_location !counter x in
+    let children = List.map(fun x -> replace_stmt (get_edge_child x)) c in
+    let weights = List.map (fun x -> get_edge_weight x) c in
+    let edges = List.map2 (fun w c -> Edge (w, c)) weights children in
+    let ret = TaskSplit(x,y,z,edges) in ret
+
+  | TaskJoin (x,y,z,c) -> 
+    counter := !counter + 1;
+    let x = change_stmt_location !counter x in
+    let weight = get_edge_weight c in
+    let c2 = replace_stmt (get_edge_child c) in
+    let edge = Edge (weight, c2) in
+    let ret = TaskJoin(x,y,z,edge) in (* set_edge_parent ret edge; *) ret
+
+  | EmptyActor as s -> s
 
 let rec replace_empty_actor child = function
   | Store (t,x) -> 
@@ -219,6 +272,7 @@ let rec process_filter filters num_instr num_vec = function
     let ret = TaskSplit (stmt,0,0,edges) in ret
 
 and process_stmt declarations list filters num_instr num_vec = function
+
   | Assign (sts,x,lc) as s ->
     (* Here we need to check if a call is being made to a different filter!! *)
     (* Get all the declaration types *)
@@ -242,14 +296,17 @@ and process_stmt declarations list filters num_instr num_vec = function
 	     raise (Error ((Reporting.get_line_and_column lc) ^ " filter named:" ^ get_symbol fname ^ " is unbound!!")))
       | _ -> let edge = Edge (None, child) in let ret = Seq (s,num_instr,num_vec,edge) (* let () = set_edge_parent ret edge *) in ret)
   (* Need to take care of vardecl --> make it into a store node later on !! *)
+
   | VarDecl (x,_) -> 
     declarations := !declarations @ [x];
     process_list declarations filters num_instr num_vec list
+
   | Escape _ | Noop as s ->
     let child = process_list declarations filters num_instr num_vec list in
     let edge = Edge (None, child) in
     let ret = Seq (s,num_instr,num_vec,edge) in ret
     (* let () = set_edge_parent ret edge in ret *)
+
   | CaseDef (x,lc) as s -> 
   (* Build a task parallel actor, because every branch of if-else is
      separate of each other*)
@@ -267,11 +324,13 @@ and process_stmt declarations list filters num_instr num_vec = function
     (* let () = List.iter (fun x -> set_edge_parent ret x) edge_list in  *)
     let () = IFDEF DEBUG THEN debug ret; print_endline "NEXT 3" ELSE () ENDIF in
     ret
+
   | Block (x,lc) -> 
     (* Every block needs to be done separately *)
     let child = process_list declarations filters num_instr num_vec list in
     let me = process_list declarations filters num_instr num_vec x in
     replace_empty_actor child me
+
   | For (x,y,stmt,lc) -> 
     (* A for loop only increments num_instr *)
     (* FIXME: for now we consider the loop bounds to be constants, but
@@ -282,24 +341,28 @@ and process_stmt declarations list filters num_instr num_vec = function
     let me = process_stmt declarations [] filters ni num_vec stmt in
     (* Replace the end of me *)
     replace_empty_actor child me 
+
   | Par (x,y,stmt,lc) as s -> 
     (* Here we do the exact same as the for stmt, but increment the num_vec instead *)
     let child = process_list declarations filters num_instr num_vec list in
     let give = if num_vec = 0 then 1 else num_vec in
     let nv = get_new_num_instr lc give y in
-    let () = IFDEF DEBUG THEN print_endline ("Par: " ^ (string_of_int nv)) ELSE () ENDIF in
-    let me = process_stmt declarations [] filters num_instr nv stmt in
-    replace_empty_actor child me
+    if not !graph_tile then
+      let () = IFDEF DEBUG THEN print_endline ("Par: " ^ (string_of_int nv)) ELSE () ENDIF in
+      let me = process_stmt declarations [] filters num_instr nv stmt in
+      replace_empty_actor child me
+    else
     (* The code below produces the graph, but the number of edges do not match: FIXME*)
-    (* let me = process_stmt declarations [] filters num_instr 1 stmt in *)
-    (* let mes = Array.init nv (fun i -> me) in *)
-    (* let mes = Array.to_list mes in *)
-    (* let join_edge = Edge (None, child) in *)
-    (* let myjoin = TaskJoin (s,num_instr,nv,join_edge) in *)
-    (* let mes = List.map (fun x -> replace_empty_actor myjoin x) mes in *)
-    (* let edge_list = List.map (fun x -> Edge (None, x)) mes in *)
-    (* let ret = TaskSplit (s,num_instr,nv,edge_list) in ret *)
-    (* Replace the end of me *)
+      let () = IFDEF DEBUG THEN print_endline "Making tiled graph" ELSE () ENDIF in
+      let mes = Array.init nv (fun i -> process_stmt declarations [] filters num_instr give stmt) in
+      let mes = Array.map replace_stmt mes in
+      let mes = Array.to_list mes in
+      let join_edge = Edge (None, child) in
+      let myjoin = TaskJoin (s,0,0,join_edge) in
+      let mes = List.map (fun x -> replace_empty_actor myjoin x) mes in
+      let edge_list = List.map (fun x -> Edge (None, x)) mes in
+      let ret = TaskSplit (s,0,0,edge_list) in ret
+
   | Split (x,lc) as s -> 
     let child = process_list declarations filters num_instr num_vec list in
     let stmts = (match x with | Block (x,_) -> x | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " Split is not of Block type!!"))) in
@@ -320,7 +383,7 @@ let rec process_main filters = function
   | DefMain (x,y,lc) -> process_filter filters 1 0 x
 
 let rec convert_to_our_metis_graph = function
-  | TaskSplit (x,y,z,r) -> 
+  | TaskSplit (x,y,z,r) ->
     (* let z = if z = 0 then 1 else z in *)
     Metis.Split ((Dot.dot_stmt x), [y;z], List.map (fun x -> convert_to_our_metis_graph_edge x) r)
   | EmptyActor -> Metis.Empty
@@ -350,8 +413,10 @@ and convert_to_metis_graph_edge = function
   | Edge (w,x) -> Metis.Edge (w, convert_to_metis_graph x)
 
 
-let build_stream_graph = function
-  | Program x -> 
+let build_stream_graph gt = function
+  | Program x ->
+    graph_tile := gt;
+    counter := 0;
     (* First collect all the filters defined in the program *)
     let filters = List.find_all (fun x -> (match x with Def _ -> true | _ -> false)) x in
     let filters = List.map (fun x -> (match x with | Def (x,_,_) -> x)) filters in

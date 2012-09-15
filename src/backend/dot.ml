@@ -17,8 +17,8 @@ let get_addressed_symbol = function
   | AddressedSymbol (x,_,_,_) -> get_symbol x
 
 let get_typed_symbol = function
-  | SimTypedSymbol (_,x,_) -> get_symbol x
-  | ComTypedSymbol (_,x,_) -> get_addressed_symbol x
+  | SimTypedSymbol (_,x,(l,c)) -> get_symbol x ^ ":" ^ (string_of_int l) ^ "," ^ (string_of_int c)
+  | ComTypedSymbol (_,x,(l,c)) -> get_addressed_symbol x ^ ":" ^ (string_of_int l) ^ "," ^ (string_of_int c)
     
 let rec dot_simpleexpr = function
   | TStar -> "*"
@@ -119,30 +119,33 @@ let dot_expr = function
   | FCall (x,extern) -> let t = dot_filtercall x in if extern then ("extern" ^ t) else t
 
 let rec dot_stmt = function
-  | Assign (x,y,_) -> 
+  | Assign (x,y,(l,c)) -> 
     let rvalue = (dot_expr y) in
     let lvalue = (( "(" ^ (dot_allsym_list x)) ^ ")") in
-    (lvalue ^ " = " ) ^ rvalue
+    (* FIXME: I am attaching this to the required nodes for graph-part
+       to work correctly, with tiling, but this should be moved into its
+       own function *)
+    (lvalue ^ " = " ) ^ rvalue ^ ":" ^ (string_of_int l) ^"," ^ (string_of_int c)
   | VarDecl (x,_) -> (dot_typed_symbol x)
-  | Block (x,_) -> 
+  | Block (x,(l,c)) -> 
     let ll = List.map (fun x -> dot_stmt x) x in
     let tot = ref "" in
     let () = (List.iter (fun x -> tot := ((!tot ^ x)) ) ll ) in
-    (("{" ^  !tot) ^ "}")
-  | Escape (x,_) -> x
+    "{" ^  !tot ^ "}" ^ ":" ^ (string_of_int l) ^"," ^ (string_of_int c)
+  | Escape (x,(l,c)) -> x ^ ":" ^ (string_of_int l) ^"," ^ (string_of_int c)
   | Noop -> "Noop"
-  | For (x,y,z,_) -> 
+  | For (x,y,z,(l,c)) -> 
     let e1 = get_symbol x in
     let e2 = dot_simpleexpr y in
     let e3 = dot_stmt z in
-    (" For ") ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
-  | Par (x,y,z,_) -> 
+    (" For ") ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3) ^ ":" ^ (string_of_int l) ^"," ^ (string_of_int c)
+  | Par (x,y,z,(l,c)) -> 
     let e1 = get_symbol x in
     let e2 = dot_simpleexpr y in
     let e3 = dot_stmt z in
-    " Par " ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3)
-  | CaseDef (x,_) -> "CaseDef" ^ dot_case x
-  | Split (x,_) -> "Split " ^ dot_stmt x
+    " Par " ^ (e1 ^ " " ) ^ (e2 ^ " ") ^ (e3) ^ ":" ^ (string_of_int l) ^"," ^ (string_of_int c)
+  | CaseDef (x,(l,c)) -> "CaseDef" ^ dot_case x ^ (string_of_int l) ^ (string_of_int c)
+  | Split (x,(l,c)) -> "Split " ^ dot_stmt x ^ ":" ^ (string_of_int l) ^"," ^ (string_of_int c)
 
 and dot_case = function
   | Case (x,o,_) -> List.fold_right (fun x y -> dot_caseclause x ^ y) x (dot_otherwise o)

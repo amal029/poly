@@ -51,11 +51,11 @@ let _ =  PassManager.initialize the_fpm
 
 let target_data = 
 Llvm_target.TargetData.create
-"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:128-s0:64:64-f80:128:128-n8:16:32:64"
+"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 (* Set the target triple *)
 let () = set_target_triple "x86_64-apple-darwin10.0.0" the_module 
 let () = set_data_layout
-"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:128-s0:64:64-f80:128:128-n8:16:32:64" 
+"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" 
   the_module
 
 let fcall_names = Hashtbl.create 10
@@ -189,7 +189,7 @@ let get_llvm_primitive_type lc = function
   | DataTypes.Float16 
   | DataTypes.Float32 -> float_type
   | DataTypes.Float64 -> double_type
-  | _ -> raise (Error ((Reporting.get_line_and_column lc) ^ "DataType cannot be supported in llvm IR"))
+  | _ as s -> raise (Error ((Reporting.get_line_and_column lc) ^(DataTypes.print_datatype s) ^ " DataType cannot be supported in llvm IR"))
 
 let rec get_simexpr_type declarations = function
   | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) | Lshift(x,_,_) | Rshift(x,_,_)
@@ -426,7 +426,7 @@ let rec codegen_simexpr declarations = function
     let () = IFDEF DEBUG THEN print_endline ("Constvector Vector size: " ^ (string_of_int (Array.length sa))) ELSE () ENDIF in
     let ca = Array.map (fun x -> 
       (match x with 
-	| Const (x,y,lc) as s -> codegen_simexpr declarations s
+	| Const (x,y,lc) as s -> codegen_simexpr declarations (Const (dt,y,lc))
 	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got a const vector with non constants in them")))) sa in
     const_vector ca
 
@@ -639,7 +639,7 @@ let codegen_callargs defmore lc declarations = function
       if (List.length !actual_dims) = 0 then build_load pointer "pointercall" builder
       else pointer
 
-let codegen_fcall lc declarations = function
+let codegen_fcall stmt lc declarations = function
   | FCall (x,e) ->
     (* First lookup the name of the function *)
     let (name,args,lc) =
@@ -648,7 +648,8 @@ let codegen_fcall lc declarations = function
 	  | Call (name,y,lc) -> 
 	    (* lookup name in fcall_names Hashtbl *)
 	    try
-	      ((Hashtbl.find fcall_names (get_symbol name)),y,lc)
+	      (* ((Hashtbl.find fcall_names (get_symbol name)),y,lc) *)
+	      ((Hashtbl.find fcall_names stmt),y,lc)
 	    with 
 	      | Not_found -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ get_symbol name ^ " not found in hashtbl for fcall names")))
       else 
@@ -658,7 +659,9 @@ let codegen_fcall lc declarations = function
     let () = IFDEF DEBUG THEN print_endline ("Found function: " ^ name) ELSE () ENDIF in
     if not e then
       let callee = (match lookup_function name the_module with
-	| Some callee -> callee
+	| Some callee -> 
+	  let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
+	  callee
 	| None -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ name ^ " function not in llvm module"))) in
       let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in (callee,bargs)
     else 
@@ -719,7 +722,7 @@ let rec strech v s1 to_inc vtyp declaration =
     strech v (vector_size (type_of v)) to_inc vtyp declaration
 
 let codegen_stmt f declarations = function
-  | Assign (ll, expr, lc) -> 
+  | Assign (ll, expr, lc) as stmt -> 
     (* codegen the rhs *)
     let () = IFDEF DEBUG THEN print_endline "assigning" ELSE () ENDIF in
     (* add the declaration to the *)
@@ -880,7 +883,8 @@ let codegen_stmt f declarations = function
 		    build_store rval vptr builder in ())) ll
 
       | FCall (_,e) as s ->
-	let (callee,args) = codegen_fcall lc !declarations s in
+	let (callee,args) = codegen_fcall stmt lc !declarations s in
+	let () = IFDEF DEBUG THEN print_endline "Dumping arguments which will the func be called with" ELSE () ENDIF in
 	let () = IFDEF DEBUG THEN (List.iter (fun x -> dump_value x) args) ELSE () ENDIF in
 	(* The assignments types are all alloca types just get the actual alloca *)
 	let oargs = List.map (fun x ->
@@ -891,7 +895,7 @@ let codegen_stmt f declarations = function
 	      (* We need to pass in the very first element of the pointer *)
 	      (match r with
 		| SimTypedSymbol _ -> alloca
-		| ComTypedSymbol(x,y,lc) as s -> 
+		| ComTypedSymbol(x,y,lc) as s ->
 		  let findex = const_int (Llvm_target.intptr_type target_data) 0 in
 		  (* let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in *)
 		  build_in_bounds_gep alloca (Array.of_list [findex]) "otempgep" builder)
@@ -911,6 +915,7 @@ let codegen_stmt f declarations = function
 	      let tempaddref = AddrRef(x,(get_addressed_symbol_lc x)) in
 	      codegen_simexpr !declarations tempaddref)) ll in
 	(* Now make the call *)
+	let () = IFDEF DEBUG THEN print_endline "Duping output arguments" ELSE () ENDIF in
 	let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) oargs ELSE () ENDIF in
 	let d =  build_call callee (Array.of_list (args@oargs)) "" builder in
 	let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ())
@@ -959,10 +964,12 @@ let rec codegen_cfg arg f declarations = function
       | _ -> 
 	let () = IFDEF DEBUG THEN print_endline ("Hit a block startnode") ELSE () ENDIF in
 	codegen_cfg arg f declarations x)
+
   | Squarenode (stmt,x) ->
     let () = IFDEF DEBUG THEN print_endline ("Hit a squarenode") ELSE () ENDIF in
     let () = codegen_stmt f declarations stmt in
     codegen_cfg arg f declarations x
+
   | Endnode (stmt,x,_) as s -> 
     (match stmt with
       | CaseDef _ | For _ | Par _ -> enode := s (* Set yourself up !! *)
@@ -1166,7 +1173,7 @@ let llvm_topnode vipr = function
     (*Increment the func_name counter *)
     let () = func_name_counter := !func_name_counter + 1 in
     (* Added the new function name to the facll_name hashtbl *)
-    let () = Hashtbl.add fcall_names name func_name in 
+    let () = Hashtbl.add fcall_names fcall func_name in 
     let () = IFDEF DEBUG THEN print_endline (string_of_int (List.length cfg_list)) ELSE () ENDIF in
     (* You need to build the function prototype here *)
     let inputs = decompile_filter_params (List.nth cfg_list 0) in

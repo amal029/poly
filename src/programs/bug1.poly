@@ -6,11 +6,14 @@ buggy_test in u out int yu {
  for i in 0:9 x[i] = 0
 }
 
-zeros out O[N] for i in 0:N-1 O[i] = 0
+zeros out O1[N][N] par t in 0:2 { par i in 0:N-1 par j in 0:N-1 O1[i][j] = 0}
 
 main 
 {
-  var J = 10
-  var qwe = buggy_test (J)
-  qwe = buggy_test (J)
+  /* var bug[2][2] = zeros() */
+  var bug[2][2];
+  par t in 0:1 { par i in 0:1 par j in 0:1 bug[i][j] = 0}
+  /* par i in 0:9 bug[i] = 0 */
+  /* var qwe = buggy_test (J) */
+  /* qwe = buggy_test (J) */
 }

@@ -1,9 +1,17 @@
-/* The below zeros function does not work, it cannot produce LLVM code with -O3 */
 zeros out int32s T[M] {int32s X = 0 case (X==1) X=X+1 otherwise {X=X-1} par i in 0:M-1 T[i] = T[i]+X}
 var_index out T[M] par i in 0:M-2 T[i+1] = 0
 zeros2 out T[M][M] par i in 0:M-1 par j in 0:M-1 T[i][j] = 0
 
 ones out int32s T[M] par i in 0:M-1 T[i] = T[0]+1
+
+cast_test out O[H] par i in 0:H-1 O[i] = (int8)0
+
+gray in yin out yout, uout, vout
+{
+  yout = (int8)yin
+  uout = 128
+  vout = 128
+}
 
 read_set in R[M] out O[M] par i in 0:M-1:2 O[i] = R[i] + (i*i)
 read_set2 in R[M][N] out O[M][N] par i in 0:M-1 par j in 0:N-1 {O[i][j] = R[i][j] O[i][j] = R[i][j]}
@@ -22,13 +30,17 @@ rso2 in I[M] out O[M] par i in 0:M-1 O[i] = I[i]
 main
 {
   var size = 4
-  var s2 = (size+1)
+  /* var s2 = (size+1) */
   /* var Array[size]; */
-  var array[size];
-  array = zeros()
-  array = ones ()
+  var array[size][size];
+  array = heroes2()
+  int8 t1 var t2 var t3
+  par i in 0:size-1 par j in 0:size-1 (t1,t2,t3) = gray(array[i][j])
+  /* for i in 0:size-1 (test,t2) = call_primitive_type_test () */
+  /* array = ones () */
   /* Array = zeros () */
   /* array = var_index () */
+  var trray[2] = cast_test()
   /* print the array */
   /* print the ret value */
   /* ret = extern p1 (ret) */
@@ -42,14 +54,13 @@ main
   /* ret = extern p1 (ret) */
 
   /* var Varray[size][size] = heroes2() */
-  /* /\* Varray = heroes2() *\/ */
 
   /* /\* print a 2D array *\/ */
   /* ret = extern print_array2 (size,Vrray) */
   /* /\* print the ret value *\/ */
   /* /\* ret = extern p1 (ret) *\/ */
 
-  /* var Vrray2[size][size] = heroes2() */
+  /* var Vrray2[size][size] = heroes() */
   /* Varray = read_set2(Vrray2) */
   /* ret = extern print_array2 (size,size,Varray) */
   /* Vrray2 = non1stride(Varray) */

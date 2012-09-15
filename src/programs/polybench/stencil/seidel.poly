@@ -1,32 +1,10 @@
-init_jacobi out A[M][N], B[M][N]
-{
-  par i in 0:M-1
-   par j in 0:N-1{
-    A[i][j] = (float)(((i*(j+2))+2)/N)
-    B[i][j] = (float)(((i*(j+3))+3)/N)
-   }
-}where M==N
-
 init_seidel out A[M,N]
 {
   par i in 0:M-1
    par j in 0:N-1
-    A[i,j] = (float)(((i*j)+10)/N)
+  A[i,j] = (((((float)i)*((float)j))+10.0)/((float)N))
 }where M==N
 
-jacobi in M, N, TSTEPS out A[M][N], B[M][N]
-{
- (A, B) = init_jacobi()
- par t in 0:TSTEPS-1{
-  for i in 1:M-1
-   for j in 1:N-1
-    B[i][j] = 0.2*(A[i][j]+A[i][j-1]+A[i][j+1]+A[i-1][j])
-  par i in 1:M-1					     
-   par j in 1:N-1					     
-    A[i,j] = B[i,j]					     
- }							     
-}where M==N && M==TSTEPS				     
-							     
 seidel in M, N, TSTEPS out A[M][N]			     
 {							     
  A = init_seidel()					     
@@ -39,11 +17,10 @@ seidel in M, N, TSTEPS out A[M][N]
 							     
 main							     
 {							     
- var TSTEPS=100
- var N = 100						     
- var M=100						     
+ var TSTEPS=15
+ var N = 15						     
+ var M=15						     
  int ret = extern start_timer()
- /* (var J1[M,N], var J2[M,N]) = jacobi (M,N,TSTEPS) */
  var S[M,N] = seidel (M,N,TSTEPS)
  ret = extern print_time()
  

@@ -80,4 +80,13 @@ Sum (access_size of all parents) + child_element: this will give the
 shuffle mask!!
 
 3.) Look up prgram/llvm_tests/ the new ml file to see how to promote
-scalar variables.
+scalar variables. --> Done
+
+
+Fri Sep 14 13:08:51 IST 2012
+
+1.) Loop interchange and transposition of indices at the same time
+2.) Super vectorization of loop indexing (see the fast corner example)
+3.) Variable declaration should be hoisted outside the loop
+
+Deadline: Fri Sep 30 20:00:05 IST 2012
