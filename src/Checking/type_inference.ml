@@ -652,7 +652,7 @@ struct
   let get_dim_param = function
     | SimTypedSymbol (_,_,_) -> []
     | ComTypedSymbol (_,y,_) as s -> 
-      let () = print_endline ("getting dims from: " ^ (get_typed_symbol s)) in
+      (* let () = print_endline ("getting dims from: " ^ (get_typed_symbol s)) in *)
       get_dims_2 y
   let rec get_dim_params = function
     | h::t -> 
@@ -662,7 +662,7 @@ struct
 
   let infer_filter = function
     | Filter (x,y,z,w) ->
-      let () = print_string (("Filter: " ^ (get_symbol x)) ^ " : ") in
+      (* let () = print_string (("Filter: " ^ (get_symbol x)) ^ " : ") in *)
       (* If the declarations are Addr type then the dims are also vars that can be accessed *)
       let dim_decs = get_dim_params (y@z) in
       let declarations = ref ((y @ z) @ dim_decs) in

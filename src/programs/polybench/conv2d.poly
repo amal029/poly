@@ -28,8 +28,8 @@ out float O[dataSizeX][dataSizeY]
 } where (dataSizeX >= 0 && dataSizeY >= 0)
 
 /* read image from a file */
-init_IN in int32s M out float O[M][N]{
-  int ret = extern read_image(M,O)
+init_IN in int32s M out float OR[M][N]{
+  int ret = extern read_image(M,OR)
   /* print the kernel size read in*/
   ret = extern p1(ret)
 }where (M==N) 
@@ -63,24 +63,24 @@ init_K out O[M][N] {
   O[4][4] = (1.0/256.0)
 } where (M == N)
 
-zeros out O[M][N] for i in 0:M-1 for j in 0:N-1 O[i,j] = 0.0
+zeros out O[M][N] par i in 0:M-1 par j in 0:N-1 O[i,j] = 0.0
 
 main
 {
-  var IXS = 256
+  var IXS = 6
   var IYS = IXS
   var KXS = 5
   var KYS = KXS
   var IIN[IXS][IYS] = init_IN(IXS)
   var OIN[IXS][IYS] = zeros()
   var KIN[KXS][KYS] = init_K()
-  int ret = extern start_timer()
+  /* int ret = extern start_timer() */
   OIN = conv2d(IIN,KIN)
-  ret = extern print_time()
+  /* ret = extern print_time() */
   /* print the output matrix */
-  ret = extern print_float_array2(IXS,IYS,O)
+  /* ret = extern print_float_array2(IXS,IYS,O) */
   /* int ret = extern print_float_array2(KXS,KYS,K) */
   /* int ret = extern print_float_array2(IXS,IYS,I) */
   /* print the return value*/
-  ret = extern p1 (ret)
+  /* ret = extern p1 (ret) */
 }

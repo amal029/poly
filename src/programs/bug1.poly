@@ -12,7 +12,9 @@ main
 {
   /* var bug[2][2] = zeros() */
   var bug[2][2];
-  par t in 0:1 { par i in 0:1 par j in 0:1 bug[i][j] = 0}
+  /* par t in 0:1 { par i in 0:1 par j in 0:1 bug[i][j] = 0} */
+  /* bug = zeros() */
+  bug[0][0] = 1
   /* par i in 0:9 bug[i] = 0 */
   /* var qwe = buggy_test (J) */
   /* qwe = buggy_test (J) */

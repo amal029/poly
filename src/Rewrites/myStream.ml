@@ -21,6 +21,9 @@ open StreamGraph
 
 *)
 
+module List = Batteries.List
+module Array = Batteries.Array
+
 exception Error of string
 exception Internal_compiler_error of string
 
@@ -42,7 +45,7 @@ let get_new_num_instr lc curr = function
     let stride = get_const_value s lc z in
     let start = get_const_value s lc x in
     let bound = get_const_value s lc y in
-    curr * (((bound - start)/stride)+1)
+    abs (curr * (((bound - start)/stride)+1))
   | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " loop expression not a colon-expression"))
 
 (* let set_edge_parent parent = function *)
@@ -80,7 +83,7 @@ let change_stmt_location i = function
   | Assign (x,y,(l,c)) -> Assign (x,y,(l, (c+i)))
   | Split (x,(l,c)) -> Split (x,(l, (c+i)))
   | Par (x,y,z,(l,c)) -> Par (x,y,z,(l, (c+i)))
-  | Noop -> Escape ("",(i,i))
+  | Noop -> Escape ("Noop",(i,i))
   | Escape (y,(l,c)) -> Escape (y,(l, (c+i)))
   | CaseDef (x,(l,c)) -> CaseDef (x,(l, (c+i)))
   | _ -> raise (Internal_compiler_error "Incorrect type of stmt when replacing Par stmt columns")
@@ -88,7 +91,6 @@ let change_stmt_location i = function
 let change_typed_symbol i = function
   | SimTypedSymbol (x,y,(l,c)) -> SimTypedSymbol (x,y,(l,(c+i)))
   | ComTypedSymbol (x,y,(l,c)) -> ComTypedSymbol (x,y,(l,(c+i)))
-
 
 let rec replace_stmt = function
 
@@ -196,6 +198,85 @@ let rec get_lvalue sym = function
   | h::t -> get_allsym sym h || get_lvalue sym t
   | [] -> false
 
+let get_elements_in_simple_expr lc = function
+  | Const (_,x,_) -> int_of_string x
+  | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ComTyped Symbol does not have constant dimensions"))
+
+let get_elements lc = function
+  | BracDim x -> List.fold_right (fun x y -> (match x with DimSpecExpr x -> (get_elements_in_simple_expr lc x) + y)) x 0
+
+let get_element_list lc = function
+  | BracDim x -> List.map (fun (DimSpecExpr x) -> get_elements_in_simple_expr lc x) x
+
+let get_element_list_size lc = function
+  | BracDim x -> List.length x
+
+let get_total_size_ngt = function
+  | ComTypedSymbol (typ,x,lc) as s -> 
+    let size = DataTypes.getdata_size typ in
+    let num_elements = (match x with | AddressedSymbol (_,_,x,_) -> List.fold_right (fun x y -> 
+      let el = get_elements lc x in 
+      let () = IFDEF DEBUG THEN print_endline ((string_of_int el) ^ "$$$$$$$") ELSE () ENDIF in
+      el + y) x 0) in
+    size * num_elements
+  | SimTypedSymbol (typ,_,_) -> DataTypes.getdata_size typ
+
+let get_total_size = function
+  | ComTypedSymbol (typ,x,lc) as s -> 
+    let size = DataTypes.getdata_size typ in
+    let num_elements = (match x with | AddressedSymbol (_,_,x,_) -> List.fold_right (fun x y -> 
+      let el = get_elements lc x in 
+      let () = IFDEF DEBUG THEN print_endline ((string_of_int el) ^ "$$$$$$$") ELSE () ENDIF in
+      el + y) x 0) in
+    size * num_elements
+  | SimTypedSymbol _ -> raise (Internal_compiler_error "Cannot hit simtyped symbol when getting total size for a comtyped symbol")
+
+let get_addressed_symbol_used_size sym = function
+  | AddressedSymbol (_,_,ll,mlc) ->
+    let (typ,symlist,lc) = (match sym with ComTypedSymbol (typ,x,_) -> (match x with AddressedSymbol (_,_,ll,lc) -> (typ,ll,lc))) in
+    let symlist = get_element_list lc (List.hd symlist) in
+    let mylistsize = get_element_list_size lc (List.hd ll) in
+    let usedlist = List.drop mylistsize symlist  in
+    if usedlist = [] then DataTypes.getdata_size typ
+    else (List.fold_right (+) usedlist 0) * (DataTypes.getdata_size typ)
+
+let rec get_simexpr_size sym = function
+  | Plus(x,y,_) | Minus(x,y,_) | Times(x,y,_) | Div(x,y,_) 
+  | Mod (x,y,_) | Pow (x,y,_) | Rshift (x,y,_) | Lshift (x,y,_) -> get_simexpr_size sym x + get_simexpr_size sym y
+  | Const _ | TStar | TStarStar -> 0
+  | Brackets (x,_) -> get_simexpr_size sym x
+  | Cast (_,x,_) -> get_simexpr_size sym x
+  | Opposite (x,_) -> get_simexpr_size sym x
+  | VarRef (x,_) -> get_total_size sym
+  | AddrRef (x,_) -> get_addressed_symbol_used_size sym x
+  | ColonExpr (x,y,z,_) -> get_simexpr_size sym x + get_simexpr_size sym y + get_simexpr_size sym z
+
+let get_callarg_size sym = function
+  | CallAddrressedArgument x -> get_addressed_symbol_used_size sym x
+  | CallSymbolArgument x -> get_total_size sym
+
+let rec get_callargument_list_size sym = function
+  | h::t -> get_callarg_size sym h + get_callargument_list_size sym t
+  | [] -> 0
+
+let get_fcall_size sym = function
+  | Call (_,x,_) -> get_callargument_list_size sym x
+
+let get_rvalue_size sym = function
+  | FCall (x,_) -> get_fcall_size sym x
+  | SimExpr x -> get_simexpr_size sym x
+
+let get_lvalue_size sym = function
+  | AllSymbol _ | AllTypedSymbol _ -> get_total_size sym
+  | AllVecSymbol _ -> raise (Internal_compiler_error "Cannot yet handle a vectorized statement when performing graph based tiling")
+  | AllAddressedSymbol x -> get_addressed_symbol_used_size sym x
+
+let get_used_size sym = function
+  | Assign (x,y,_) as s -> (List.fold_right (fun x t -> (get_lvalue_size sym x) + t) x 0) + get_rvalue_size sym y
+  | Noop -> 0
+  | Escape _ -> 0
+  | _ as s -> raise (Internal_compiler_error ("erroneously obtained: " ^ Dot.dot_stmt s))
+
 let get_dep_actor sym = function
   | Assign (x,y,_) as s -> 
     let () = IFDEF DEBUG THEN print_endline "Checking for connection to store" ELSE () ENDIF in
@@ -204,6 +285,7 @@ let get_dep_actor sym = function
     let () = IFDEF DEBUG THEN if ret then print_endline ("Will connect " ^ (Dot.dot_typed_symbol sym) ^ " to this stmt") ELSE () ENDIF in 
     ret
   | Noop -> false
+  | Escape _ -> false
   | _ as s -> raise (Internal_compiler_error ("erroneously obtained: " ^ (Dot.dot_stmt s)))
 
 let rec get_dependence_actors ret sym = function
@@ -219,32 +301,27 @@ let rec get_dependence_actors ret sym = function
     get_dependence_actors ret sym (get_edge_child x)
   | EmptyActor -> ()
 
-let get_elements_in_simple_expr lc = function
-  | Const (_,x,_) -> int_of_string x
-  | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ComTyped Symbol does not have constant dimensions"))
-
-let get_elements lc = function
-  | BracDim (x::t) -> match x with | DimSpecExpr x -> get_elements_in_simple_expr lc x
-
-let get_composite_size = function
+let get_composite_size actor = function
   | SimTypedSymbol (typ,_,_) -> DataTypes.getdata_size typ
-  | ComTypedSymbol (typ,x,lc) -> 
-    let size = DataTypes.getdata_size typ in
-    let num_elements = (match x with | AddressedSymbol (_,_,x,_) -> List.fold_right (fun x y -> 
-      let el = get_elements lc x in 
-      let () = IFDEF DEBUG THEN print_endline ((string_of_int el) ^ "$$$$$$$") ELSE () ENDIF in
-      el + y) x 0) in
-    size * num_elements
+  | ComTypedSymbol (typ,x,lc) as s -> 
+    let stmt = (match actor with Seq (s,_,_,_) -> s | _ -> raise (Internal_compiler_error "Stores can only be used in Seq statements")) in
+    get_used_size s stmt
 
 let make_dependece_edges tsym list = 
   (* First build the edges *)
   (* Calculate the size of the array *)
   if (match list with | [] -> false | _ -> true) then
-    let size = get_composite_size tsym in
-    let edges = List.map (fun x -> Edge (Some size, x)) list in
-    (* Now replace the parent with the store *)
-    let ret = Store (tsym, edges) in ret
-    (* let () = List.iter (fun x -> set_edge_parent ret x) edges in ret *)
+    if !graph_tile then
+      let sizes = List.map (fun x -> get_composite_size x tsym) list in
+      (* let size = get_composite_size tsym in *)
+      let edges = List.map2 (fun x y -> Edge (Some y, x)) list sizes in
+      (* Now replace the parent with the store *)
+      let ret = Store (tsym, edges) in ret
+    else
+      let size = get_total_size_ngt tsym in
+      let edges = List.map (fun x -> Edge (Some size, x)) list in
+      let ret = Store (tsym, edges) in ret
+  (* let () = List.iter (fun x -> set_edge_parent ret x) edges in ret *)
   else EmptyActor
 
 let make_edge tsym list node = 
@@ -255,7 +332,7 @@ let make_edge tsym list node =
   list := []; ret
 
 let rec process_filter filters num_instr num_vec = function
-  | Filter (x,y,z,stmt) as s -> 
+  | Filter (x,y,z,stmt) as s ->
     (* First get all the declarations from the arguments declared with this filter 
        and put them into the declarations list ref *)
     let declarations = ref (y@z) in
@@ -302,6 +379,8 @@ and process_stmt declarations list filters num_instr num_vec = function
     process_list declarations filters num_instr num_vec list
 
   | Escape _ | Noop as s ->
+    counter := !counter + 1;
+    let s = change_stmt_location !counter s in
     let child = process_list declarations filters num_instr num_vec list in
     let edge = Edge (None, child) in
     let ret = Seq (s,num_instr,num_vec,edge) in ret

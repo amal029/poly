@@ -252,7 +252,7 @@ let rec codegen_simexpr declarations = function
   (* We need the exact type for building the division instruction *)
   | Div (x,y,lc) ->
     (match get_simexpr_type declarations x with
-      | "int" -> 
+      | "int" ->
 	let ret = build_sdiv (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) "divtemp" builder in
 	let () = IFDEF DEBUG THEN dump_value ret ELSE () ENDIF in
 	(* Debugging --> get the type of the value *)
@@ -1114,7 +1114,7 @@ let codegen_prototype name ins outs =
   (* Build the function prototype *)
   let ft = function_type (void_type context) (Array.of_list (intypes@outtypes)) in
   let f = match (lookup_function name the_module) with
-    | Some _ -> raise (Error ("Function: " ^ name ^ "multiply defined"))
+    | Some _ -> raise (Error ("Function: " ^ name ^ " multiply defined"))
     | None -> declare_function name ft the_module in
   (* For clarity we will set the name of the parameters as well, this is not necessary though!!*)
   let args = Array.of_list (List.map (fun x -> get_typed_symbol x) (ins@outs)) in
@@ -1206,7 +1206,7 @@ let rec llvm_filter_node vipr filename = function
     let the_function = llvm_topnode vipr topnode in
     (match topnode with Topnode(_,n,_,_) ->
       if n = "main" then
-    	let () = dump_module the_module in
+    	(* let () = dump_module the_module in *)
     	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".bc") then ()
     	else raise (Error ("Could not write the llvm module to output.ll file")) in ()
       (* let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in () *)

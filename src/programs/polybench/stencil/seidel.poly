@@ -17,9 +17,9 @@ seidel in M, N, TSTEPS out A[M][N]
 							     
 main							     
 {							     
- var TSTEPS=15
- var N = 15						     
- var M=15						     
+ var TSTEPS=20
+ var N = 20						     
+ var M=20						     
  int ret = extern start_timer()
  var S[M,N] = seidel (M,N,TSTEPS)
  ret = extern print_time()

@@ -1,4 +1,5 @@
 LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
+BATTERIES=$(HOME)/batteries-included/_build/src
 ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
@@ -9,6 +10,7 @@ CC=ocamlopt
 XMLLIB=xml-light.cmxa
 LANGLIB=language.cmxa
 METISLIB=lib-metis.cmxa
+BATLIBB=batteries.cmxa
 
 all: fcfg decompile
 
@@ -25,7 +27,7 @@ decompile:
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" \
 	-I $(DOTDIR) $(DOTLIB) -I $(LANGDIR) -I $(ERRORDIR) -c decompiletoAndrewLang.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(DOTDIR) $(DOTLIB)	\
-	-I $(METISDIR) $(METISLIB) -I $(LANGDIR) -I $(ERRORDIR) -c myStream.ml
+	-I $(METISDIR) $(METISLIB) -I $(LANGDIR) -I $(ERRORDIR) -I $(BATTERIES) $(BATLIBB) -c myStream.ml
 
 clean:
 	rm -rf *.cm* *.o *.a

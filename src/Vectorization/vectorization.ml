@@ -205,7 +205,7 @@ struct
 	| _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " not of type const: " ^ (Dot.dot_simpleexpr s))))
     | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " not of type const: " ^ (Dot.dot_simpleexpr s)))
 
-  let get_access_size s e st = ((e - s)/st) + 1
+  let get_access_size s e st = abs (((e - s)/st)) + 1
   (* let counter = ref s in *)
   (* let ss = ref 1 in *)
   (* (try *)

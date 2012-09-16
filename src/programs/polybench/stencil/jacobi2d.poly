@@ -3,7 +3,7 @@ init_jacobi out A[M][N], B[M][N]
   par i in 0:M-1
    par j in 0:N-1{
     A[i][j] = (((((float)i)*(((float)j)+2.0))+2.0)/((float)N))
-      B[i][j] = (((((float)i)*(((float)j)+3.0))+3.0)/((float)N))
+    B[i][j] = (((((float)i)*(((float)j)+3.0))+3.0)/((float)N))
    }
 }where M==N
 
@@ -22,9 +22,9 @@ jacobi in M, N, TSTEPS out A[M][N], B[M][N]
 							     
 main							     
 {							     
- var TSTEPS=10
- var N = 10						     
- var M=10						     
+ var TSTEPS=100
+ var N = 100						     
+ var M=100						     
  int ret = extern start_timer()
  (var J1[M,N], var J2[M,N]) = jacobi (M,N,TSTEPS)
  ret = extern print_time()
