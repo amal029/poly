@@ -201,14 +201,16 @@ let rec get_simexpr_type declarations = function
   | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_typed_type x
   | AddrRef (x,_) -> let (x,_) = get declarations (get_addressed_symbol x) in get_typed_type x
   | VecRef (_,x,_) -> let (x,_) = get declarations (get_vec_symbol x) in get_typed_type x
+  | Vector (x,_,_,lc) -> get_data_types lc x
   | Constvector (_,x,_,lc) -> get_data_types lc x
-  | _ -> raise (Internal_compiler_error ("Unsupported simple expr"))
+  | _ as s -> raise (Internal_compiler_error ((Dot.dot_simpleexpr s) ^ " Unsupported simple expr"))
 
 let rec get_exact_simexpr_type declarations = function
   | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) | Lshift(x,_,_) | Rshift(x,_,_)
   | Div (x,_,_) | Times (x,_,_) | Mod (x,_,_) -> get_exact_simexpr_type declarations x
   | Opposite (x,_) -> get_exact_simexpr_type declarations x
   | Const (x,_,_) -> x
+  | Vector (x,_,_,_) -> x
   | Cast (x,_,_) -> x
   | Brackets (x,_) -> get_exact_simexpr_type declarations x
   | VarRef (x,_) -> let (x,_) = get declarations (get_symbol x) in get_exact_typed_type x
@@ -265,8 +267,65 @@ let rec codegen_simexpr declarations = function
       | "float" -> build_fdiv (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) "divftemp" builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Pow (x,y,lc) -> raise(Error((Reporting.get_line_and_column lc) ^ " LLVM does not support pow/wow internally :-("))
-
+  | Pow (x,y,lc) -> 
+    (* If y is a vector or a const vector then just get the first element of the vector to raise it appropriately!! *)
+    (* Now call this function with the required arguments *)
+    let xarg = (derefence_pointer(codegen_simexpr declarations x)) in
+    let yarg = (derefence_pointer(codegen_simexpr declarations y)) in
+    let () = (match classify_type (type_of yarg) with 
+      | TypeKind.Vector -> raise (Error ((Reporting.get_line_and_column lc) ^ " Cannot raise by a vector type!!"))
+      | _ -> ()) in
+    let xvsize = (match classify_type (type_of xarg) with
+      | TypeKind.Vector -> Some (type_of xarg)
+      | _ -> None) in
+    (match get_simexpr_type declarations y with
+      | "int" -> 
+	(match get_simexpr_type declarations x with
+	  | "int" -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^int internally :-("))
+	  | "float" -> 
+	    let reft = (match get_llvm_primitive_type lc (get_exact_simexpr_type declarations x) with
+	      | double_type -> 
+		(match xvsize with
+		  | Some x -> 
+		    let eft = function_type x [|x;(i32_type context)|] in
+		    declare_function "@llvm.powi.f64" eft the_module
+		  | None -> 
+		    let eft = function_type (double_type context) [|(double_type context);(i32_type context)|] in
+		    declare_function "@llvm.powi.f64" eft the_module)
+	      | float_type -> 
+		(match xvsize with
+		  | Some x -> 
+		    let eft = function_type x [|x;(i32_type context)|] in
+		    declare_function "@llvm.powi.f32" eft the_module
+		  | None -> 
+		    let eft = function_type (float_type context) [|(float_type context);(i32_type context)|] in
+		    declare_function "@llvm.powi.f32" eft the_module)
+	      | _ -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^non float32 internally :-("))) in
+	    build_call reft [|xarg; yarg|] "powi" builder)
+      | "float" -> 
+	(match get_simexpr_type declarations x with
+	  | "int" ->  raise(Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^float internally :-("))
+	  | "float" ->
+	    let reft = (match get_llvm_primitive_type lc (get_exact_simexpr_type declarations x) with
+	      | double_type -> 
+		(match xvsize with
+		  | Some x -> 
+		    let eft = function_type x [|x;(double_type context)|] in
+		    declare_function "@llvm.pow.f64" eft the_module
+		  | None -> 
+		    let eft = function_type (double_type context) [|(double_type context);(double_type context)|] in
+		    declare_function "@llvm.pow.f64" eft the_module)
+	      | float_type ->
+		(match xvsize with
+		  | Some x -> 
+		    let eft = function_type x [|x;(float_type context)|] in
+		    declare_function "@llvm.pow.f32" eft the_module
+		  | None -> 
+		    let eft = function_type (float_type context) [|(float_type context);(float_type context)|] in
+		    declare_function "@llvm.pow.f32" eft the_module)
+	      | _ -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^non float32 internally :-("))) in
+	    build_call reft [|xarg; yarg|] "pow" builder))
+    
   | Mod (x,y,lc) -> 
     (match get_simexpr_type declarations x with
       | "int" -> build_srem (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) "remtemp" builder 

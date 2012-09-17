@@ -25,13 +25,14 @@ main
   dummy = extern p1(t)
   t = t >> 2
   dummy = extern p1(t)
-  par i in 0:2 {
+  par i in 0:10 {
    case
    (i < 1) {
     t = t+1
    }
    otherwise {}
-  var y = 90
-  (y,t) = test (t)
+   /* FIXME: Puting this declaration breaks graph partitioner with tiling */
+  /* var y = 90 */
+  (var y,t) = test (t)
   }
 }

@@ -17,13 +17,14 @@ compute_value_at_excercise_date in T[optN], S[optN], X[optN], M, Volatility, Ris
     var PdByR = Pd * Rinv
     var inter[optN]
     var value = 0.0
+    var Xu = X[u]
     par i in 0:N-1 {
       par j in 0:optN-1 prices[i][j] = S[u]*(2.718281828^(VsdT*(2.0*(float)j) - M))
-      par j in 0:optN-1 inter[j] = prices[i][j] - X[u]
+      par j in 0:optN-1 inter[j] = prices[i][j] - Xu
       for j in 0:optN-1 value = value + inter[j]
-      case 
+      case
       (value >= 0.0) par j in 0:optN-1 steps[i][j] = inter[j]
-      otherwise {par j in 0:optN-1 steps[i][j] = 0.0}
+      otherwise par j in 0:optN-1 steps[i][j] = 0.0
     }
     for i in N-1:0:(-1) par j in 0:optN-2 { steps[i][j] = (steps[i][j]*PuByR) + (steps[i][j+1]*PdByR)}
   }
@@ -31,8 +32,8 @@ compute_value_at_excercise_date in T[optN], S[optN], X[optN], M, Volatility, Ris
 
 main
 {
-  var NM = 2
-  var optNM = 2
+  var NM = 3
+  var optNM = 3
   var TM[optNM]
   par i in 0:optNM-1 TM[i] = 0.0
   var SM[optNM]

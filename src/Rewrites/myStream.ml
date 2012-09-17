@@ -23,12 +23,14 @@ open StreamGraph
 
 module List = Batteries.List
 module Array = Batteries.Array
+module Hashtbl = Batteries.Hashtbl
 
 exception Error of string
 exception Internal_compiler_error of string
 
 let graph_tile = ref false
 let counter = ref 0
+let niv = Hashtbl.create 50
 
 (* Currently the simple expressions in a loop are considered constant *)
 let rec get_const_value s lc = function
@@ -86,7 +88,8 @@ let change_stmt_location i = function
   | Noop -> Escape ("Noop",(i,i))
   | Escape (y,(l,c)) -> Escape (y,(l, (c+i)))
   | CaseDef (x,(l,c)) -> CaseDef (x,(l, (c+i)))
-  | _ -> raise (Internal_compiler_error "Incorrect type of stmt when replacing Par stmt columns")
+  | Block (x,(l,c)) -> Block(x,(l,(c+i)))
+  | _ as s -> raise (Internal_compiler_error ((Dot.dot_stmt s) ^" Incorrect type of stmt when replacing Par stmt columns"))
 
 let change_typed_symbol i = function
   | SimTypedSymbol (x,y,(l,c)) -> SimTypedSymbol (x,y,(l,(c+i)))
@@ -104,7 +107,9 @@ let rec replace_stmt = function
 
   | Seq (x,y,z,c) -> 
     counter := !counter + 1;
-    let x = change_stmt_location !counter x in
+    let xold = x in
+    let x = change_stmt_location !counter xold in
+    (try let nivv = Hashtbl.find niv xold in Hashtbl.replace niv x nivv with | Not_found -> (raise (Internal_compiler_error "Replacing seq stmt, but not found!!")));
     let weight = get_edge_weight c in
     let c2 = replace_stmt (get_edge_child c) in
     let edge = Edge (weight, c2) in
@@ -302,25 +307,30 @@ let rec get_dependence_actors ret sym = function
   | EmptyActor -> ()
 
 let get_composite_size actor = function
-  | SimTypedSymbol (typ,_,_) -> DataTypes.getdata_size typ
+  | SimTypedSymbol (typ,_,_) -> 
+    let stmt = (match actor with Seq (s,_,_,_) -> s | _ -> raise (Internal_compiler_error "Stores can only be used in Seq statements")) in
+    let nivv = (try Hashtbl.find niv stmt with | Not_found -> (1,1)) in
+    (DataTypes.getdata_size typ,nivv)
   | ComTypedSymbol (typ,x,lc) as s -> 
     let stmt = (match actor with Seq (s,_,_,_) -> s | _ -> raise (Internal_compiler_error "Stores can only be used in Seq statements")) in
-    get_used_size s stmt
+    let nivv = (try Hashtbl.find niv stmt with | Not_found -> raise (Internal_compiler_error ((Dot.dot_stmt stmt) ^ " : seq using store not in niv hashtbl"))) in
+    ((get_used_size s stmt), nivv)
 
 let make_dependece_edges tsym list = 
   (* First build the edges *)
   (* Calculate the size of the array *)
   if (match list with | [] -> false | _ -> true) then
-    if !graph_tile then
-      let sizes = List.map (fun x -> get_composite_size x tsym) list in
-      (* let size = get_composite_size tsym in *)
-      let edges = List.map2 (fun x y -> Edge (Some y, x)) list sizes in
-      (* Now replace the parent with the store *)
-      let ret = Store (tsym, edges) in ret
-    else
-      let size = get_total_size_ngt tsym in
-      let edges = List.map (fun x -> Edge (Some size, x)) list in
-      let ret = Store (tsym, edges) in ret
+    let sizes = List.map (fun x -> get_composite_size x tsym) list in
+    let nivs = List.map (fun (_,x) -> x) sizes in
+    let sizes = List.map (fun (x,_) -> x) sizes in
+    let nistrs = List.map (fun (x,_) -> x) nivs in
+    let nvecs = List.map (fun (_,x) -> x) nivs in
+    (* let size = get_composite_size tsym in *)
+    let sizes = List.map2 (fun x num_instr -> x*num_instr) sizes nistrs in
+    let sizes = List.map2 (fun x num_vec -> x*num_vec) sizes nvecs in
+    let edges = List.map2 (fun x y -> Edge (Some y, x)) list sizes in
+    (* Now replace the parent with the store *)
+    let ret = Store (tsym, edges) in ret
   (* let () = List.iter (fun x -> set_edge_parent ret x) edges in ret *)
   else EmptyActor
 
@@ -353,6 +363,9 @@ and process_stmt declarations list filters num_instr num_vec = function
   | Assign (sts,x,lc) as s ->
     (* Here we need to check if a call is being made to a different filter!! *)
     (* Get all the declaration types *)
+    let nni = if num_instr = 0 then 1 else num_instr in
+    let nnv = if num_vec = 0 then 1 else num_vec in
+    let () = Hashtbl.add niv s (nni, nnv) in
     declarations := !declarations @ List.map (fun (AllTypedSymbol x) -> x)
       (List.filter (fun x -> (match x with | AllTypedSymbol _ -> true | _ -> false)) sts);
     let child = process_list declarations filters num_instr num_vec list in
@@ -418,8 +431,10 @@ and process_stmt declarations list filters num_instr num_vec = function
     let ni = get_new_num_instr lc num_instr y in
     let () = IFDEF DEBUG THEN print_endline ("For: " ^ (string_of_int ni)) ELSE () ENDIF in
     let me = process_stmt declarations [] filters ni num_vec stmt in
+    (* Add it to niv with the for loop and the par loop counter *)
+    (* if (match me with Seq _ -> true | _ -> false) then Hashtbl.add niv (match me with Seq (stmt,_,_,_) -> stmt) (ni,num_vec); *)
     (* Replace the end of me *)
-    replace_empty_actor child me 
+    replace_empty_actor child me
 
   | Par (x,y,stmt,lc) as s -> 
     (* Here we do the exact same as the for stmt, but increment the num_vec instead *)
@@ -429,6 +444,8 @@ and process_stmt declarations list filters num_instr num_vec = function
     if not !graph_tile then
       let () = IFDEF DEBUG THEN print_endline ("Par: " ^ (string_of_int nv)) ELSE () ENDIF in
       let me = process_stmt declarations [] filters num_instr nv stmt in
+      (* Add it to niv with the for loop and the par loop counter *)
+      (* if (match me with Seq _ -> true | _ -> false) then Hashtbl.add niv (match me with Seq (stmt,_,_,_) -> stmt) (num_instr, nv); *)
       replace_empty_actor child me
     else
     (* The code below produces the graph, but the number of edges do not match: FIXME*)
@@ -436,6 +453,8 @@ and process_stmt declarations list filters num_instr num_vec = function
       let mes = Array.init nv (fun i -> process_stmt declarations [] filters num_instr give stmt) in
       let mes = Array.map replace_stmt mes in
       let mes = Array.to_list mes in
+      (* Add it to niv with the for loop and the par loop counter *)
+      let () = List.iter (fun x -> (match x with | Seq (stmt,_,_,_) -> Hashtbl.add niv stmt (num_instr,1) | _ -> ())) mes in
       let join_edge = Edge (None, child) in
       let myjoin = TaskJoin (s,0,0,join_edge) in
       let mes = List.map (fun x -> replace_empty_actor myjoin x) mes in
@@ -496,6 +515,7 @@ let build_stream_graph gt = function
   | Program x ->
     graph_tile := gt;
     counter := 0;
+    Hashtbl.clear niv;
     (* First collect all the filters defined in the program *)
     let filters = List.find_all (fun x -> (match x with Def _ -> true | _ -> false)) x in
     let filters = List.map (fun x -> (match x with | Def (x,_,_) -> x)) filters in

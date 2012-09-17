@@ -11,7 +11,7 @@ matmul in first[M,N], second[M,N] out int32s result[M,N]
 
 main
 {
-    var size = 10
+    var size = 4
     var a[size,size] = zeros()
     var result2[size,size] = matmul(a, a)
     int ret = extern print_array2 (size,size,a)

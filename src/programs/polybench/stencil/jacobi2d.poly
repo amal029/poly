@@ -22,9 +22,9 @@ jacobi in M, N, TSTEPS out A[M][N], B[M][N]
 							     
 main							     
 {							     
- var TSTEPS=100
- var N = 100						     
- var M=100						     
+ var TSTEPS=5
+ var N = 5
+ var M=5						     
  int ret = extern start_timer()
  (var J1[M,N], var J2[M,N]) = jacobi (M,N,TSTEPS)
  ret = extern print_time()
