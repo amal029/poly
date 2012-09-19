@@ -304,5 +304,5 @@ let build_program_dot filename fnode =
   let _ = dot_stream_graph stmt_list fnode in
   (* Building program graph !! *)
   let () = IFDEF DEBUG THEN print_endline "printing out the dot file!!" ELSE () ENDIF in
-  let program_graph = {strict = false; kind = Graph; id = Some (Simple_id "Stream_graph"); stmt_list = !stmt_list} in
+  let program_graph = {strict = false; kind = Digraph; id = Some (Simple_id "Stream_graph"); stmt_list = !stmt_list} in
   print_file filename program_graph;
