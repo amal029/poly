@@ -10,18 +10,22 @@ try
   let llvm = ref false in
   let graph_part = ref false in
   let graph_tile = ref false in
+  let gtn = ref 10 in
   let load_modules = ref [] in
   let vectorize = ref false in
   let vipr = ref false in
+  let output = ref "" in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag, " Decompile to stg-lang");
 		      ("-O3", Arg.Set vectorize, " Vectorize code");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part, 
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
 		      ("-graph-tile", Arg.Set graph_tile, " Option with -graph-part, used to tile the loops");
+		      ("-gtn", Arg.Int (fun x -> gtn := x), " The size of the vector tile [default=<vector-length>/10]");
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
 		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file <file>.ll");
 		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files (>= llvm-3.2)");
+		      ("-o", Arg.Set_string output, " The name of the output file when graph partitioning");
 		      ("-v", Arg.Set version, "  Get the compiler version")] (fun x -> file_name := x) usage_msg in
 
   if !version then begin print_endline "Poly compiler version alpha"; compile := false end
@@ -49,6 +53,7 @@ try
       let slist = Str.split r1 !file_name in
       let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
       let llvm_file = (List.hd slist) in
+      let llvm_file = if not (!output = "") then !output else llvm_file in
       if !dot then
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
@@ -98,6 +103,7 @@ try
       let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
       (* The first string should be my target name *)
       let llvm_file = (List.hd slist) in
+      let llvm_file = if not (!output = "") then !output else llvm_file in
       let file_name = ((List.hd slist) ^ ".xml") in
       (* By default do not always produce llvm IR *)
       let cfgt =
@@ -131,11 +137,15 @@ try
 	let () = print_endline "......Graph part decompiling to AST....." in
 	let ast = DecompiletoAST.decompile cfgt in
 	let () = print_endline "....Producing the stream graph......" in
-	let (stream_graph,metis_graph,og) = MyStream.build_stream_graph !graph_tile ast in
+	let (stream_graph,metis_graph,og) = MyStream.build_stream_graph !graph_tile !gtn ast in
 	let () = print_endline "....Writing the metis graph file......" in
-	let () = MetisDriver.generate_metis_file "1" "011" (llvm_file ^ ".grf") metis_graph in
-	let () = MetisDriver.generate_metis_file "2" "011" (llvm_file ^ ".our.grf") og in
-	let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in ()
+	(*let () = MetisDriver.generate_metis_file "1" "011" (llvm_file ^ ".grf") metis_graph in*)
+	if !output = "" then
+	  let () = MetisDriver.generate_metis_file "2" "011" (llvm_file ^ ".our.grf") og in
+	  let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in ()
+	else 
+	  let () = MetisDriver.generate_metis_file "2" "011" (!output) og in
+	  let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in ()
       else ()
 
 with

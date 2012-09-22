@@ -7,10 +7,15 @@ init_jacobi out A[M][N], B[M][N]
    }
 }where M==N
 
-jacobi in M, N, TSTEPS out A[M][N], B[M][N]
+jacobi in M, N, TSTEPS out float A[M][N], float B[M][N]
 {
- (A, B) = init_jacobi()
- par t in 0:TSTEPS-1{
+ /* (A, B) = init_jacobi() */
+  par i in 0:M-1
+   par j in 0:N-1{
+    A[i][j] = (((((float)i)*(((float)j)+2.0))+2.0)/((float)1000))
+    B[i][j] = (((((float)i)*(((float)j)+3.0))+3.0)/((float)1000))
+   }
+ for t in 0:TSTEPS-1{
   for i in 1:M-1
    for j in 1:N-1
     B[i][j] = 0.2*(A[i][j]+A[i][j-1]+A[i][j+1]+A[i-1][j])
@@ -20,14 +25,14 @@ jacobi in M, N, TSTEPS out A[M][N], B[M][N]
  }
 }where M==N && M==TSTEPS				     
 							     
-main							     
+main
 {							     
- var TSTEPS=5
- var N = 5
- var M=5						     
- int ret = extern start_timer()
- (var J1[M,N], var J2[M,N]) = jacobi (M,N,TSTEPS)
- ret = extern print_time()
+ var TSTEPS=2
+ var N = 2 
+ var M= 2						     
+ /* int ret = extern start_timer() */
+ (float J1[M,N], float J2[M,N]) = jacobi (M,N,TSTEPS)
+ /* ret = extern print_time() */
  
  /* print the arrays */
  /* ret = extern print_float_array2 (M,N,J1) */

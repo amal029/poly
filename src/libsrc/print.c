@@ -146,6 +146,10 @@ extern void mysqrt (float temp, float *ret){
   *ret = sqrtf(temp);
 }
 
+extern void sqrt_i (int temp, int *ret){
+  *ret = (int)sqrt((double)temp);
+}
+
 extern void log_base_2 (int NN, int *ret){
   *ret = (int)log2((double)NN);
 }

@@ -1,0 +1,24 @@
+main
+{
+  var M = 512
+  var N = 512
+  var nrm
+  var A[M][N]
+  int32s R[M][N]
+  var Q[M][N]
+  par i in 0:M-1 par j in 0:N-1 A[i][j] = (i*j) / M;
+  for k in 0:N-1 {
+   nrm = 0;
+   for i in 0:M-1 nrm = nrm + A[i][k] * A[i][k]
+   R[k][k] = extern sqrt_i(nrm);
+   for i in 0:M-1 Q[i][k] = A[i][k] / R[k][k]
+   /* This should be k+1:N-1*/
+   for j in 1:N-1 {
+    R[k][j] = 0
+    for i in 0:M-1 {
+     R[k][j] = R[k][j] + Q[i][k] * A[i][j] 
+     A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+    }
+   }
+  }
+}

@@ -57,7 +57,7 @@ out ox[nn], oy[nn]
    l1 = l2; l2 = l2 << 1
    u1 = 1.0; u2 = 0.0
    for j1 in 0:l1-1{
-    for i in j1:(nn-1):12{
+    for i in j1:(nn-1):l2{
      i1 = i + l1
      t1 = u1 * x[i1] - u2 * y[i1]
      t2 = u1 * y[i1] + u2 * x[i1]

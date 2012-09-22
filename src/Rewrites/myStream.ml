@@ -29,6 +29,7 @@ exception Error of string
 exception Internal_compiler_error of string
 
 let graph_tile = ref false
+let graph_tile_num = ref 10
 let counter = ref 0
 let niv = Hashtbl.create 50
 
@@ -238,30 +239,33 @@ let get_total_size = function
 
 let get_addressed_symbol_used_size sym = function
   | AddressedSymbol (_,_,ll,mlc) ->
-    let (typ,symlist,lc) = (match sym with ComTypedSymbol (typ,x,_) -> (match x with AddressedSymbol (_,_,ll,lc) -> (typ,ll,lc))) in
-    let symlist = get_element_list lc (List.hd symlist) in
-    let mylistsize = get_element_list_size lc (List.hd ll) in
-    let usedlist = List.drop mylistsize symlist  in
-    if usedlist = [] then DataTypes.getdata_size typ
-    else (List.fold_right (+) usedlist 0) * (DataTypes.getdata_size typ)
+    get_total_size sym
+    (* let (typ,symlist,lc) = (match sym with ComTypedSymbol (typ,x,_) -> (match x with AddressedSymbol (_,_,ll,lc) -> (typ,ll,lc))) in *)
+    (* let symlist = get_element_list lc (List.hd symlist) in *)
+    (* let mylistsize = get_element_list_size lc (List.hd ll) in *)
+    (* (\* let usedlist = List.drop mylistsize symlist  in *\) *)
+    (* (\* if usedlist = [] then DataTypes.getdata_size typ *\) *)
+    (* (\* else (List.fold_right (+) usedlist 0) * (DataTypes.getdata_size typ) *\) *)
+    (* if symlist = [] then DataTypes.getdata_size typ *)
+    (* else (List.fold_right (+) symlist 0) * (DataTypes.getdata_size typ) *)
 
 let rec get_simexpr_size sym = function
   | Plus(x,y,_) | Minus(x,y,_) | Times(x,y,_) | Div(x,y,_) 
-  | Mod (x,y,_) | Pow (x,y,_) | Rshift (x,y,_) | Lshift (x,y,_) -> get_simexpr_size sym x + get_simexpr_size sym y
+  | Mod (x,y,_) | Pow (x,y,_) | Rshift (x,y,_) | Lshift (x,y,_) -> max (get_simexpr_size sym x) (get_simexpr_size sym y)
   | Const _ | TStar | TStarStar -> 0
   | Brackets (x,_) -> get_simexpr_size sym x
   | Cast (_,x,_) -> get_simexpr_size sym x
   | Opposite (x,_) -> get_simexpr_size sym x
   | VarRef (x,_) -> get_total_size sym
   | AddrRef (x,_) -> get_addressed_symbol_used_size sym x
-  | ColonExpr (x,y,z,_) -> get_simexpr_size sym x + get_simexpr_size sym y + get_simexpr_size sym z
+  | ColonExpr (x,y,z,_) -> max (max (get_simexpr_size sym x) (get_simexpr_size sym y)) (get_simexpr_size sym z)
 
 let get_callarg_size sym = function
   | CallAddrressedArgument x -> get_addressed_symbol_used_size sym x
   | CallSymbolArgument x -> get_total_size sym
 
 let rec get_callargument_list_size sym = function
-  | h::t -> get_callarg_size sym h + get_callargument_list_size sym t
+  | h::t -> max (get_callarg_size sym h) (get_callargument_list_size sym t)
   | [] -> 0
 
 let get_fcall_size sym = function
@@ -277,7 +281,7 @@ let get_lvalue_size sym = function
   | AllAddressedSymbol x -> get_addressed_symbol_used_size sym x
 
 let get_used_size sym = function
-  | Assign (x,y,_) as s -> (List.fold_right (fun x t -> (get_lvalue_size sym x) + t) x 0) + get_rvalue_size sym y
+  | Assign (x,y,_) as s -> max (List.fold_right (fun x t -> (get_lvalue_size sym x) + t) x 0) (get_rvalue_size sym y)
   | Noop -> 0
   | Escape _ -> 0
   | _ as s -> raise (Internal_compiler_error ("erroneously obtained: " ^ Dot.dot_stmt s))
@@ -311,7 +315,7 @@ let get_composite_size actor = function
     let stmt = (match actor with Seq (s,_,_,_) -> s | _ -> raise (Internal_compiler_error "Stores can only be used in Seq statements")) in
     let nivv = (try Hashtbl.find niv stmt with | Not_found -> (1,1)) in
     (DataTypes.getdata_size typ,nivv)
-  | ComTypedSymbol (typ,x,lc) as s -> 
+  | ComTypedSymbol (typ,x,lc) as s ->
     let stmt = (match actor with Seq (s,_,_,_) -> s | _ -> raise (Internal_compiler_error "Stores can only be used in Seq statements")) in
     let nivv = (try Hashtbl.find niv stmt with | Not_found -> raise (Internal_compiler_error ((Dot.dot_stmt stmt) ^ " : seq using store not in niv hashtbl"))) in
     ((get_used_size s stmt), nivv)
@@ -321,13 +325,13 @@ let make_dependece_edges tsym list =
   (* Calculate the size of the array *)
   if (match list with | [] -> false | _ -> true) then
     let sizes = List.map (fun x -> get_composite_size x tsym) list in
-    let nivs = List.map (fun (_,x) -> x) sizes in
+    (* let nivs = List.map (fun (_,x) -> x) sizes in *)
     let sizes = List.map (fun (x,_) -> x) sizes in
-    let nistrs = List.map (fun (x,_) -> x) nivs in
-    let nvecs = List.map (fun (_,x) -> x) nivs in
+    (* let nistrs = List.map (fun (x,_) -> x) nivs in *)
+    (* let nvecs = List.map (fun (_,x) -> x) nivs in *)
     (* let size = get_composite_size tsym in *)
-    let sizes = List.map2 (fun x num_instr -> x*num_instr) sizes nistrs in
-    let sizes = List.map2 (fun x num_vec -> x*num_vec) sizes nvecs in
+    (*let sizes = List.map2 (fun x num_instr -> x*num_instr) sizes nistrs in*)
+    (*let sizes = List.map2 (fun x num_vec -> x*num_vec) sizes nvecs in*)
     let edges = List.map2 (fun x y -> Edge (Some y, x)) list sizes in
     (* Now replace the parent with the store *)
     let ret = Store (tsym, edges) in ret
@@ -450,7 +454,8 @@ and process_stmt declarations list filters num_instr num_vec = function
     else
     (* The code below produces the graph, but the number of edges do not match: FIXME*)
       let () = IFDEF DEBUG THEN print_endline "Making tiled graph" ELSE () ENDIF in
-      let mes = Array.init nv (fun i -> process_stmt declarations [] filters num_instr give stmt) in
+      let nv = nv/ !graph_tile_num in
+      let mes = Array.init !graph_tile_num (fun i -> process_stmt declarations [] filters num_instr nv stmt) in
       let mes = Array.map replace_stmt mes in
       let mes = Array.to_list mes in
       (* Add it to niv with the for loop and the par loop counter *)
@@ -463,7 +468,8 @@ and process_stmt declarations list filters num_instr num_vec = function
 
   | Split (x,lc) as s -> 
     let child = process_list declarations filters num_instr num_vec list in
-    let stmts = (match x with | Block (x,_) -> x | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " Split is not of Block type!!"))) in
+    let stmts = (match x with | Block (x,_) -> x 
+      | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " Split is not of Block type!!"))) in
     let mes = List.map (fun x -> process_stmt declarations [] filters num_instr num_vec x) stmts in
     let join_edge = Edge (None, child) in
     let myjoin = TaskJoin (s,num_instr,num_vec,join_edge) in
@@ -511,9 +517,10 @@ and convert_to_metis_graph_edge = function
   | Edge (w,x) -> Metis.Edge (w, convert_to_metis_graph x)
 
 
-let build_stream_graph gt = function
+let build_stream_graph gt gtn = function
   | Program x ->
     graph_tile := gt;
+    graph_tile_num := gtn;
     counter := 0;
     Hashtbl.clear niv;
     (* First collect all the filters defined in the program *)
