@@ -27,9 +27,9 @@ jacobi in M, N, TSTEPS out float A[M][N], float B[M][N]
 							     
 main
 {							     
- var TSTEPS=2
- var N = 2 
- var M= 2						     
+ var TSTEPS=1000
+ var N = 1000 
+ var M= 1000						     
  /* int ret = extern start_timer() */
  (float J1[M,N], float J2[M,N]) = jacobi (M,N,TSTEPS)
  /* ret = extern print_time() */
