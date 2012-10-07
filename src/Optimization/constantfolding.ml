@@ -20,11 +20,18 @@ struct
   let list_from_hash ll tbl = 
     Hashtbl.iter (fun x y -> ll := ((x,y) :: !ll)) tbl
 
+  let get_typed_type = function
+    | SimTypedSymbol (x,_,lc) 
+    | ComTypedSymbol (x,_,lc) -> x
+
   let get_symbol = function
     | Symbol (x,_) -> x
 
   let get_addressed_symbol = function
     | AddressedSymbol (x,_,_,_) -> get_symbol x
+
+  let get_vecaddress_symbol = function
+    | VecAddress (x,_,_,_) -> get_symbol x
 
   let get_typed_symbol = function
     | SimTypedSymbol (x,y,_) -> get_symbol y
@@ -94,6 +101,15 @@ struct
 	   ELSE () ENDIF in
 	 Hashtbl.find consts (get_addressed_symbol x)
        with | Not_found -> raise ( Error ((Reporting.get_line_and_column lc) ^ (" AddrRef consts: Var " ^ (get_addressed_symbol x)) ^ " not defined before use")))
+
+    | VecRef (_,x,lc) -> 
+      (try 
+	 let lc = ref [] in
+	 list_from_hash lc consts;
+	 let () = IFDEF DEBUG THEN print_endline "Trying to find vecref in hashtbl" ELSE () ENDIF in
+	 Hashtbl.find consts (get_vecaddress_symbol x)
+       with | Not_found -> raise ( Error ((Reporting.get_line_and_column lc) ^ (" VecRef consts: Var " ^ (get_vecaddress_symbol x)) ^ " not defined before use")))
+
     | Plus (x,y,_) ->
       let lvalue = get_simexpr_const x in
       let rvalue = get_simexpr_const y in
@@ -121,7 +137,7 @@ struct
     | Cast (d,y,_) -> 
       let ret = get_simexpr_const y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
-    | Brackets (x,_) | Opposite (x,_) -> get_simexpr_const x
+    | Brackets (x,_) | Opposite (x,_) | Abs (x,_) -> get_simexpr_const x
     | ColonExpr (x,y,z,_) -> raise (Error ("Colon expressions not allowed in expressions "))
     | _ -> Top DataTypes.None
 (* These are for polyhedrons *)
@@ -163,7 +179,7 @@ struct
 
   let get_expr_const lvalue_assign_type_list = function
     | SimExpr x -> [get_simexpr_const x]
-  (* This is fcall *)
+    (* This is fcall *)
     | _ ->  (* FIXME: You need to see how to get the actual value if it is a const from here *)
       List.map (fun x -> Top x) lvalue_assign_type_list
 
@@ -175,12 +191,15 @@ struct
     (* Check that dimensions of the addressed symbol are constants *)
       (match x with
 	| ComTypedSymbol (_,y,_) -> get_dim_consts y
-	|  _ -> ()
-      );
+	|  _ -> ());
       Hashtbl.add consts (get_typed_symbol x) rvalue 
     | AllAddressedSymbol x -> 
       let ttype = match (Hashtbl.find consts (get_addressed_symbol x)) with VConst (x,_) -> x | Top x -> x in
       Hashtbl.replace consts (get_addressed_symbol x) (Top ttype)
+
+    | AllVecSymbol (_,VecAddress(x,_,_,_)) -> 
+      let ttype = match (Hashtbl.find consts (get_symbol x)) with VConst (x,_) -> x | Top x -> x in
+      Hashtbl.replace consts (get_symbol x) (Top ttype)
 
   let rec get_assign_lvalue_const counter rvalue = function
     | h::t -> assign_lvalue_const (List.nth rvalue counter) h; get_assign_lvalue_const (counter+1) rvalue t
@@ -191,6 +210,7 @@ struct
   let get_lvalue_type_2 = function
     | AllTypedSymbol (SimTypedSymbol (x,_,_) | ComTypedSymbol(x,_,_)) -> x
     | AllAddressedSymbol (AddressedSymbol (x,_,_,_)) 
+    | AllVecSymbol (_,VecAddress (x,_,_,_))
     | AllSymbol x -> match (Hashtbl.find consts (get_symbol x)) with VConst (x,_) -> x | Top x -> x
   let rec get_lvalue_type = function
     | h::t -> get_lvalue_type_2 h :: get_lvalue_type t
@@ -199,12 +219,14 @@ struct
   let rec get_stmt_const = function
     | VarDecl (x,_) -> 
       let sym = (get_typed_symbol x) in
+      let () = IFDEF DEBUG THEN (print_endline ("adding symbol: " ^ sym)) ELSE () ENDIF in
       Hashtbl.add consts sym (get_vardecl_consts x)
-  (*FIXME: you are not checking that the assignment is of equal sized
-    dimensions, do that --> Done in the type inference engine *)
+    (*FIXME: you are not checking that the assignment is of equal sized
+      dimensions, do that --> Done in the type inference engine *)
     | Assign (x,y,_) ->
+      let () = IFDEF DEBUG THEN (print_endline "getting rvalue") ELSE () ENDIF in
       let rvalue =  get_expr_const (get_lvalue_type x) y in
-      (* let () = print_endline "assigning to lvalues " in *)
+      let () = IFDEF DEBUG THEN (print_endline "assigning to lvalues") ELSE () ENDIF in
       get_assign_lvalue_const 0 rvalue x
     | Escape (x,_) -> ()
     | Noop -> ()
@@ -249,10 +271,11 @@ struct
     | Const (x,y,_) -> ()
     | VarRef (x,_) -> decs := (get_symbol x) :: !decs
     | AddrRef (x,_) -> decs := (get_addressed_symbol x) :: !decs
+    | VecRef (_,x,_) -> decs := (get_vecaddress_symbol x) :: !decs
     | Plus (x,y,_) | Minus (x,y,_) | Times (x,y,_) | Div (x,y,_) | Mod (x,y,_)
     | Pow (x,y,_) | Lshift (x,y,_) | Rshift (x,y,_) -> let () = get_alldim_decs decs x in get_alldim_decs decs y
     | Cast (d,y,_) -> get_alldim_decs decs y
-    | Brackets (x,_) | Opposite (x,_) -> get_alldim_decs decs x
+    | Brackets (x,_) | Opposite (x,_) | Abs (x,_) -> get_alldim_decs decs x
     | ColonExpr (x,y,z,lc) -> raise (Error ((Reporting.get_line_and_column lc) ^ "Colon expressions not allowed in expressions "))
     | _ -> raise ( Error (" Unkown expression used while declaring the addressed symbol "))
 
@@ -339,7 +362,7 @@ struct
 
   let rec propogate_cfg = function
     | Squarenode (x,y) as s -> 
-      (* let () = print_endline ("Propogating in: " ^ (Dot.dot_stmt x)) in *)
+      let () = IFDEF DEBUG THEN print_endline ("Propogating in: " ^ (Dot.dot_stmt x)) ELSE () ENDIF in
       let () = get_stmt_const x in
       let () = IFDEF DEBUG THEN print_endline ("Trace..in square node " ^ (Dot.dot_stmt x)) ELSE () ENDIF in
     (* Copy all the symbols defined until now to this node for constant folding later on*)
@@ -430,6 +453,7 @@ struct
 							      ("simple_epxr_const: Var " ^ (get_symbol x)) ^ " not defined before use")))
   (* Try floding expressions and see if you get a constant *)
     | AddrRef (x,_) -> Hashtbl.find v (get_addressed_symbol x)
+    | VecRef (_,x,_) -> Hashtbl.find v (get_vecaddress_symbol x)
     | Plus (x,y,_) ->
       (* This is wrong, since we are calling the original function, but are not *)
       let lvalue = simple_epxr_const v x in
@@ -458,7 +482,7 @@ struct
     | Cast (d,y,_) -> 
       let ret = simple_epxr_const v y in
       (match ret with | VConst (_,x) -> VConst(d,x) | _ as s -> s)
-    | Brackets (x,_) | Opposite (x,_) -> simple_epxr_const v x
+    | Brackets (x,_) | Opposite (x,_) | Abs (x,_) -> simple_epxr_const v x
     | ColonExpr (x,y,z,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "ColonExpr detected after all rewrites!!"))
     | _ -> Top DataTypes.None
 
@@ -692,11 +716,13 @@ struct
     | [] -> ()
 
 (* Inter-procedural constant propogation and type-checking *)
-  let propogate_interface fcall prev_topnode inous = 
+  let propogate_interface vipr fcall prev_topnode inous =
     try
       match prev_topnode with 
-	| Null -> raise Nothing
-	| _ -> 
+	| Null -> 
+	  if not vipr then raise Nothing
+	  else  List.iter (fun (VarDecl (x,_)) -> Hashtbl.add consts (get_typed_symbol x) (Top (get_typed_type x))) inous 
+	| _ ->
 	  (* let () = (match prev_topnode with Topnode (_,x,_) -> print_endline ("prev_topnode is: " ^ x)) in *)
 	  let nodes = Hashtbl.find top_nodes prev_topnode in
 	  let ll1 = ref [] in
@@ -729,26 +755,28 @@ struct
     | _ -> raise (Internal_compiler_error "get_ins_and_outs INS/OUTS are not of Squarenode type, CFG construction error")
 
   let add_to_ins_and_outs = function
-    | Squarenode (x,y) as s -> Hashtbl.add nodes s (Hashtbl.copy consts)
-    | _ -> raise (Internal_compiler_error "get_ins_and_outs INS/OUTS are not of Squarenode type, CFG construction error")
+    | Squarenode (x,y) as s -> 
+      let () = IFDEF DEBUG THEN print_endline (Dot.dot_stmt x) ELSE () ENDIF in
+      Hashtbl.add nodes s (Hashtbl.copy consts)
+    | _ -> raise (Internal_compiler_error "add_ins_and_outs INS/OUTS are not of Squarenode type, CFG construction error")
 
-  let propogate_cfg_list prev_topnode ins outs body fcall = 
+  let propogate_cfg_list vipr prev_topnode ins outs body fcall = 
     let inous = ((get_ins_and_outs ins) @ (get_ins_and_outs outs)) in
-    let () = propogate_interface fcall prev_topnode inous in
+    let () = propogate_interface vipr fcall prev_topnode inous in
     (* Add the input and output to the nodes hashtbl *)
     let inousn = (get_in_outs_list ins) @ (get_in_outs_list outs) in
     let () = List.iter (fun x -> add_to_ins_and_outs x) inousn in
     let () = propogate_cfg body in ()
     (* let () = propogate_top body in () *)
 
-  let propogate_topnode prev_topnode = function
+  let propogate_topnode vipr prev_topnode = function
     | Topnode (fcall, x,_,y) as s ->
       let () = Hashtbl.clear consts in
       let () = Hashtbl.clear nodes in
       let () = Hashtbl.clear endnodes in
       let () = print_string ("Filter: " ^ x ^ " " ) in
       (* y is the cfg list: inputs, outputs, and the body *)
-      let () = propogate_cfg_list prev_topnode (List.nth y 0) (List.nth y 1) (List.nth y 2) fcall in 
+      let () = propogate_cfg_list vipr prev_topnode (List.nth y 0) (List.nth y 1) (List.nth y 2) fcall in 
       (* Here consts and nodes should be full *)
       let () = Hashtbl.add top_nodes s (Hashtbl.copy nodes) in 
       let () = print_endline "...Done" in
@@ -756,12 +784,12 @@ struct
   (* If there is nothing in the prev_topnode, the main filter then *)
     | Null -> raise (Internal_compiler_error "TopNode is Null")
 
-  let rec propogate prev_topnode = function
+  let rec propogate vipr prev_topnode = function
     | Filternode (x,y) -> 
-      let prev_topnode = propogate_topnode prev_topnode x in
-      propogate_rest prev_topnode y; top_nodes
-  and propogate_rest prev_topnode = function
-    | h::t -> let _ = propogate prev_topnode h in propogate_rest prev_topnode t
+      let prev_topnode = propogate_topnode vipr prev_topnode x in
+      propogate_rest vipr prev_topnode y; top_nodes
+  and propogate_rest vipr prev_topnode = function
+    | h::t -> let _ = propogate vipr prev_topnode h in propogate_rest vipr prev_topnode t
     | [] -> ()
 end
 
@@ -827,6 +855,7 @@ struct
 	| _ as s -> Brackets(s,lc))
     | Cast (d,y,lc) -> Cast(d,(fold_simple_expr consts y),lc)
     | Opposite (x,lc) -> Opposite(fold_simple_expr consts x,lc)
+    | Abs (x,lc) -> Abs (fold_simple_expr consts x,lc)
     | Plus (x,y,lc) ->
       let lvalue = fold_simple_expr consts x in
       let rvalue = fold_simple_expr consts y in 
@@ -1124,7 +1153,7 @@ struct
     | Empty -> raise (Internal_compiler_error "I am an empty node")
     | Backnode _ ->raise (Internal_compiler_error "I am a backnode") 
 
-  let fold_topnode nodes = function
+  let fold_topnode vipr nodes = function
     | Topnode (f,name,r,y) -> 
       (* Just get the new f from the hashtbl *)
       let f = (try
@@ -1136,17 +1165,18 @@ struct
       (match r with | Some _ -> 
 	let get_from = (match (List.hd y) with | Empty -> (List.nth y 1) | _ as s -> s) in
 	let c_consts = get_consts_from_nodes nodes get_from in
-	Topnode(f,name,(fold_constraints c_consts r), (fold_cfg_list nodes (List.rev y)))
-	| None -> Topnode(f,name,r,(fold_cfg_list nodes (List.rev y))))
+	if not vipr then Topnode(f,name,(fold_constraints c_consts r), (fold_cfg_list nodes (List.rev y)))
+	else Topnode(f,name,(fold_constraints c_consts r), (fold_cfg_list nodes y))
+	| None -> if not vipr then Topnode(f,name,r,(fold_cfg_list nodes (List.rev y))) else Topnode(f,name,r,(fold_cfg_list nodes y)))
     | Null -> raise (Internal_compiler_error "TopNode is null")
 
-  let rec fold top_nodes = function
+  let rec fold vipr top_nodes = function
     | Filternode (x,y) -> 
       let () = print_endline ("Filter: " ^ (match x with | Topnode (_,x,_,_) -> x | Null -> raise (Internal_compiler_error "Hit a Null, by mistake")) ^ "...Done") in
-      let topnode = fold_topnode (Hashtbl.find top_nodes x) x in
-      let ll = fold_rest top_nodes y in
+      let topnode = fold_topnode vipr (Hashtbl.find top_nodes x) x in
+      let ll = fold_rest vipr top_nodes y in
       Filternode (topnode,ll)
-  and fold_rest top_nodes = function
-    | h::t -> fold top_nodes h :: fold_rest top_nodes t
+  and fold_rest vipr top_nodes = function
+    | h::t -> fold vipr top_nodes h :: fold_rest vipr top_nodes t
     | [] -> []
 end

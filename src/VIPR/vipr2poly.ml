@@ -78,9 +78,16 @@ let process_storage = function
   | Variable (x,gt) -> Language.Language.SimTypedSymbol(gt,process_symbol x,get_lc)
   | Subarray (x,y,z,i) -> raise (Internal_compiler_error "Currently subarrays are not handled in poly, because poly does not know what subarrays really are?")
 
+(* Needs to be fixed *)
 let parse_const_type const = 
-  let r = Str.regexp_string "[0-9]+\\.[0-9]+" in 
-  if Str.string_match r const 0 then Language.DataTypes.Float32 else Language.DataTypes.Int32s
+  try  
+    let _ = int_of_string const in 
+    let () = IFDEF DEBUG THEN print_endline ("got int type: " ^ const) ELSE () ENDIF in
+    Language.DataTypes.Int32s
+  with
+    | _ -> let _ = float_of_string const in 
+	   let () = IFDEF DEBUG THEN print_endline ("got float type: " ^ const) ELSE () ENDIF in
+	   Language.DataTypes.Float32 
 
 let rec process_index = function
   | StaticIndex il ->
@@ -103,8 +110,8 @@ and process_simexpr = function
   | Cast (x,y) -> Language.Language.Cast (x,process_simexpr y,get_lc)
 
 and process_unop x = function
-  | OPP -> Language.Language.Opposite (process_simexpr x, get_lc)
-  | _ -> raise (Internal_compiler_error "polly does not support any unary operation other than (-)")
+  | MINUS -> Language.Language.Opposite (process_simexpr x, get_lc)
+  | _ as s -> raise (Internal_compiler_error ("polly does not support any unary operation other than (-)" ^ op_print s))
 
 and process_binop x y = function
   | POW -> Language.Language.Pow (process_simexpr x, process_simexpr y, get_lc)
@@ -115,7 +122,7 @@ and process_binop x y = function
   | MOD -> Language.Language.Mod (process_simexpr x, process_simexpr y, get_lc)
   | RSHIFT -> Language.Language.Rshift (process_simexpr x, process_simexpr y, get_lc)
   | LSHIFT -> Language.Language.Lshift (process_simexpr x, process_simexpr y, get_lc)
-  | ABS -> raise (Internal_compiler_error "ABS NOT SUPPORTED IN POLY")
+  | ABS -> Language.Language.Abs (process_simexpr x, get_lc)
   | _ -> raise (Internal_compiler_error " Mathematical operation tried without math operators")
 
 let r_process_op s1 s2 = function

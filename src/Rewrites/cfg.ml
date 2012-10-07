@@ -2,6 +2,8 @@ open Language
 open Language
 open CFG
 
+exception Internal_compiler_error of string
+
 let rec get_new_block enode = function
   | Startnode (x,y) -> Startnode (x,get_new_block enode  y)
   | Squarenode (x,y) -> Squarenode (x,get_new_block enode  y)
@@ -45,6 +47,7 @@ let rec make_stmt list = function
     let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc), 
 			       (build_loop vend vstride lc enode x z)) in
     Startnode (s, vinitode)
+
   | Par (x,y,z,lc) as s ->
     let node = make_block list in (* This is where I continue to *)
     let enode = Endnode (s,node,1) in
@@ -53,13 +56,16 @@ let rec make_stmt list = function
     let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc), 
 			       (build_loop vend vstride lc enode x z)) in
     Startnode (s, vinitode)
+
   | CaseDef (x,_) as s ->
     let node = make_block list in (* Where I need to continue to *)
     let enode = Endnode (s,node,(get_num_case x)) in
     let cnode = build_case x in
     let snode = Startnode (s, cnode) in
     get_new_block enode snode
+
   | _ as s -> Squarenode (s , make_block list) (* TODO: There shoud be no colon expr assigns left when coming here *)
+
 and build_loop vend vstride lc enode x stmt = 
   let sexpr = Plus ((VarRef (x,lc)),Brackets(Cast(DataTypes.Int32s,vstride,lc),lc),lc) in (*FIXME: vstride needs to be of type Int32s*)
   (* First get the stmt list from the block stmt, iff it is a block stmt *)

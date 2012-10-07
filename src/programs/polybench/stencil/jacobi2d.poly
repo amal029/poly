@@ -12,8 +12,8 @@ jacobi in M, N, TSTEPS out float A[M][N], float B[M][N]
  /* (A, B) = init_jacobi() */
   par i in 0:M-1
    par j in 0:N-1{
-    A[i][j] = (((((float)i)*(((float)j)+2.0))+2.0)/((float)1000))
-    B[i][j] = (((((float)i)*(((float)j)+3.0))+3.0)/((float)1000))
+    A[i][j] = (((((float)i)*(((float)j)+2.0))+2.0)/((float)N))
+    B[i][j] = (((((float)i)*(((float)j)+3.0))+3.0)/((float)N))
    }
  for t in 0:TSTEPS-1{
   for i in 1:M-1
@@ -27,9 +27,9 @@ jacobi in M, N, TSTEPS out float A[M][N], float B[M][N]
 							     
 main
 {							     
- var TSTEPS=1000
- var N = 1000 
- var M= 1000						     
+ var TSTEPS=10
+ var N = 10 
+ var M= 10						     
  /* int ret = extern start_timer() */
  (float J1[M,N], float J2[M,N]) = jacobi (M,N,TSTEPS)
  /* ret = extern print_time() */

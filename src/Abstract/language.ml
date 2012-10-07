@@ -137,6 +137,7 @@ struct
     | Minus of simpleExpr * simpleExpr * (line * column)
     | Times of simpleExpr * simpleExpr * (line * column)
     | Div of simpleExpr * simpleExpr * (line * column)
+    | Abs of simpleExpr * (line * column)
     | Mod of simpleExpr * simpleExpr * (line * column)
     | Pow of simpleExpr * simpleExpr * (line * column)
     | Rshift of simpleExpr * simpleExpr * (line * column)

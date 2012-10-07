@@ -4,6 +4,8 @@ open CFG
 
 exception Internal_compiler_error of string
 
+let my_vectorize = ref false
+
 let rec get_new_block enode = function
   | Startnode (x,y) -> Startnode (x,get_new_block enode  y)
   | Squarenode (x,y) -> Squarenode (x,get_new_block enode  y)
@@ -51,6 +53,7 @@ let rec make_stmt symbol_table list = function
 			       (build_loop symbol_table vend vstride lc enode x z)) in
     symbol_table := !rsym;
     Startnode (s, vinitode)
+
   | Par (x,y,z,lc) as s ->
     (* Par can be converted to a vector intruction possibly!! *)
     (*
@@ -69,7 +72,7 @@ let rec make_stmt symbol_table list = function
       
     *)
     (try 
-       if (Vectorization.SafeToConvert.process_par s) then
+       if (!my_vectorize) && (Vectorization.SafeToConvert.process_par s) then
 	 (* We will vectorize the damn thing completely!! *)
 	 (* This thing will always give a block back!! *)
 	 (* 
@@ -134,6 +137,7 @@ let rec make_stmt symbol_table list = function
     let cnode = build_case symbol_table x in
     let snode = Startnode (s, cnode) in
     get_new_block enode snode
+
   | _ as s -> Squarenode (s , make_block symbol_table list) (* TODO: There shoud be no colon expr assigns left when coming here *)
 
 and build_loop symbol_table vend vstride lc enode x stmt = 
@@ -196,13 +200,14 @@ and get_it lc = function
   | h :: t -> Squarenode (VarDecl (h,lc), get_it lc t)
   | [] -> Empty
 
-let rec check_fcfg = function
-  | FCFG.Node (e,x,r,y) -> 
+let rec check_fcfg vectorize = function
+  | FCFG.Node (e,x,r,y) ->
+    my_vectorize := vectorize;
     (* Me is a top node *)
     let me = make_cfg r e x in 
     (* These are all also top nodes for all the other filters *)
-    let ll = check_fcfg_nodes y in
+    let ll = check_fcfg_nodes vectorize y in
     Filternode (me, ll)
-and check_fcfg_nodes = function
-  | h::t -> check_fcfg h::check_fcfg_nodes t
+and check_fcfg_nodes vectorize = function
+  | h::t -> check_fcfg vectorize h::check_fcfg_nodes vectorize t
   | [] -> [] (* These are the topnode nodes list *)

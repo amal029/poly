@@ -14,9 +14,13 @@ try
   let load_modules = ref [] in
   let vectorize = ref false in
   let vipr = ref false in
+  let slots = ref true in
   let output = ref "" in
+  let march = ref "x86_64" in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag, " Decompile to stg-lang");
 		      ("-O3", Arg.Set vectorize, " Vectorize code");
+		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = true]");
+		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave [default = x86_64]");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part, 
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
@@ -25,7 +29,7 @@ try
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
 		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file <file>.ll");
 		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files (>= llvm-3.2)");
-		      ("-o", Arg.Set_string output, " The name of the output file when graph partitioning");
+		      ("-o", Arg.Set_string output, " The name of the output file");
 		      ("-v", Arg.Set version, "  Get the compiler version")] (fun x -> file_name := x) usage_msg in
 
   if !version then begin print_endline "Poly compiler version alpha"; compile := false end
@@ -43,12 +47,7 @@ try
       let () = print_endline "....Building the call graph..." in
       let fcfg = Fcfg.check_ast ast in
       let () = print_endline ".....Building CFG..." in
-      let cfg = 
-	if !vectorize then
-	  let () = print_endline ".....Vectorizing....." in
-	  VecCFG.check_fcfg fcfg
-	else
-	  Cfg.check_fcfg fcfg in
+      let cfg = VecCFG.check_fcfg !vectorize fcfg in
       let r1 = (Str.regexp "/") in
       let slist = Str.split r1 !file_name in
       let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
@@ -57,8 +56,12 @@ try
       if !dot then
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
+	let () = print_endline "...Performing constant propogation..." in
+	let tbl = Constantfolding.Constantpropogation.propogate !vipr Language.CFG.Null cfg in
+	let () = print_endline "....Performing constant folding..." in
+	let cfg = Constantfolding.Constantfolding.fold !vipr tbl cfg in
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () = MyLlvm.compile !vipr !load_modules llvm_file cfg in ()
+	let () = MyLlvm.compile !march !slots !vipr !load_modules llvm_file cfg in ()
       else ();
 
     else 
@@ -81,7 +84,7 @@ try
 	let () = print_endline ".....Printing the cfg dot file in directory output..." in
 	let () = Dot.build_program_dot cfg "output/output.dot" in () else ();
       let () = print_endline "...Performing constant propogation..." in
-      let tbl = Constantfolding.Constantpropogation.propogate Language.CFG.Null cfg in
+      let tbl = Constantfolding.Constantpropogation.propogate !vipr Language.CFG.Null cfg in
       if !dot then
 	(* Clean the output directory *)
 	(* let () = FileUtil.rm ["../output";"../output1"] in *)
@@ -91,7 +94,7 @@ try
 	let () = Dot.build_program_dot cfg "output/output.dot" in ()
       else ();
       let () = print_endline "....Performing constant folding..." in
-      let cfg1 = Constantfolding.Constantfolding.fold tbl cfg in
+      let cfg1 = Constantfolding.Constantfolding.fold !vipr tbl cfg in
       (* Make the llvm backend code here *)
       let () = print_endline "....First order dependent type inference..." in
       let cfgt = Type_inference.First_order.infer_filternode false cfg1 in
@@ -113,7 +116,7 @@ try
 	  let () = print_endline "....Vectorizing......" in
 	  let fcfgv = Fcfg.check_ast ast in
 	  (* Now call the vectorization function on this *)
-	  VecCFG.check_fcfg fcfgv
+	  VecCFG.check_fcfg !vectorize fcfgv
 	else 
 	  (* let ast = DecompiletoAST.decompile cfgt in *)
 	  (* let fcfg = Fcfg.check_ast ast in *)
@@ -124,7 +127,7 @@ try
       else ();
       if !llvm then
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () = MyLlvm.compile !vipr !load_modules llvm_file cfgt in ()
+	let () = MyLlvm.compile !march !slots !vipr !load_modules llvm_file cfgt in ()
       else ();
       if !decompile_flag then
 	let () = print_endline "....Decompiling to AST......" in

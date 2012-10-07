@@ -23,6 +23,25 @@ type op =
   | OPP
   | ABS
 
+let op_print = function
+  | POW -> "pow"
+  | PLUS -> "plus"
+  | MINUS -> "minus"
+  | DIV -> "div"
+  | TIMES -> "times"
+  | MOD -> "mod"
+  | EQEQ -> "eqeq"
+  | EQ -> "eq"
+  | LEQ -> "leq"
+  | LT -> "lt"
+  | GEQ -> "geq"
+  | GT -> "gt"
+  | RSHIFT -> "rshift"
+  | LSHIFT -> "lshift"
+  | OPP -> "opp"
+  | ABS -> "abs"
+
+
 type index =
   | StaticIndex of int list
   | DynamicIndex of expression list
