@@ -34,7 +34,7 @@ clean:
 	$(MAKE) -C Codegen/ clean
 	$(MAKE) -C Vectorization/ clean
 	$(MAKE) -C Tests/ clean
-	rm -rf *.ll *.bc *.s *.dot *.grf *.part* gmon.out
+	rm -rf *.ll *.lle *.bc *.s *.dot *.grf *.part* gmon.out
 
 run:
 	$(MAKE) -C Tests/ run

@@ -10,7 +10,7 @@ exception Internal_compiler_error of string
 
 module List = Batteries.List
 
-let slots = ref true
+let slots = ref false
 let march = ref "x86_64"
 
 let context = global_context ()
@@ -44,7 +44,13 @@ let () = add_loop_unroll the_fpm
 
 (* Add the IPO transformations *)
 let () = add_global_optimizer the_mpm
+let () = add_internalize the_mpm true
 let () = add_function_inlining the_mpm
+let () = add_function_attrs the_mpm
+let () = add_constant_merge the_mpm
+let () = add_global_dce the_mpm
+let () = add_ipsccp the_mpm
+let () = add_strip_symbols the_mpm
 let () = add_argument_promotion the_mpm
 let () = add_strip_dead_prototypes the_mpm
 let () = add_dead_arg_elimination the_mpm
@@ -53,21 +59,9 @@ let () = add_ipc_propagation the_mpm
 (* Initialize the pass manager *)
 let _ =  PassManager.initialize the_fpm
 
-let target_data = 
-  (if !march = "x86_64" then
-      Llvm_target.TargetData.create 
-	"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
-   else Llvm_target.TargetData.create "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32");;
-
-(* Set the target triple *)
-(if !march = "x86_64" then
-    let () = set_target_triple "x86_64" the_module in
-    let () = set_data_layout
-      "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" the_module in
-    ()
- else 
-    let () = set_target_triple "shave" the_module in
-    let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32" the_module in ());;
+(* Default target data layout *)
+let target_data = ref (Llvm_target.TargetData.create 
+			 "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64")
 
 let fcall_names = Hashtbl.create 10
 let func_name_counter = ref 1
@@ -463,7 +457,7 @@ let rec codegen_simexpr declarations = function
     (match (match (get declarations (get_symbol x)) with | (x,_) -> x) with 
       | ComTypedSymbol _ ->
 	(* In this case we need to send back the pointer to the array!! *)
-	let findex = const_int (Llvm_target.intptr_type target_data) 0 in
+	let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
 	build_in_bounds_gep (match get declarations (get_symbol x) with | (_,x)->x) [|findex;findex|] 
 	  (if not !slots then "tempgep" else "") builder
       | _ -> build_load (match get declarations (get_symbol x) with | (_,x) -> x) (get_symbol x) builder)
@@ -498,7 +492,7 @@ let rec codegen_simexpr declarations = function
     (* Then we need to sign extend the thing to ptr type *)
     let indices = List.map2 (fun x y ->
       (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
-    	| "sext" -> build_sext y (Llvm_target.intptr_type target_data) (if not !slots then "sexttemp" else "") builder
+    	| "sext" -> build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
     	| _ -> y)) itypes indices in
     let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
     (* We have to do this one after the other!! *)
@@ -757,7 +751,7 @@ let codegen_callargs defmore lc declarations = function
 	  (* Then we need to sign extend the thing to ptr type *)
 	  let indices = List.map2 (fun x y ->
 	    (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
-    	      | "sext" -> build_sext y (Llvm_target.intptr_type target_data) (if not !slots then "sexttemp" else "") builder
+    	      | "sext" -> build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
     	      | _ -> y)) itypes indices in
 	  let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
 	  (* We have to do this one after the other!! *)
@@ -1049,7 +1043,7 @@ let codegen_stmt f declarations = function
 	      (match r with
 		| SimTypedSymbol _ -> alloca
 		| ComTypedSymbol(x,y,lc) as s ->
-		  let findex = const_int (Llvm_target.intptr_type target_data) 0 in
+		  let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
 		  (* let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in *)
 		  build_in_bounds_gep alloca (Array.of_list [findex]) (if not !slots then "otempgep" else "") builder)
 	    | AllSymbol x -> 
@@ -1059,7 +1053,7 @@ let codegen_stmt f declarations = function
 		| SimTypedSymbol _ ->  alloca
 		| ComTypedSymbol(x,y,lc) -> 
 		  (* let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in *)
-		  let findex = const_int (Llvm_target.intptr_type target_data) 0 in
+		  let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
 		  build_in_bounds_gep alloca (Array.of_list [findex]) (if not !slots then "otempgep" else "") builder)
 	    | AllAddressedSymbol x -> 
 	      (* rval itself might be pointers as well *)
@@ -1332,7 +1326,7 @@ let llvm_topnode vipr = function
     let inputs = decompile_filter_params (List.nth cfg_list 0) in
     let outputs = decompile_filter_params (List.nth cfg_list 1) in
     let the_function = 
-      (if name = "main" then codegen_prototype (if not vipr then name else ("MAIN")) inputs outputs else codegen_prototype func_name inputs outputs) in
+      (if name = "main" then codegen_prototype (if not vipr then name else ("main")) inputs outputs else codegen_prototype func_name inputs outputs) in
     (* You need to build the function body here using the prototype you got before*)
     let bb = append_block context "entry" the_function in
     position_at_end bb builder;
@@ -1373,9 +1367,23 @@ let compile myarch myslots vipr modules filename cfg =
   (* Go through all the files and do it!!*)
   slots := myslots;
   march := myarch;
+  target_data := 
+    (if !march = "x86_64" then !target_data
+     else Llvm_target.TargetData.create "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32");
+
+(* Set the target triple *)
+  (if !march = "x86_64" then
+      let () = set_target_triple "x86_64" the_module in
+      let () = set_data_layout
+	"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" the_module
+      in ()
+   else
+      let () = set_target_triple "shave" the_module in
+      let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32" the_module in ());
+
   let membufs = List.map (fun x -> MemoryBuffer.of_file x) modules in
   (* Now read the bit code in *)
-  let modules = List.map (fun x -> Llvm_bitreader.get_module context x) membufs in 
+  let modules = List.map (fun x -> Llvm_bitreader.get_module context x) membufs in
   (* let () = IFDEF DEBUG THEN List.iter (fun x -> dump_module x) modules ELSE () ENDIF in *)
   (* TODO: Optimize the modules just parsed *)
   (* let _ = List.map (fun x -> PassManager.run_module x the_mpm) modules in *)
@@ -1388,6 +1396,3 @@ let compile myarch myslots vipr modules filename cfg =
   (* Set the user ssupported modules *)
   user_modules := modules;
   let () = llvm_filter_node vipr filename cfg in ()
-  (* (\* free the jit *\) *)
-  (* Llvm_executionengine.ExecutionEngine.dispose exec_engine *)
-

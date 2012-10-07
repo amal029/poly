@@ -1,5 +1,7 @@
 open Batteries;;
 
+exception Error of string;;
+
 let usage_msg = "Usage: polyc [options] <filename>\nsee -help for more options" in
 try
   let compile = ref true in
@@ -14,12 +16,12 @@ try
   let load_modules = ref [] in
   let vectorize = ref false in
   let vipr = ref false in
-  let slots = ref true in
+  let slots = ref false in
   let output = ref "" in
   let march = ref "x86_64" in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag, " Decompile to stg-lang");
 		      ("-O3", Arg.Set vectorize, " Vectorize code");
-		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = true]");
+		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
 		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave [default = x86_64]");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part, 
@@ -61,7 +63,16 @@ try
 	let () = print_endline "....Performing constant folding..." in
 	let cfg = Constantfolding.Constantfolding.fold !vipr tbl cfg in
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () = MyLlvm.compile !march !slots !vipr !load_modules llvm_file cfg in ()
+	let () = MyLlvm.compile !march !slots !vipr !load_modules llvm_file cfg in
+	(* Make some system calls to complete the process *)
+	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
+	  (* We can make some sys calls *)
+	  let _ = Sys.command ("opt -internalize -O3 -memcpyopt -globalopt -inline -bb-vectorize -die -globaldce -strip -adce " ^ 
+		     llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in	
+	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
+	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
+	  let _ = Sys.command ("rm -rf *.lle") in ()
+	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
 
     else 
@@ -127,7 +138,16 @@ try
       else ();
       if !llvm then
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () = MyLlvm.compile !march !slots !vipr !load_modules llvm_file cfgt in ()
+	let () = MyLlvm.compile !march !slots !vipr !load_modules llvm_file cfgt in
+	(* Make some system calls to complete the process *)
+	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
+	  (* We can make some sys calls *)
+	  let _ = Sys.command ("opt -internalize -O3 -memcpyopt -globalopt -inline -bb-vectorize -die -globaldce -strip -adce " ^ 
+		     llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
+	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
+	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
+	  let _ = Sys.command ("rm -rf *.lle") in ()
+	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
       if !decompile_flag then
 	let () = print_endline "....Decompiling to AST......" in
