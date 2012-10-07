@@ -11,7 +11,7 @@ exception Internal_compiler_error of string
 module List = Batteries.List
 
 let slots = ref false
-let march = ref "x86_64"
+let march = ref "x86_64-apple-darwin10.0.0"
 
 let context = global_context ()
 let the_module = create_module context "poly jit"

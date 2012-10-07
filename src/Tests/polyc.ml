@@ -68,7 +68,7 @@ try
 	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
 	  (* We can make some sys calls *)
 	  let _ = Sys.command ("opt -internalize -O3 -memcpyopt -globalopt -inline -bb-vectorize -die -globaldce -strip -adce " ^ 
-		     llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in	
+				  llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in	
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
@@ -143,9 +143,8 @@ try
 	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
 	  (* We can make some sys calls *)
 	  let _ = Sys.command ("opt -internalize -O3 -memcpyopt -globalopt -inline -bb-vectorize -die -globaldce -strip -adce " ^ 
-		     llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
+				  llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
-	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
