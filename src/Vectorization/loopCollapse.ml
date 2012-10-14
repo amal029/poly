@@ -83,8 +83,8 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc = 
   | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
 
   | Const (x,y,lc) ->
-      (* Special case expand the vector to the required size and give a const vector back!! *)
-      (* let size = (vend - vstart + 1)/vstride in  *)
+    (* Special case expand the vector to the required size and give a const vector back!! *)
+    (* let size = (vend - vstart + 1)/vstride in  *)
     let size = List.fold_right(fun (vstart,vend,vstride) x -> (get_access_size vstart vend vstride) * x) limits 1 in
     let () = IFDEF DEBUG THEN print_endline ("Array size: " ^ (string_of_int size)) ELSE () ENDIF in
     Constvector (None,x,(Array.init size (fun i -> Const (x,y,lc))),lc)

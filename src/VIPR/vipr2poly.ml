@@ -111,6 +111,7 @@ and process_simexpr = function
 
 and process_unop x = function
   | MINUS -> Language.Language.Opposite (process_simexpr x, get_lc)
+  | ABS -> Language.Language.Abs (process_simexpr x, get_lc)
   | _ as s -> raise (Internal_compiler_error ("polly does not support any unary operation other than (-)" ^ op_print s))
 
 and process_binop x y = function
@@ -122,7 +123,6 @@ and process_binop x y = function
   | MOD -> Language.Language.Mod (process_simexpr x, process_simexpr y, get_lc)
   | RSHIFT -> Language.Language.Rshift (process_simexpr x, process_simexpr y, get_lc)
   | LSHIFT -> Language.Language.Lshift (process_simexpr x, process_simexpr y, get_lc)
-  | ABS -> Language.Language.Abs (process_simexpr x, get_lc)
   | _ -> raise (Internal_compiler_error " Mathematical operation tried without math operators")
 
 let r_process_op s1 s2 = function

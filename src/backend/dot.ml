@@ -36,6 +36,9 @@ let rec dot_simpleexpr = function
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in
     (lstring ^ " x " ) ^ rstring
+  | Abs (x,_)  -> 
+    let lstring = dot_simpleexpr x in
+    ("|" ^ lstring ^ "|" )
   | Div (x,y,_)  -> 
     let lstring = dot_simpleexpr x in
     let rstring = dot_simpleexpr y in

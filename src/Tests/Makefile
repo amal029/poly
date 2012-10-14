@@ -1,6 +1,6 @@
+COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 XMLLIB=xml-light.cmxa
-COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 # BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
 BATTERIES=$(HOME)/batteries-included/_build/src
 METISDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/lib-metis/lib

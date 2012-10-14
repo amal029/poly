@@ -6,35 +6,35 @@ all: compile
 
 
 compile:
-	$(MAKE) -C Abstract/ all
-	$(MAKE) -C Error/ all
-	$(MAKE) -C Parsing/ all
-	$(MAKE) -C backend/ all
-	$(MAKE) -C VIPR/ all
-	$(MAKE) -C Rewrites/ fcheck
-	$(MAKE) -C Rewrites/ decompile
-	$(MAKE) -C Rewrites/ fcfg
-	$(MAKE) -C Optimization/ all
-	$(MAKE) -C Checking/ all
-	$(MAKE) -C Vectorization/ all
-	$(MAKE) -C Codegen/ all
-	$(MAKE) -C Tests/ all
+	$(MAKE) -e -C Abstract/ all
+	$(MAKE) -e -C Error/ all
+	$(MAKE) -e -C Parsing/ all
+	$(MAKE) -e -C backend/ all
+	$(MAKE) -e -C VIPR/ all
+	$(MAKE) -e -C Rewrites/ fcheck
+	$(MAKE) -e -C Rewrites/ decompile
+	$(MAKE) -e -C Rewrites/ fcfg
+	$(MAKE) -e -C Optimization/ all
+	$(MAKE) -e -C Checking/ all
+	$(MAKE) -e -C Vectorization/ all
+	$(MAKE) -e -C Codegen/ all
+	$(MAKE) -e -C Tests/ all
 	mkdir -p output
 	mkdir -p output1
 
 clean:
-	$(MAKE) -C Abstract/ clean
-	$(MAKE) -C Error/ clean
-	$(MAKE) -C Parsing/ clean
-	$(MAKE) -C VIPR/ clean
-	$(MAKE) -C Checking/ clean
-	$(MAKE) -C Rewrites/ clean
-	$(MAKE) -C Optimization/ clean
-	$(MAKE) -C backend/ clean
-	$(MAKE) -C Codegen/ clean
-	$(MAKE) -C Vectorization/ clean
-	$(MAKE) -C Tests/ clean
+	$(MAKE) -e -C Abstract/ clean
+	$(MAKE) -e -C Error/ clean
+	$(MAKE) -e -C Parsing/ clean
+	$(MAKE) -e -C VIPR/ clean
+	$(MAKE) -e -C Checking/ clean
+	$(MAKE) -e -C Rewrites/ clean
+	$(MAKE) -e -C Optimization/ clean
+	$(MAKE) -e -C backend/ clean
+	$(MAKE) -e -C Codegen/ clean
+	$(MAKE) -e -C Vectorization/ clean
+	$(MAKE) -e -C Tests/ clean
 	rm -rf *.ll *.lle *.bc *.s *.dot *.grf *.part* gmon.out
 
 run:
-	$(MAKE) -C Tests/ run
+	$(MAKE) -e -C Tests/ run

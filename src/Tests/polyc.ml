@@ -67,8 +67,8 @@ try
 	(* Make some system calls to complete the process *)
 	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
 	  (* We can make some sys calls *)
-	  let _ = Sys.command ("opt -internalize -O3 -memcpyopt -globalopt -inline -bb-vectorize -die -globaldce -strip -adce " ^ 
-				  llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in	
+	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3" 
+			       ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in	
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
@@ -142,8 +142,8 @@ try
 	(* Make some system calls to complete the process *)
 	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
 	  (* We can make some sys calls *)
-	  let _ = Sys.command ("opt -internalize -O3 -memcpyopt -globalopt -inline -bb-vectorize -die -globaldce -strip -adce " ^ 
-				  llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
+	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " 
+				  ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")

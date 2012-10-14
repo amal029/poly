@@ -1,19 +1,25 @@
-zeros out O[M][N] par i in 0:M-1 par j in 0:N-1 O[i,j] = 1 where M==N
+zeros out O[M][N] par i in 0:M-1 par j in 0:N-1 O[i,j] = 0.0 where M==N
+ones out O[M][N] par i in 0:M-1 par j in 0:N-1 O[i,j] = (i+j) where M==N
 
 matmul in first[M,N], second[M,N] out int32s result[M,N]
 {
-    par i in 0:M-1
-      for j in 0:N-1 
-        par k in 0:M-1 
+  par i in 0:M-1 {
+    par j in 0:N-1{
+      result[i,j] = 0
+      for k in 0:M-1 {
           result[i,j] = result[i,j] + first[i,k] * second[k,j]
+	}
+    }
+  }
 }where M==N
 
 
 main
 {
-    var size = 4
-    var a[size,size] = zeros()
-    var result2[size,size] = matmul(a, a)
+    var size = 16
+    var a[size,size] = ones()
+    var result2[size,size] /* = zeros() */
+    result2 = matmul(a, a)
     int ret = extern print_array2 (size,size,a)
     ret = extern print_array2 (size,size,result2)
 }

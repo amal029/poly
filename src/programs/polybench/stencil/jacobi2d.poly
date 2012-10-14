@@ -16,20 +16,20 @@ jacobi in M, N, TSTEPS out float A[M][N], float B[M][N]
     B[i][j] = (((((float)i)*(((float)j)+3.0))+3.0)/((float)N))
    }
  for t in 0:TSTEPS-1{
-  for i in 1:M-1
-   for j in 1:N-1
+  for i in 2:M-1
+   for j in 2:N-1
     B[i][j] = 0.2*(A[i][j]+A[i][j-1]+A[i][j+1]+A[i-1][j])
-  par i in 1:M-1
-  par j in 1:N-1
+  par i in 2:M-1
+  par j in 2:N-1
     A[i,j] = B[i,j]
  }
 }where M==N && M==TSTEPS				     
 							     
 main
 {							     
- var TSTEPS=10
- var N = 10 
- var M= 10						     
+ var TSTEPS=50
+ var N = 50
+ var M= 50						     
  /* int ret = extern start_timer() */
  (float J1[M,N], float J2[M,N]) = jacobi (M,N,TSTEPS)
  /* ret = extern print_time() */

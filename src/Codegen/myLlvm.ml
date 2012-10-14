@@ -11,7 +11,7 @@ exception Internal_compiler_error of string
 module List = Batteries.List
 
 let slots = ref false
-let march = ref "x86_64-apple-darwin10.0.0"
+let march = ref "x86_64"
 
 let context = global_context ()
 let the_module = create_module context "poly jit"
@@ -1373,7 +1373,7 @@ let compile myarch myslots vipr modules filename cfg =
 
 (* Set the target triple *)
   (if !march = "x86_64" then
-      let () = set_target_triple "x86_64" the_module in
+      let () = set_target_triple "x86_64-apple-darwin10.0.0" the_module in
       let () = set_data_layout
 	"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" the_module
       in ()
