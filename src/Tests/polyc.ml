@@ -67,7 +67,7 @@ try
 	(* Make some system calls to complete the process *)
 	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
 	  (* We can make some sys calls *)
-	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3" 
+	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " 
 			       ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in	
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
