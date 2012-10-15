@@ -715,7 +715,7 @@ let rec codegen_relexpr declarations = function
   | Or (x,y,lc) -> 
     let lhs = codegen_relexpr declarations x in
     let rhs = codegen_relexpr declarations y in
-    build_and lhs rhs (if not !slots then "ortemp" else "") builder
+    build_or lhs rhs (if not !slots then "ortemp" else "") builder
 
   | Rackets (x,lc) -> codegen_relexpr declarations x
 
