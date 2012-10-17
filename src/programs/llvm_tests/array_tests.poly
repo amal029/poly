@@ -14,7 +14,7 @@ gray in yin out yout, uout, vout
 }
 
 read_set in R[M] out O[M] par i in 0:M-1:2 O[i] = R[i] + (i*i)
-read_set2 in R[M][N] out O[M][N] par i in 0:M-1 par j in 0:N-1 {O[i][j] = R[i][j] O[i][j] = R[i][j]}
+read_set2 in R[M][N] out O[M][N] for i in 0:M-1 par j in 0:N-1 {O[i][j] = R[i][j] O[i][j] = R[i][j]}
 non1stride in R[M][N] out O[M][N] par i in 0:M-1 par j in 0:N-1:2 O[i][j] = R[i][j]+R[i][j]
 
 /* The below one will not vectorize */
@@ -31,38 +31,38 @@ main
 {
   var size = 4
   /* var s2 = (size+1) */
-  /* var Array[size]; */
+  var Array[size];
+  int8 t1 var t2 var t3
   var array[size][size];
   array = heroes2()
-  int8 t1 var t2 var t3
   par i in 0:size-1 par j in 0:size-1 (t1,t2,t3) = gray(array[i][j])
   /* for i in 0:size-1 (test,t2) = call_primitive_type_test () */
   /* array = ones () */
-  /* Array = zeros () */
-  /* array = var_index () */
-  var trray[2] = cast_test()
+  Array = zeros ()
+  Array = var_index ()
+  var s2 = size/2
+  var trray[s2] = cast_test()
   /* print the array */
   /* print the ret value */
   /* ret = extern p1 (ret) */
-  /* array = ones() */
-  /* int ret = extern print_array (size,array) */
-  /* ret = extern print_array (size,Array) */
+  /* int ret = extern print_array (s2,trray) */
+  int ret = extern print_array (size,Array)
+  ret = extern print_array2 (size,size,array)
   /* Array = read_set(array) */
   /* /\* print the array *\/ */
   /* ret = extern print_array (size,Array) */
   /* print the ret value */
   /* ret = extern p1 (ret) */
 
-  /* var Varray[size][size] = heroes2() */
+  var Varray[size][size] = heroes2()
 
   /* /\* print a 2D array *\/ */
-  /* ret = extern print_array2 (size,Vrray) */
   /* /\* print the ret value *\/ */
   /* /\* ret = extern p1 (ret) *\/ */
 
-  /* var Vrray2[size][size] = heroes() */
-  /* Varray = read_set2(Vrray2) */
-  /* ret = extern print_array2 (size,size,Varray) */
+  var Vrray2[size][size] = heroes()
+  Varray = read_set2(Vrray2)
+  ret = extern print_array2 (size,size,Varray)
   /* Vrray2 = non1stride(Varray) */
 
   /* /\* print a 2D array *\/ */

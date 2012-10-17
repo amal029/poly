@@ -22,7 +22,7 @@ try
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag, " Decompile to stg-lang");
 		      ("-O3", Arg.Set vectorize, " Vectorize code");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
-		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave [default = x86_64]");
+		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, x86_64-gnu-linux [default = x86_64, which is apple darwin]");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part, 
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
@@ -74,8 +74,7 @@ try
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
-
-    else 
+    else
       (* Initialize the error reporting structures *)
       let in_chan = open_in !file_name in
       let () = print_endline "....Lexing and parsing..." in

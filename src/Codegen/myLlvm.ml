@@ -76,6 +76,12 @@ type arg =
 (* The user specified modules *)
 let user_modules = ref []
 
+let get_vptr_bit_cast vptr dvptr = 
+  (match classify_type (type_of dvptr) with
+    | TypeKind.Vector -> vptr
+    | TypeKind.Array -> build_bitcast vptr (pointer_type (vector_type (element_type (type_of dvptr)) (array_length (type_of dvptr)))) "" builder
+    | _ -> raise (Internal_compiler_error "Got a pointer type after derefereincing a pointer!!"))
+
 let get_symbol = function
   | Symbol (x,_) -> x
 let get_vec_symbol = function
@@ -488,7 +494,7 @@ let rec codegen_simexpr declarations = function
     let () = IFDEF DEBUG THEN dump_value array_llvaue ELSE () ENDIF in
     let ret = build_in_bounds_gep array_llvaue (Array.of_list [findex;findex]) 
       (if not !slots then "tempgep" else "") builder in
-    (* let ret = build_in_bounds_gep array_llvaue (Array.of_list (findex::indices)) "tempgep" builder in *)
+
     (* Then we need to sign extend the thing to ptr type *)
     let indices = List.map2 (fun x y ->
       (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
@@ -533,7 +539,9 @@ let rec codegen_simexpr declarations = function
     let (vptr,vtyp) =
       if (List.length ce) = 1 then 
 	let symbol = match get declarations (get_vec_symbol x) with | (x,_) -> x in
-	let dtype = (match symbol with ComTypedSymbol (dtype,_,_) -> dtype) in (vptr,dtype)
+	let dtype = (match symbol with ComTypedSymbol (dtype,_,_) -> dtype) in 
+	(* If the vptr is not pf type ptr then make it by bitcasting it into a vptr *)
+	let vptr = get_vptr_bit_cast vptr (derefence_pointer vptr) in (vptr,dtype)
       else
 	let symbol = match get declarations (get_vec_symbol x) with | (x,_) -> x in
 	(* Only the first elements, which are not being convereted into vector types *)
@@ -611,7 +619,8 @@ let get_exact_addressed_symbol_llvm_type ptype = function
     let () = List.iteri (fun i x -> 
       (match x with | Const (_,value,_) -> 
 	(if i = 0 then
-	    atype := vector_type !atype (int_of_string value)
+	    (* atype := vector_type !atype (int_of_string value) *)
+	    atype := array_type !atype (int_of_string value)
 	 else
 	    atype := array_type !atype (int_of_string value))
 	| _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist 
@@ -939,7 +948,8 @@ let codegen_stmt f declarations = function
 		      (List.fold_right (fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1))
 		    | _ -> raise (Internal_compiler_error "Not a comtpyed symbol")) in
 		  let () = IFDEF DEBUG THEN print_endline ("AllVec Vector size: " ^ (string_of_int vsize)) ELSE () ENDIF in
-		  (vptr,vsize)
+		  (* If the vptr is not pf type vector ptr then make it by bitcasting it into a vptr *)
+		  let vptr = get_vptr_bit_cast vptr (derefence_pointer vptr) in (vptr,vsize)
 		else
 		  let symbol = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
 		  (* Only the first elements, which are not being convereted into vector types *)
@@ -1055,7 +1065,7 @@ let codegen_stmt f declarations = function
 		  (* let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in *)
 		  let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
 		  build_in_bounds_gep alloca (Array.of_list [findex]) (if not !slots then "otempgep" else "") builder)
-	    | AllAddressedSymbol x -> 
+	    | AllAddressedSymbol x ->
 	      (* rval itself might be pointers as well *)
 	      (* These will also be pointer types ofcourse !! *)
 	      (* This is similar to simple-expr codegen for AddrRef*)
@@ -1377,22 +1387,17 @@ let compile myarch myslots vipr modules filename cfg =
       let () = set_data_layout
 	"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" the_module
       in ()
-   else
+   else if !march = "shave" then
       let () = set_target_triple "shave" the_module in
-      let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32" the_module in ());
+      let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32" the_module in ()
+   else if !march = "x86_64-gnu-linux" then
+      let () = set_target_triple "x86_64-unknown-linux-gnu" the_module in
+      let () = set_data_layout 
+	"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128" the_module in ());
 
   let membufs = List.map (fun x -> MemoryBuffer.of_file x) modules in
   (* Now read the bit code in *)
   let modules = List.map (fun x -> Llvm_bitreader.get_module context x) membufs in
-  (* let () = IFDEF DEBUG THEN List.iter (fun x -> dump_module x) modules ELSE () ENDIF in *)
-  (* TODO: Optimize the modules just parsed *)
-  (* let _ = List.map (fun x -> PassManager.run_module x the_mpm) modules in *)
-  (* (\* Now add the module to the execution engine, just before we start executing*\) *)
-  (* let () = List.iter(fun x -> Llvm_executionengine.ExecutionEngine.add_module x exec_engine) modules in *)
-  (* let () = Llvm_target.TargetData.add (Llvm_executionengine.ExecutionEngine.target_data exec_engine) the_mpm in *)
-  (* let () = IFDEF DEBUG THEN print_endline "***** PRINTING THE PRINT FUNCTION ******" ELSE () ENDIF in *)
-  (* let () = IFDEF DEBUG THEN dump_value (match Llvm_executionengine.ExecutionEngine.find_function "print" exec_engine with Some x -> x  *)
-  (*   | None -> raise (Internal_compiler_error ("Could not find function print, even after adding the module"))) ELSE () ENDIF in *)
   (* Set the user ssupported modules *)
   user_modules := modules;
   let () = llvm_filter_node vipr filename cfg in ()
