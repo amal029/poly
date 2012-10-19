@@ -48,6 +48,11 @@ try
       let ast = Vipr2poly.process ast in
       let () = print_endline "....Building the call graph..." in
       let fcfg = Fcfg.check_ast ast in
+      let fcfg = 
+	if (!vectorize) then
+	  let () = print_endline ".....Performing loop interchange and fission...." in
+	  LoopInterchange.interchange fcfg 
+	else fcfg in
       let () = print_endline ".....Building CFG..." in
       let cfg = VecCFG.check_fcfg !vectorize fcfg in
       let r1 = (Str.regexp "/") in
@@ -125,6 +130,7 @@ try
 	  let ast = DecompiletoAST.decompile cfgt in
 	  let () = print_endline "....Vectorizing......" in
 	  let fcfgv = Fcfg.check_ast ast in
+	  let fcfgv = LoopInterchange.interchange fcfgv in
 	  (* Now call the vectorization function on this *)
 	  VecCFG.check_fcfg !vectorize fcfgv
 	else 

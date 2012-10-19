@@ -110,7 +110,7 @@ let rec make_stmt symbol_table list = function
 	 let enode =  make_block symbol_table list in (* This is where I will continue to *)
 	 (* Check if your child is a par stmt, if it is then call yourself!! *)
 	 let (vec_block as s ) = LoopCollapse.convert !symbol_table s in
-	 let x = (match vec_block with | Block (x,_) -> x | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ " not of Block type"))) in
+	 let x = (match vec_block with | Block (x,_) -> x | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ " not a Block type"))) in
 	 let n = make_block symbol_table x in (* This is my own list *)
 	 let snode = Startnode (s,n) in
 	 let my_end_node = Endnode (s,enode,1) in
