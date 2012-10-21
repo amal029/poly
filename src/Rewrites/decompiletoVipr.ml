@@ -7,8 +7,8 @@ module List = Batteries.List
 module Array = Batteries.Array
 
 type t =
-  | DA
-  | A
+  | T1 of Vipr.storage
+  | T2 of Vipr.reference
 
 let get_symbol = function
   | Symbol (x,_) -> x
@@ -21,12 +21,12 @@ let vipr_ground_type x = Vipr.Ground x
 let vipr_aggregate_type (x,y) = Vipr.Aggregate (x,y)
 
 let vipr_aggregate_dims = function
-  | AddressedSymbol (_,_,(List.hd x),_) -> (match x with BracDim x -> 
-    List.map (fun (DimSpecExpr x) -> match x with Const (_,x) -> int_of_string x 
+  | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with BracDim x -> 
+    List.map (fun (DimSpecExpr x) -> match x with Const (_,x,_) -> int_of_string x 
       | _ -> raise (Internal_compiler_error "DimSpecExpr not of type Const!!"))x)
 
 let vipr_typed_symbols = function
-  | SimTypedSymbol (ty,symbol,_) -> Vipr.Variable (vipr_ground_type, get_symbol symbol)
+  | SimTypedSymbol (ty,symbol,_) -> Vipr.Variable (get_symbol symbol, ty)
   | ComTypedSymbol (ty,addressedsymbol,_) -> 
     let vagt_args = (vipr_aggregate_dims addressedsymbol, ty) in
     Vipr.Array (get_addressed_symbol addressedsymbol, vipr_aggregate_type vagt_args)
@@ -45,13 +45,17 @@ let rec vipr_process_simple_expr = function
   | Mod (x,y,_)->Vipr.Binop (Vipr.MOD, vipr_process_simple_expr x, vipr_process_simple_expr y)
   | Lshift (x,y,_)->Vipr.Binop (Vipr.LSHIFT,vipr_process_simple_expr x, 
 				vipr_process_simple_expr y)
-  | ABS (x,_) -> Vipr.Unop (Vipr.ABS, vipr_process_simple_expr x)
+  | Abs (x,_) -> Vipr.Unop (Vipr.ABS, vipr_process_simple_expr x)
   | Opposite (x,_) -> Vipr.Unop (Vipr.OPP, vipr_process_simple_expr x)
   | Cast (x,y,_) -> Vipr.Cast (x,vipr_process_simple_expr y)
   | Brackets (x,_) -> Vipr.Brackets (vipr_process_simple_expr x)
-  | Constvector (_,_,x,_) -> List.map (fun x -> (match x with 
-      | Const (_,x) -> x)) (Array.to_list x)
-  | VarRef _ | AddrRef _ | Const _ as s -> vipr_process_reference x
+  | Constvector (_,_,x,_) -> 
+    let ret = List.map (fun x -> (match x with | Const (_,x,_) -> x 
+      | _ -> raise (Internal_compiler_error "Constvector without consts!!"))) (Array.to_list x) in
+    let ret = List.map (fun x -> Vipr.Ref (Vipr.Constant x)) ret in
+    (* FIXME: ASK ANDREW TO INTRODUCE A A EXPRESSION OF CONSTANT LIST *)
+    List.hd ret
+  | VarRef _ | AddrRef _ | Const _ as s -> vipr_process_reference s
   | _ as s -> raise (Internal_compiler_error ("Unrec simple expr: "^(Dot.dot_simpleexpr s)))
 
 and process_colon_expr = function
@@ -59,17 +63,17 @@ and process_colon_expr = function
 			    vipr_process_simple_expr z)
 
 and vipr_process_reference = function
-  | Const (_,x,_) -> Vipr.Ref(Vipr.Constant (get_symbol x))
+  | Const (_,x,_) -> Vipr.Ref(Vipr.Constant x)
   | VarRef (x,_) -> Vipr.Ref(Vipr.VariableRef (get_symbol x))
   | AddrRef (x,_) -> Vipr.Ref(vipr_static_or_dynamic_array_ref x)
 
 and vipr_static_or_dynamic_array_ref = function
-  | AddressedSymbol (sym,_,(List.hd x),_) -> 
-    let ll = (match x with BracDim x -> 
+  | AddressedSymbol (sym,_,x,_) -> 
+    let ll = (match (List.hd x) with BracDim x -> 
     List.map (fun (DimSpecExpr x) -> vipr_process_simple_expr x) x) in
-    if List.for_all (fun x -> (match x with | Vipr.Ref (Vipr.Constant _) -> true | _ -> false)) then
+    if List.for_all (fun x -> (match x with | Vipr.Ref (Vipr.Constant _) -> true | _ -> false)) ll then
       let ll = List.map (fun x -> (match x with | Vipr.Ref (Vipr.Constant x) -> (int_of_string x)
-	| _ -> raise (Internal_compiler_error "Hit a non constant inside constant list!!"))) in
+	| _ -> raise (Internal_compiler_error "Hit a non constant inside constant list!!"))) ll in
       Vipr.StaticArrayRef (get_symbol sym, Vipr.StaticIndex (ll))
     else
       Vipr.DynamicArrayRef (get_symbol sym, Vipr.DynamicIndex (ll))
@@ -85,56 +89,58 @@ let rec vipr_relexpr = function
   | Rackets (x,_) -> Vipr.RBrackets (vipr_relexpr x)
 
 let vipr_vector_to_array_ref = function
-  | Vecaddress (sym,_,ll,_) ->
+  | VecAddress (sym,_,ll,_) ->
     let ll = List.map (fun x -> vipr_process_simple_expr x) ll in
-    if List.for_all (fun x -> (match x with | Vipr.Ref (Vipr.Constant _) -> true | _ -> false)) then
+    if List.for_all (fun x -> (match x with | Vipr.Ref (Vipr.Constant _) -> true | _ -> false)) ll then
       let ll = List.map (fun x -> (match x with | Vipr.Ref (Vipr.Constant x) -> (int_of_string x)
-	| _ -> raise (Internal_compiler_error "Hit a non constant inside constant list!!"))) in
+	| _ -> raise (Internal_compiler_error "Hit a non constant inside constant list!!"))) ll in
       Vipr.StaticArrayRef (get_symbol sym, Vipr.StaticIndex (ll))
     else
       Vipr.DynamicArrayRef (get_symbol sym, Vipr.DynamicIndex (ll))
-
-let vipr_procedure = function
-  | Filter (symbol,inputs,outputs,stmt) -> 
-    Vipr.Procedure (get_symbol symbol,
-		    vipr_proc_inputs inputs, vipr_proc_outputs outputs, 
-		    vipr_stmt stmt)
 
 let vipr_process_call_args = function
   | CallAddrressedArgument x -> vipr_static_or_dynamic_array_ref x
   | CallSymbolArgument x -> Vipr.VariableRef (get_symbol x)
 
 let vipr_fcall_assign_right = function
-  | FCall ((Call (id,ins,_)),_) -> (id, List.map vipr_process_call_args ins)
+  | FCall ((Call (id,ins,_)),_) -> ((get_symbol id), List.map vipr_process_call_args ins)
+  | _ -> raise (Internal_compiler_error "Should not get a (Assign) SimExpr after checking")
 
 let vipr_simexpr_assign_right = function
   | SimExpr x -> vipr_process_simple_expr x
+  | _ -> raise (Internal_compiler_error "Should not get a (Assign) FCall after checking")
 
 let vipr_all_sym = function
-  | AllTypedSymbol x -> (DA,vipr_typed_symbols x)
-  | AllSymbol x -> (A,Vipr.VariableRef (get_symbol x))
-  | AllAddressedSymbol x -> (DA,vipr_static_or_dynamic_array_ref x)
-  | AllVecSymbol x -> (A,vipr_vector_to_array_ref x)
+  | AllTypedSymbol x -> T1 (vipr_typed_symbols x)
+  | AllSymbol x -> T2 (Vipr.VariableRef (get_symbol x))
+  | AllAddressedSymbol x -> T2 (vipr_static_or_dynamic_array_ref x)
+  | AllVecSymbol (_,x) -> T2 (vipr_vector_to_array_ref x)
 
-let vipr_simexpr_assign_left r ll =
-  let (t,l) = vipr_all_sym l in
+let vipr_simexpr_assign_left r l =
   let r = vipr_simexpr_assign_right r in
+  let t = vipr_all_sym l in
   (match t with
-    | DA -> Vipr.DeclareAndAssign (l,r)
-    | A -> Vipr.Assign (l,r))
+    | T1 l -> Vipr.DeclareAndAssign (l,r)
+    | T2 l -> Vipr.Assign (l,r))
 
 let vipr_fcall_assign_left r l = 
-  let l = vipr_all_sym l in
   let (r,lo) = vipr_fcall_assign_right r in
+  let t = List.map vipr_all_sym l in
+  let l = List.map (fun t -> (match t with
+    | T1 l -> raise (Internal_compiler_error "Got a storage type with function call!!")
+    | T2 l -> l)) t in
   Vipr.CallFun (r,lo,l)
 
 let rec vipr_stmt = function
   | VarDecl (x,_) -> Vipr.Declare (vipr_typed_symbols x)
 
-  | Assign (x,e) -> 
+  | Assign (x,e,_) -> 
     (match e with 
-      | SimExpr _ -> vipr_simexpr_assign_left r x
-      | FCall _ -> vipr_fcall_assign_left r x)
+      | SimExpr _ -> 
+	(if List.length x > 1 then 
+	  raise (Internal_compiler_error "Currently decompialtion to VIPR does not support more than one assignment at a time!!"));
+	vipr_simexpr_assign_left e (List.hd x)
+      | FCall _ -> vipr_fcall_assign_left e x)
 
   | Noop -> Vipr.Noop
 
@@ -150,29 +156,37 @@ let rec vipr_stmt = function
 
   | For (sym,x,st,_) ->
     let st = vipr_stmt st in
-    let index = Vipr.VariableRef (get_symbol sym) in
-    let (start,ed,stride) = process_colon_expr in
+    let index = Vipr.Variable (get_symbol sym, DataTypes.Int32s) in
+    let index1 = Vipr.VariableRef (get_symbol sym) in
+    let (start,ed,stride) = process_colon_expr x in
     (* Now we need to make the end into a rel-expr *)
-    let ed = Vipr.RBinop (Vipr.LEQ,Vipr.Ref index ,ed) in
+    let ed = Vipr.RBinop (Vipr.LEQ,Vipr.Ref index1,ed) in
     (* We need to make the stride into a statement *)
-    let stride = Vipr.Assign (Vipr.Ref(index), stride) in
-    Vipr.For (index,ed,stride,st)
+    let stride = Vipr.Assign (index1, stride) in
+    Vipr.For (index,start,ed,stride,st)
 
   | Par (sym,x,st,_) ->
     let st = vipr_stmt st in
-    let index = Vipr.VariableRef (get_symbol sym) in
-    let (start,ed,stride) = process_colon_expr in
+    let index = Vipr.Variable (get_symbol sym, DataTypes.Int32s) in
+    let index1 = Vipr.VariableRef (get_symbol sym) in
+    let (start,ed,stride) = process_colon_expr x in
     (* Now we need to make the end into a rel-expr *)
-    let ed = Vipr.RBinop (Vipr.LEQ,Vipr.Ref index ,ed) in
+    let ed = Vipr.RBinop (Vipr.LEQ,Vipr.Ref index1,ed) in
     (* We need to make the stride into a statement *)
-    let stride = Vipr.Assign (Vipr.Ref(index), stride) in
-    Vipr.Par (index,ed,stride,st)
+    let stride = Vipr.Assign (index1, stride) in
+    Vipr.Par (index,start,ed,stride,st)
 
   | _ as s -> raise (Internal_compiler_error ("Vipr too stupid to handle: " ^ (Dot.dot_stmt s)))
 
+let vipr_procedure = function
+  | Filter (symbol,inputs,outputs,stmt) -> 
+    Vipr.Procedure (get_symbol symbol,
+		    List.map vipr_proc_inputs inputs, List.map vipr_proc_outputs outputs, 
+		    vipr_stmt stmt)
+
 let rec process_filter = function
   | FCFG.Node (_,filter,_,fll) -> (vipr_procedure filter) :: 
-    List.map process_filter fll
+    List.flatten (List.map process_filter fll)
 
 let process node = 
   (* Now use DelareFun DeclareEntry *)
@@ -180,7 +194,7 @@ let process node =
   let main = List.filter(fun (Vipr.Procedure (x,_,_,_)) -> x = "main") vipr_procedures in
   let others = List.filter(fun (Vipr.Procedure (x,_,_,_)) -> x <> "main") vipr_procedures in
   (if List.length main <> 1 then
-      raise (Internal_compiler_error "No main filter or more than one main filter: " 
-	     ^ (string_of_int (List.length main))));
+      raise (Internal_compiler_error ("No main filter or more than one main filter: " 
+	     ^ (string_of_int (List.length main)))));
   let ll = Vipr.DeclareEntry (List.hd main) :: (List.map (fun x -> Vipr.DeclareFun x) others) in
   Vipr.Program ll

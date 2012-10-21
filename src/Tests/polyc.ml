@@ -86,6 +86,8 @@ try
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
       if !decompile_flag_vipr then
+	let () = print_endline ".....Decompiling to VIPR..." in
+	let vast = DecompiletoVipr.process fcfg in
 	let () = print_endline ".....Generating VIPR..." in
 	let () = Viprout.output BatInnerIO.stdout vast in ()
       else ();

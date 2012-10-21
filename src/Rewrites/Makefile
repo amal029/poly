@@ -1,4 +1,6 @@
+COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
+VIPRDIR=$(COMP_HOME)/VIPR
 BATTERIES=$(HOME)/batteries-included/_build/src
 ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
@@ -28,6 +30,8 @@ decompile:
 	-I $(DOTDIR) $(DOTLIB) -I $(LANGDIR) -I $(ERRORDIR) -c decompiletoAndrewLang.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(DOTDIR) $(DOTLIB)	\
 	-I $(METISDIR) $(METISLIB) -I $(LANGDIR) -I $(ERRORDIR) -I $(BATTERIES) $(BATLIBB) -c myStream.ml
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(DOTDIR) $(DOTLIB)	\
+	-I $(LANGDIR) -I $(ERRORDIR) -I $(VIPRDIR) -I $(BATTERIES) -c decompiletoVipr.ml
 
 clean:
 	rm -rf *.cm* *.o *.a
