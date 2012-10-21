@@ -328,7 +328,8 @@ let process = function
     let fs = List.map (fun x -> (match x with 
       | DeclareEntry x -> 
 	let proc = process_procedure x in
-	let proc = (match proc with Language.Language.Filter(x,y,z,t) -> Language.Language.Filter (Language.Language.Symbol ("main",get_lc),y,z,t)) in
+	let proc = (match proc with Language.Language.Filter(x,y,z,t) -> 
+	  Language.Language.Filter (Language.Language.Symbol ("main",get_lc),y,z,t)) in
 	Language.Language.DefMain (proc, None, get_lc) 
       | DeclareFun x -> Language.Language.Def (process_procedure x, None, get_lc)
       | _ -> raise (Internal_compiler_error "Could not filter procedures out!!"))) f in

@@ -6,7 +6,8 @@ let usage_msg = "Usage: polyc [options] <filename>\nsee -help for more options" 
 try
   let compile = ref true in
   let file_name = ref "" in
-  let decompile_flag = ref false in
+  let decompile_flag_stg = ref false in
+  let decompile_flag_vipr = ref false in
   let version = ref false in
   let dot = ref false in
   let llvm = ref false in
@@ -15,12 +16,15 @@ try
   let gtn = ref 10 in
   let load_modules = ref [] in
   let vectorize = ref false in
+  let floop_interchange = ref false in
   let vipr = ref false in
   let slots = ref false in
   let output = ref "" in
   let march = ref "x86_64" in
-  let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag, " Decompile to stg-lang");
+  let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag_stg, " Decompile to stg-lang");
+		      ("-vipr-lang", Arg.Set decompile_flag_vipr, " Decompile to vipr-lang");
 		      ("-O3", Arg.Set vectorize, " Vectorize code");
+		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
 		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, x86_64-gnu-linux [default = x86_64, which is apple darwin]");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
@@ -42,27 +46,29 @@ try
       let in_chan = open_in !file_name in
       let () = print_endline "....Lexing and parsing VIPR file..." in
       let lexbuf = Lexing.from_channel in_chan in
-      let ast = ViprParser.ast ViprLexer.lexer lexbuf in
+      let vast = ViprParser.ast ViprLexer.lexer lexbuf in
       (* Close the input channel *)
       let () = close_in in_chan in
-      let ast = Vipr2poly.process ast in
+      let ast = Vipr2poly.process vast in
       let () = print_endline "....Building the call graph..." in
       let fcfg = Fcfg.check_ast ast in
       let fcfg = 
-	if (!vectorize) then
+	if !floop_interchange then
 	  let () = print_endline ".....Performing loop interchange and fission...." in
 	  LoopInterchange.interchange fcfg 
 	else fcfg in
-      let () = print_endline ".....Building CFG..." in
-      let cfg = VecCFG.check_fcfg !vectorize fcfg in
-      let r1 = (Str.regexp "/") in
-      let slist = Str.split r1 !file_name in
-      let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
-      let llvm_file = (List.hd slist) in
-      let llvm_file = if not (!output = "") then !output else llvm_file in
       if !dot then
+	let () = print_endline ".....Building CFG..." in
+	let cfg = VecCFG.check_fcfg !vectorize fcfg in
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
+	let () = print_endline ".....Building CFG..." in
+	let cfg = VecCFG.check_fcfg !vectorize fcfg in
+	let r1 = (Str.regexp "/") in
+	let slist = Str.split r1 !file_name in
+	let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
+	let llvm_file = (List.hd slist) in
+	let llvm_file = if not (!output = "") then !output else llvm_file in
 	let () = print_endline "...Performing constant propogation..." in
 	let tbl = Constantfolding.Constantpropogation.propogate !vipr Language.CFG.Null cfg in
 	let () = print_endline "....Performing constant folding..." in
@@ -78,6 +84,10 @@ try
 	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
+      else ();
+      if !decompile_flag_vipr then
+	let () = print_endline ".....Generating VIPR..." in
+	let () = Viprout.output BatInnerIO.stdout vast in ()
       else ();
     else
       (* Initialize the error reporting structures *)
@@ -101,10 +111,6 @@ try
       let () = print_endline "...Performing constant propogation..." in
       let tbl = Constantfolding.Constantpropogation.propogate !vipr Language.CFG.Null cfg in
       if !dot then
-	(* Clean the output directory *)
-	(* let () = FileUtil.rm ["../output";"../output1"] in *)
-	(* let () = FileUtil.mkdir "output" ~parent:true in *)
-	(* let () = FileUtil.mkdir "output1" ~parent:true in *)
 	let () = print_endline ".....Printing the cfg dot file in directory output..." in
 	let () = Dot.build_program_dot cfg "output/output.dot" in ()
       else ();
@@ -153,7 +159,7 @@ try
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
-      if !decompile_flag then
+      if !decompile_flag_stg then
 	let () = print_endline "....Decompiling to AST......" in
 	let ast = DecompiletoAST.decompile cfgt in
 	let () = print_endline "....Decompiling to stg-lang......" in

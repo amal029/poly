@@ -11,6 +11,7 @@ compile:
 	$(MAKE) -e -C Parsing/ all
 	$(MAKE) -e -C backend/ all
 	$(MAKE) -e -C VIPR/ all
+	$(MAKE) -e -C backend/ viprout
 	$(MAKE) -e -C Rewrites/ fcheck
 	$(MAKE) -e -C Rewrites/ decompile
 	$(MAKE) -e -C Rewrites/ fcfg
@@ -19,6 +20,7 @@ compile:
 	$(MAKE) -e -C Vectorization/ all
 	$(MAKE) -e -C Codegen/ all
 	$(MAKE) -e -C Tests/ all
+	ctags -R -e *
 	mkdir -p output
 	mkdir -p output1
 
@@ -34,7 +36,7 @@ clean:
 	$(MAKE) -e -C Codegen/ clean
 	$(MAKE) -e -C Vectorization/ clean
 	$(MAKE) -e -C Tests/ clean
-	rm -rf *.ll *.lle *.bc *.s *.dot *.grf *.part* gmon.out
+	rm -rf *.ll *.lle *.bc *.s *.dot *.grf *.part* gmon.out TAGS
 
 run:
 	$(MAKE) -e -C Tests/ run
