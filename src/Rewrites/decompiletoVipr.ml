@@ -52,11 +52,9 @@ let rec vipr_process_simple_expr = function
   | Constvector (_,_,x,_) -> 
     let ret = List.map (fun x -> (match x with | Const (_,x,_) -> x 
       | _ -> raise (Internal_compiler_error "Constvector without consts!!"))) (Array.to_list x) in
-    let ret = List.map (fun x -> Vipr.Ref (Vipr.Constant x)) ret in
-    (* FIXME: ASK ANDREW TO INTRODUCE A A EXPRESSION OF CONSTANT LIST *)
-    List.hd ret
+    Vipr.RefL ret
   | VarRef _ | AddrRef _ | Const _ as s -> vipr_process_reference s
-  | _ as s -> raise (Internal_compiler_error ("Unrec simple expr: "^(Dot.dot_simpleexpr s)))
+  | _ as s -> raise (Internal_compiler_error ("Unrecognized simple expr: "^(Dot.dot_simpleexpr s)))
 
 and process_colon_expr = function
   | ColonExpr (x,y,z,_) -> (vipr_process_simple_expr x, vipr_process_simple_expr y,

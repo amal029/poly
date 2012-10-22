@@ -62,6 +62,7 @@ and expression =
   | Binop of op * expression * expression
   | Unop of op * expression
   | Brackets of expression
+  | RefL of literal list
   | Cast of Language.DataTypes.t * expression
 
 and rExpression = 

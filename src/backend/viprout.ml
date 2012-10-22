@@ -66,6 +66,14 @@ let rec output_vipr_expression buffer = function
     let () = output_vipr_reference buffer x in
     Buffer.add_string buffer ")"
 
+  | RefL l ->
+    let () = Buffer.add_string buffer "(RefL[" in
+    let length = List.length l in
+    let () = List.iteri (fun i x -> Buffer.add_string buffer ("\""^x^"\"");
+      (if i < (length-1) then Buffer.add_string buffer ", "
+       else Buffer.add_string buffer "]") ) l in
+    Buffer.add_string buffer ")"
+
   | Binop (op,exp1,exp2) -> 
     let () = Buffer.add_string buffer "(Binop" in
     let () = output_vipr_operator buffer op in

@@ -54,7 +54,7 @@ try
       let fcfg = Fcfg.check_ast ast in
       let fcfg = 
 	if !floop_interchange then
-	  let () = print_endline ".....Performing loop interchange and fission...." in
+	  let () = print_endline ".....Performing loop interchange......" in
 	  LoopInterchange.interchange fcfg 
 	else fcfg in
       if !dot then
