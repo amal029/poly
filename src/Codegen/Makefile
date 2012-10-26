@@ -1,7 +1,8 @@
 BATTERIES=$(HOME)/batteries-included/_build/src
 COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
 XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
+LLVMDIR=/opt/llvm/lib/ocaml
+#LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
 DOTDIR=$(COMP_HOME)/backend
 ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
 LANGDIR=$(COMP_HOME)/Abstract
@@ -14,7 +15,7 @@ DOTLIB=codegen.cmxa
 BATLIBBOPT=batteries.cmxa
 OCMLOPTS=-a
 OCMXALDEBUG=-g
-SRC=andrewxml.ml myLlvm.ml
+SRC=andrewxml.ml myLlvm.ml myLlvm_cuda.ml
 CC=ocamlopt
 
 all: backend.cmxa

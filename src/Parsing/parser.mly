@@ -25,7 +25,7 @@
 %token TLbrack TRbrack TColon TCase TEof TLShift TRShift TVar
 %token TMain TIn TOut TOtherwise TPar TFor
 %token TInt8 TInt16 TInt32 TInt64 TInt8s TInt16s TInt32s TInt64s TFloat8 TFloat32 TFloat64 TFloat16
-%token TExtern TSplit
+%token TExtern TSplit TAT
 
 /* Constructors with an argument */
 %token <string> TInt
@@ -98,12 +98,16 @@ stmtlist:
     | stmt {[$1]}
 ;
 
+/*dstmt:
+    | TAT TSymbol stmt {Language.Language.attach_at $2 $3}
+    | stmt {$1}*/
+
 stmt:
     | allsymlist TEqual expr {Language.Language.Assign($1,$3, ln())}
     | TOP allsymlist TCP TEqual expr {Language.Language.Assign($2,$5, ln())} /* this is just a tuple back */
     | typedsymbol {Language.Language.VarDecl($1, ln())}
     | varsymbol {Language.Language.VarDecl($1, ln())}
-    | TEscapedCode  {Language.Language.Escape ($1, ln())}
+    /*| TEscapedCode  {Language.Language.Escape ($1, ln())}*/
     | TOB stmtlist TCB {Language.Language.Block ($2, ln())}
     | TOB TCB {Language.Language.Noop}
     | case {Language.Language.CaseDef ($1, ln())}

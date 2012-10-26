@@ -189,16 +189,15 @@ struct
     | AllTypedSymbol of typedSymbol
     | AllVecSymbol of int array * vecaddresssymbol
 
-
   type stmt = 
     | Assign of allsym list * expr * (line * column) (*a=10*)
     | VarDecl of typedSymbol * (line * column) (*create *)
-    | CaseDef of case * (line * column)
+    | CaseDef of case * (line * column) 
     | Escape of string * (line * column)
-    | Block of stmt list * (line * column)
-    | Par of symbol * simpleExpr * stmt * (line * column)
+    | Block of stmt list * (line * column)  
+    | Par of symbol * simpleExpr * stmt * (line * column)  
     | Split of stmt * (line * column) (* Denotes task parallelism, can only consist of function calls *)
-    | For of symbol * simpleExpr * stmt * (line * column)
+    | For of symbol * simpleExpr * stmt * (line * column)  
     | Noop
   and expr =
     | FCall of filterCall * bool
@@ -220,6 +219,17 @@ struct
 
   type ast =  
     | Program  of toplevelStmt list
+
+  (* let attach_at t = function *)
+  (*   | Assign (x,y,z,_) -> Assign (x,y,z,Some t) *)
+  (*   | VarDecl (x,y,_) -> VarDecl (x,y,Some t) *)
+  (*   | Block (x,y,_) -> Block (x,y,Some t) *)
+  (*   | CaseDef (x,y,_) -> CaseDef (x,y,Some t) *)
+  (*   | For (x,y,z,e,_) -> For (x,y,z,e,Some t) *)
+  (*   | Par (x,y,z,e,_) -> For (x,y,z,e,Some t) *)
+  (*   | Split (x,y,_) -> Split (x,y,Some t) *)
+  (*   | _ as s -> s *)
+
 end	      
 
 

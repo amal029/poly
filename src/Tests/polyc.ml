@@ -16,6 +16,7 @@ try
   let gtn = ref 10 in
   let load_modules = ref [] in
   let vectorize = ref false in
+  let optimize = ref true in
   let floop_interchange = ref false in
   let vipr = ref false in
   let slots = ref false in
@@ -24,9 +25,10 @@ try
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag_stg, " Decompile to stg-lang");
 		      ("-vipr-lang", Arg.Set decompile_flag_vipr, " Decompile to vipr-lang");
 		      ("-O3", Arg.Set vectorize, " Vectorize code");
+		      ("-O0", Arg.Clear optimize, " Do not perform any optimizations");
 		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
-		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, x86_64-gnu-linux [default = x86_64, which is apple darwin]");
+		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n x86_64-gnu-linux and nvvm-cuda-i32 nvvm-cuda-i64 [default = x86_64, which is apple darwin]");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part, 
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
@@ -74,15 +76,21 @@ try
 	let () = print_endline "....Performing constant folding..." in
 	let cfg = Constantfolding.Constantfolding.fold !vipr tbl cfg in
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () = MyLlvm.compile !march !slots !vipr !load_modules llvm_file cfg in
+	let () =
+	  (if !march = "nvvm-cuda-i64" || !march = "nvvm-cuda-i32" then
+	      MyLlvm_cuda.compile !optimize !march !slots !vipr !load_modules llvm_file cfg
+	   else
+	      MyLlvm.compile !optimize !march !slots !vipr !load_modules llvm_file cfg) in
 	(* Make some system calls to complete the process *)
-	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
+	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
 	  (* We can make some sys calls *)
 	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " 
 			       ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in	
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
+	else if not !optimize then 
+	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in ()
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
       if !decompile_flag_vipr then
@@ -133,7 +141,7 @@ try
       let file_name = ((List.hd slist) ^ ".xml") in
       (* By default do not always produce llvm IR *)
       let cfgt =
-	if !vectorize then
+	if !optimize && !vectorize then
 	  let () = print_endline "....Decompiling to AST......" in
 	  let ast = DecompiletoAST.decompile cfgt in
 	  let () = print_endline "....Vectorizing......" in
@@ -151,14 +159,21 @@ try
       else ();
       if !llvm then
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () = MyLlvm.compile !march !slots !vipr !load_modules llvm_file cfgt in
+	let () =
+	  (if !march = "nvvm-cuda-i64" || !march = "nvvm-cuda-i32" then
+	      MyLlvm_cuda.compile !optimize !march !slots !vipr !load_modules llvm_file cfgt
+	   else
+	      MyLlvm.compile !optimize !march !slots !vipr !load_modules llvm_file cfgt) in
+	(* let () = MyLlvm.compile !optimize !march !slots !vipr !load_modules llvm_file cfgt in *)
 	(* Make some system calls to complete the process *)
-	if Sys.os_type = "Unix" || Sys.os_type = "Cygwin" then
+	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
 	  (* We can make some sys calls *)
 	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " 
 				  ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
+	else if not !optimize then 
+	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in ()
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
       if !decompile_flag_stg then

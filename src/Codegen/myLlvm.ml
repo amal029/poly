@@ -12,6 +12,7 @@ module List = Batteries.List
 
 let slots = ref false
 let march = ref "x86_64"
+let myopt = ref true
 
 let context = global_context ()
 let the_module = create_module context "poly jit"
@@ -60,7 +61,7 @@ let () = add_ipc_propagation the_mpm
 let _ =  PassManager.initialize the_fpm
 
 (* Default target data layout *)
-let target_data = ref (Llvm_target.TargetData.create 
+let target_data = ref (Llvm_target.DataLayout.create 
 			 "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64")
 
 let fcall_names = Hashtbl.create 10
@@ -1351,8 +1352,9 @@ let llvm_topnode vipr = function
        let _ = build_ret_void builder in
        (* Validate that the function is correct *)
        Llvm_analysis.assert_valid_function the_function;
-     (* Do all the optimizations on the function *)
-     let _ = PassManager.run_function the_function the_fpm in the_function
+       (* Do all the optimizations on the function *)
+       (if !myopt then
+	 let _ = PassManager.run_function the_function the_fpm in the_function else the_function); 
      with
        | e -> delete_function the_function; raise e)
   | Null -> raise (Internal_compiler_error "Hit a Null fcall expression while producing llvm IR")
@@ -1364,22 +1366,25 @@ let rec llvm_filter_node vipr filename = function
     (match topnode with Topnode(_,n,_,_) ->
       if n = "main" then
     	(* let () = dump_module the_module in *)
-	let changed = PassManager.run_module the_module the_mpm in
-	let () = IFDEF DEBUG THEN print_endline ("Changed the module with IPO") ELSE () ENDIF in
+	let () = 
+	  (if !myopt then
+	      let _ = PassManager.run_module the_module the_mpm in
+	      let () = IFDEF DEBUG THEN print_endline ("Changed the module with IPO") ELSE () ENDIF in ()) in
     	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".bc") then ()
     	  else raise (Error ("Could not write the llvm module to output.ll file")) in ()
       (* let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in () *)
       else ())
 
-let compile myarch myslots vipr modules filename cfg = 
+let compile optimize myarch myslots vipr modules filename cfg = 
   (* Set the modules that need to be loaded *)
   (* Try loading the memory buffer file *)
   (* Go through all the files and do it!!*)
   slots := myslots;
   march := myarch;
+  myopt := optimize;
   target_data := 
     (if !march = "x86_64" then !target_data
-     else Llvm_target.TargetData.create "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32");
+     else Llvm_target.DataLayout.create "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32");
 
 (* Set the target triple *)
   (if !march = "x86_64" then
@@ -1388,12 +1393,19 @@ let compile myarch myslots vipr modules filename cfg =
 	"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" the_module
       in ()
    else if !march = "shave" then
-      let () = set_target_triple "shave" the_module in
-      let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32" the_module in ()
+     let () = set_target_triple "shave" the_module in
+     let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32" the_module in ()
    else if !march = "x86_64-gnu-linux" then
-      let () = set_target_triple "x86_64-unknown-linux-gnu" the_module in
-      let () = set_data_layout 
-	"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128" the_module in ());
+     let () = set_target_triple "x86_64-unknown-linux-gnu" the_module in
+     let () = set_data_layout 
+       "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128" the_module in ()
+   else if !march = "nvvm-cuda-i32" then
+     let () = set_target_triple "nvvm-cuda-i32" the_module in
+     let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64" the_module
+     in ()
+   else if !march = "nvvm-cuda-i64" then
+     let () = set_target_triple "nvvm-cuda-i64" the_module in
+     let () = set_data_layout "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64" the_module in ());
 
   let membufs = List.map (fun x -> MemoryBuffer.of_file x) modules in
   (* Now read the bit code in *)

@@ -39,6 +39,7 @@ rule lexer = parse
   | "var" {Parser.TVar}
   | "&&" {Parser.And}
   | "||" {Parser.Or}
+  | "@" {Parser.TAT}
   | "where" {Parser.Where}
   | "main" {Parser.TMain}
   | "case" {Parser.TCase}
