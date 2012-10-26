@@ -16,6 +16,7 @@ try
   let gtn = ref 10 in
   let load_modules = ref [] in
   let vectorize = ref false in
+  let outline = ref false in
   let optimize = ref true in
   let floop_interchange = ref false in
   let vipr = ref false in
@@ -24,7 +25,8 @@ try
   let march = ref "x86_64" in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag_stg, " Decompile to stg-lang");
 		      ("-vipr-lang", Arg.Set decompile_flag_vipr, " Decompile to vipr-lang");
-		      ("-O3", Arg.Set vectorize, " Vectorize code");
+		      ("-floop-vectorize", Arg.Set vectorize, " Loop Vectorize");
+		      ("-floop-outline", Arg.Set outline, " Loop outline");
 		      ("-O0", Arg.Clear optimize, " Do not perform any optimizations");
 		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");

@@ -189,8 +189,18 @@ struct
     | AllTypedSymbol of typedSymbol
     | AllVecSymbol of int array * vecaddresssymbol
 
+  type intrinsic_type =
+    | NVVM_CALL
+    (* blockIdx.(num: 0 => x, 1 => y, 2 => z) *)
+    | NVVM_CTAID of int
+    (* blockDim.(num: 0 => x, 1 => y, 2 => z) *)
+    | NVVM_NTID of int
+    (* threadIdx.(num: 0 => x, 1 => y, 2 => z) *)
+    | NVVM_TID of int
+
   type stmt = 
     | Assign of allsym list * expr * (line * column) (*a=10*)
+    | Intrinsic of allsym list * expr * intrinsic_type * (line * column)	(* special intrinsics to be called *)
     | VarDecl of typedSymbol * (line * column) (*create *)
     | CaseDef of case * (line * column) 
     | Escape of string * (line * column)

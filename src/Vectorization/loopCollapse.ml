@@ -176,7 +176,7 @@ and build_collapsed_addressed_symbol_vec indices limits symbol_table lc = functi
       with 
 	| _ -> 
 	  let () = IFDEF DEBUG THEN print_endline ("Converted is: " ^ (string_of_bool !converted)) ELSE () ENDIF in
-	  if !converted then raise (Error "Currently we do not support interchanged, but not transposed access to multi-dimensional Arrays") 
+	  if !converted then raise (Error "Currently we do support interchanged, but not transposed access to multi-dimensional Arrays") 
 	  else x) yexpr in
     if not !converted then raise (Error "Cannot convert to vector type try -O4");
     let access_sizes = List.map2 (fun (x,y,z) v -> ((get_symbol v),(get_access_size x y z))) limits indices in
