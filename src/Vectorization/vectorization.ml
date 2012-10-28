@@ -17,7 +17,7 @@ struct
     let () = IFDEF DEBUG THEN print_endline ("Assign lvalue not AddressedSymbol or Vector Type") ELSE () ENDIF in ret
 
   let rec is_par_safe_to_convert = function
-    | Assign (y,x,lc) -> 
+    | Assign (y,x,lc,sp) -> 
       let ret = (not (is_fcall x)) && (not (is_typed_symbol y)) in
       let () = IFDEF DEBUG THEN print_endline ("Assign at stmt "^ (Reporting.get_line_and_column lc) ^ "can be vectorized: " ^ (string_of_bool ret)) ELSE () ENDIF in
       ret
@@ -154,7 +154,7 @@ struct
 
   let rec build_symbol_table symbol_table = function
     | VarDecl (x,lc) -> symbol_table := x :: !symbol_table
-    | Assign (x,_,lc) -> List.iter (fun x -> (match x with | AllTypedSymbol x -> symbol_table := x :: !symbol_table | _ -> ())) x
+    | Assign (x,_,lc,_) -> List.iter (fun x -> (match x with | AllTypedSymbol x -> symbol_table := x :: !symbol_table | _ -> ())) x
     | Block (x,_) -> List.iter (build_symbol_table symbol_table) x
     | CaseDef (x,lc) -> build_case_symbol_table symbol_table x
     | For (s,_,x,lc) | Par (s,_,x,lc) ->  build_symbol_table symbol_table x

@@ -1,4 +1,4 @@
-module kernel =
+module Kernel =
 (* This is the loop outliner: essential when targeting the CUDA backend!! *)
 (* Since this is targeted purely as CUDA kernels only the inner loops will be vectorized!! *)
 (* This is no good for OpenMP, where we really need to parallelize outer loops! *)
@@ -19,6 +19,7 @@ struct
   exception Internal_compiler_error of string
 
   module List = Batteries.List
+  module Hashtbl = Batteries.Hashtbl
   let nfilters = ref []
   let counter = ref 0
 
@@ -45,7 +46,7 @@ struct
   let pindices = ref []
   let vars_used = ref []
   let vars_used_out = ref []
-  let fmap = new Hashtbl.create 10
+  let fmap = Hashtbl.create 10
 
   let get_symbol = function
     | Symbol (x,_) -> x
@@ -65,61 +66,64 @@ struct
 
   let add_used_var_out symbol_table x =
     if (List.exists (fun y -> (get_typed_symbol y) = x) symbol_table) then
-      if (List.exists (fun y -> (get_typed_symbol y) = x) !vars_used_out) then () else vars_used := y::!vars_used_out
+      if (List.exists (fun y -> (get_typed_symbol y) = x) !vars_used_out) then () else vars_used := (List.find (fun y -> (get_typed_symbol y)=x)symbol_table)::!vars_used_out
+    else if (List.exists (fun y -> (get_symbol y) = x) !pindices) then ()
     else raise (Internal_compiler_error ("Cannot find the symbol: " ^ x))
 
   let add_used_var symbol_table x =
     if (List.exists (fun y -> (get_typed_symbol y) = x) symbol_table) then
-      if (List.exists (fun y -> (get_typed_symbol y) = x) !vars_used) then () else vars_used := y::!vars_used
+      if (List.exists (fun y -> (get_typed_symbol y) = x) !vars_used) then () else vars_used := (List.find (fun y -> (get_typed_symbol y)=x)symbol_table)::!vars_used
+    else if (List.exists (fun y -> (get_symbol y) = x) !pindices) then ()
     else raise (Internal_compiler_error ("Cannot find the symbol: " ^ x))
 
   let rec get_used_vars = function
     | Plus (x,y,_) | Minus (x,y,_) | Times (x,y,_) | Div (x,y,_)
-    | Pow (x,y,_) | Mod (x,_) | Rshift (x,y,_) | Lshift (x,y,_) -> (get_used_vars x) :: [(get_used_vars y)]
-    | Abs (x,_) | Opposite (x,_) | Brackets (x,_) | Cast (_,x) -> [(get_used_vars x)]
+    | Pow (x,y,_) | Mod (x,y,_) | Rshift (x,y,_) | Lshift (x,y,_) -> (get_used_vars x) @ (get_used_vars y)
+    | Abs (x,_) | Opposite (x,_) | Brackets (x,_) | Cast (_,x,_) -> (get_used_vars x)
     | Const _ | Constvector _ -> []
     | VarRef (x,_) -> [(get_symbol x)]
     | AddrRef (x,_) -> 
       (get_addressed_symbol x) ::
 	(let d = (match x with AddressedSymbol (_,_,(x::[]),_) -> x) in 
 	 (match d with BracDim x -> List.flatten (List.map (fun x -> get_used_vars (match x with DimSpecExpr x -> x))x)))
-    | VecRef (_,x,_) -> [(get_vec_symbol x)] :: 
+    | VecRef (_,x,_) -> (get_vec_symbol x) :: 
       (let d = (match x with VecAddress (_,_,x,_) -> x) in 
-       List.flatten (List.map (fun x -> get_used_vars (match x with DimSpecExpr x -> x))x))
+       List.flatten (List.map get_used_vars d))
     | _ as s -> raise (Internal_compiler_error ("Got a wrong simple expression in index: " ^ (Dot.dot_simpleexpr s)))
 
   let get_vars_used_l symbol_table = function
     | AllAddressedSymbol x ->
-      let () = add_used_var symbol_table (get_addressed_symbol x) in
+      let () = add_used_var_out symbol_table (get_addressed_symbol x) in
       let () = List.iter (add_used_var symbol_table)
 	(let d = (match x with AddressedSymbol (_,_,(x::[]),_) -> x) in 
 	 (match d with BracDim x -> List.flatten (List.map (fun x -> get_used_vars (match x with DimSpecExpr x -> x)) x))) in ()
-    | AllSymbol x -> add_used_var symbol_table (get_symbol x)
-    | AllTypedSymbol x -> add_used_var symbol_table (get_typed_symbol x)
+    | AllSymbol x -> add_used_var_out symbol_table (get_symbol x)
+    | AllTypedSymbol x -> add_used_var_out symbol_table (get_typed_symbol x)
     | AllVecSymbol (_,x) -> 
-      let () = add_used_var symbol_table (get_vec_symbol x) in
+      let () = add_used_var_out symbol_table (get_vec_symbol x) in
       let () = List.iter (add_used_var symbol_table) 
 	(let d = (match x with VecAddress (_,_,x,_) -> x) in 
-	 List.flatten (List.map (fun x -> get_used_vars (match x with DimSpecExpr x -> x))x)) in ()
+	 List.flatten (List.map get_used_vars d)) in ()
 
   let get_vars_used_r symbol_table = function
     (* These should still be allowed in CUDA *)
-    | FCall -> raise (Internal_compiler_error "Erroneously got a function call in the kernel!!")
-    | SimExpr x -> List.iter (add_used_var symbol_table) (List.flatten (get_used_vars x))
+    | FCall _ -> raise (Internal_compiler_error "Erroneously got a function call in the kernel!!")
+    | SimExpr x -> List.iter (add_used_var symbol_table) (get_used_vars x)
 
   let build_kernel_body indices limits symbol_table = function
-    | Assign (x,y,lc) as s -> 
+    | Assign (x,y,lc,_) as s -> 
       (* Now make the kernel with generic block and thread ids *)
       (* Add the indices to the pindices *)
       add_to_pindices indices;
       (* Now get all the vars other than indices being used in here *)
-      (get_vars_used_l (List.iter (get_vars_used symbol_table) x)) @ (get_vars_used_r symbol_table y); 
+      (List.iter (get_vars_used_l symbol_table) x);
+      (get_vars_used_r symbol_table y); 
     | Noop -> ()
     | _ as s -> raise (Internal_compiler_error (("Got erroneously: ") ^ (Dot.dot_stmt s)))
 
   let rec build_kernel indices limits symbol_table = function
     | Par (x,y,z,lc) ->
-      let (vstart,vend,vstride) = get_par_bounds y in
+      let (vstart,vend,vstride) = Convert.get_par_bounds y in
       let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
 					       ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
       build_kernel (indices @ [x])  (limits@[(vstart,vend,vstride)]) symbol_table z
@@ -129,7 +133,7 @@ struct
 
 
   let rec stmts_without_pars stmts = function
-    | Par (_,_,x,_) -> stmts_without_pars x
+    | Par (_,_,x,_) -> stmts_without_pars stmts x
     | Block (x,_) -> List.iter (stmts_without_pars stmts) x
     | For _ -> raise (Internal_compiler_error "Got a wrong statement even after collapsing loops, should never happen!!")
     | _ as s -> stmts := !stmts@[s]
@@ -141,39 +145,45 @@ struct
 	       "Currently we do not optimize more than 3D loop structures!!");
     (* Need to include the new indices in *)
     let stmts = List.flatten (List.mapi (fun i x ->
-      let sym1 = Symbol(((get_symbol x)^"ctaid"^(string_of_int i))) in
-      let sym2 = Symbol(((get_symbol x)^"ntid"^(string_of_int i))) in
-      let sym3 = Symbol(((get_symbol x)^"tid"^(string_of_int i))) in
+      let vv = (match i with 0 -> "x" | 1 -> "y" | 2 -> "z" 
+	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "More than 3D loop in CUDA not allowed"))) in
+      let sym1 = Symbol(((get_symbol x)^"ctaid"^(string_of_int i)),lc) in
+      let sym2 = Symbol(((get_symbol x)^"ntid"^(string_of_int i)),lc) in
+      let sym3 = Symbol(((get_symbol x)^"tid"^(string_of_int i)),lc) in
       let assign_l1 = AllTypedSymbol (SimTypedSymbol(DataTypes.Int32s,sym1,lc)) in
-      let fcall1 = Call ("llvm.nvvm.read.ptx.sreg.ctaid",[],lc) in
+      let fcall1 = Call (Symbol(("@llvm.nvvm.read.ptx.sreg.ctaid"^vv),lc),[],lc) in
       let assign_r = FCall (fcall1,true) in
-      let st1 = Intrinsic ([assign_l1],assign_r,(NVVM_CTAID i),lc) in
+      let st1 = Assign ([assign_l1],assign_r,lc,None) in
       let assign_l2 = AllTypedSymbol (SimTypedSymbol(DataTypes.Int32s,sym2,lc)) in
-      let fcall2 = Call ("llvm.nvvm.read.ptx.sreg.ntid",[],lc) in
+      let fcall2 = Call (Symbol(("@llvm.nvvm.read.ptx.sreg.ntid"^vv),lc),[],lc) in
       let assign_r2 = FCall (fcall2,true) in
-      let st2 = Intrinsic ([assign_l2],assign_r2,(NVVM_NTID i),lc) in
+      let st2 = Assign ([assign_l2],assign_r2,lc,None) in
       let assign_l3 = AllTypedSymbol (SimTypedSymbol(DataTypes.Int32s,sym3,lc)) in
-      let fcall3 = Call ("llvm.nvvm.read.ptx.sreg.tid",[],lc) in
+      let fcall3 = Call (Symbol(("@llvm.nvvm.read.ptx.sreg.tid"^vv),lc),[],lc) in
       let assign_r3 = FCall (fcall3,true) in
-      let st3 = Intrinsic ([assign_l3],assign_r3,(NVVM_TID i),lc) in
+      let st3 = Assign ([assign_l3],assign_r3,lc,None) in
 
       (* Now make the main multiplication and addition to get the index
 	 for the statements *)
       let mul_assign = AllTypedSymbol 
 	(SimTypedSymbol(DataTypes.Int32s,
-			Symbol(((get_symbol x)^"mul"^(string_of_int i))),lc)) in
-      let mul_r = SimExpr (VarRef (sym1, lc), VarRef (sym2, lc)) in
-      let sym4 = SimTypedSymbol (DataTypes.Int32s,x,lc) in
-      let assign = Assign (sym4,mul_r,lc) in [st1;st2;st3;assign])!pindices) in
+			Symbol(((get_symbol x)^"mul"^(string_of_int i)),lc),lc)) in
+      let mul_r = SimExpr (Times (VarRef (sym1, lc), VarRef (sym2, lc),lc)) in
+      let sym4 = AllTypedSymbol(SimTypedSymbol (DataTypes.Int32s,x,lc)) in
+      let assign = Assign ([sym4],mul_r,lc,None) in [st1;st2;st3;assign])!pindices) in
     (* Now just get the statements without the par loops!! *)
     let nstmts = ref [] in
     stmts_without_pars nstmts z;
-    let block = Block ((stmts@!nstmts),lc) in
-    Filter ((Symbol (("__kernel__"^!counter),lc)),!vars_used,!vars_used_out,block)
+    let block = Block ((stmts @ !nstmts),lc) in
+    Filter ((Symbol (("__kernel__" ^ (string_of_int !counter)),lc)),!vars_used,!vars_used_out,block,Some NVVM)
+
+  let get_call_symbol_names lc x = CallSymbolArgument (Symbol (get_typed_symbol x,lc))
+  let get_assign_symbol_names lc x = AllSymbol (Symbol (get_typed_symbol x,lc))
 
   let build_intrinsic_call lc =
-    let fcall = FCall (Call(("__kernel__"^!counter),lc),true)
-    Intrinsic (!vars_used_out,fcall,NVVM_CALL,lc)
+    let sym = Symbol (("__kernel__"^(string_of_int !counter)),lc) in
+    let fcall = FCall (Call(sym,(List.map (get_call_symbol_names lc) !vars_used),lc),true) in
+    Assign (List.map (get_assign_symbol_names lc) !vars_used_out,fcall,lc,Some NVVM)
 
   let rec process_filter_stmts symbol_table = function
     | Par (x,y,z,lc) as s -> 
@@ -182,34 +192,34 @@ struct
 	 cannot build the kernel and we continue *)
       (try
 	 (if SafeToConvert.process_par s then
-	     let (_,_,vstride) = get_par_bounds y in
+	     let (_,_,vstride) = Convert.get_par_bounds y in
 	     if vstride <> 1 then raise (Internal_compiler_error "Currently we do not support CUDAing non stride 1 kernels!!");
 	     let _ = LoopCollapse.convert !symbol_table s in 
 	     (* Build the CUDA kernel *)
-	     let (vstart,vend,vstride) = get_par_bounds y in
+	     let (vstart,vend,vstride) = Convert.get_par_bounds y in
 	     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
 						      ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
 	     pindices := [];
 	     vars_used := [];
 	     vars_used_out := [];
-	     build_kernel [x]  [(vstart,vend,vstride)] symbol_table z;
+	     build_kernel [x]  [(vstart,vend,vstride)] !symbol_table z;
 	     (* Now make the call to the damn thig via a 'C' intrinsic. This
 		intrinsic will then specialize the block and thread_nums *)
 	     (* We should also provide some special constraints we make the
 		programmer assert for now*)
 	     counter := !counter + 1;
-	     let ret = build_intrinsic_call lc
+	     let ret = build_intrinsic_call lc in
 	     (* Now we actually build the kernel *)
 	     let kernel = build_the_kernel s in
 	     (* Add it to the nfilters list *)
 	     nfilters := !nfilters @ [FCFG.Node (ret,kernel,None,[])];
 	     (* Return an intrinsic function call *)
-	     ret
-       with
-	 | _ -> s)
+	     ret else s)
+	  with
+	    | _ -> s)
     | For (x,y,z,lc) -> For (x,y,(process_filter_stmts symbol_table z),lc)
-    | Block (x,lc) -> Block ((List.map (process_filter_stmts symbol_table x)),lc)
-    | VarDecl (x,_) as s -> symbol_table@[x]; s
+    | Block (x,lc) -> Block ((List.map (process_filter_stmts symbol_table) x),lc)
+    | VarDecl (x,_) as s -> symbol_table := !symbol_table@[x]; s
     | Split (x,lc) -> Split ((process_filter_stmts symbol_table x),lc)
     | CaseDef (x,lc) -> CaseDef (process_case symbol_table x,lc)
     | _ as s -> s
@@ -219,13 +229,13 @@ struct
   and process_clause symbol_table = function
     | Clause (r,s,lc) -> Clause (r, (process_filter_stmts symbol_table s), lc)
   and process_otherwise symbol_table = function
-    | Otherwise (s,lc) -> Otherwise ((process_otherwise symbol_table s),lc)
+    | Otherwise (s,lc) -> Otherwise ((process_filter_stmts symbol_table s),lc)
 
   let proces_filter = function
-    | Filter (x,y,z,s) as s -> 
-      let ret = Filter (x,y,z, process_filter_stmts (y@x) s) in 
+    | Filter (x,y,z,st,sp) as s -> 
+      let ret = Filter (x,y,z, (process_filter_stmts (ref (y@z)) st),sp) in 
       let () = Hashtbl.add fmap s !nfilters in ret
-      
+					    
   let rec outline = function
     | FCFG.Node (e,f,r,fl) -> 
       nfilters := [];
@@ -233,8 +243,7 @@ struct
 
   let process node = 
     let () = Hashtbl.clear fmap in
+    nfilters := [];
     counter := 0;
-    let ret = outline node in
-    
-
+    let ret = outline node in ret
 end 

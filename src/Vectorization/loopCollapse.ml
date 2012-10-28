@@ -234,10 +234,10 @@ let build_collapsed_vec_simexpr indices limits symbol_table lc = function
   | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "trying to convert a non simple expression to vec type"))
 
 let build_collapsed_data_parallel_vectors indices limits symbol_table = function
-  | Assign (x,y,lc) -> 
+  | Assign (x,y,lc,sp) -> 
     let lvals = List.map (build_collapsed_vecs indices limits symbol_table lc) x in
     let rvals = build_collapsed_vec_simexpr indices limits symbol_table lc y in
-    Assign (lvals,rvals,lc)
+    Assign (lvals,rvals,lc,sp)
   | Noop -> Noop
   | _ as s -> raise (Internal_compiler_error (("Got erroneously: ") ^ (Dot.dot_stmt s)))
 

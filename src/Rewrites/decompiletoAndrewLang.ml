@@ -155,7 +155,7 @@ let rec get_andrew_stmt = function
     [AndrewLang.AndrewLang.For((get_andrew_symbol x),d,(get_andrew_stmt z))]
   | Noop -> []
   | CaseDef (x,_) -> [AndrewLang.AndrewLang.CaseDef (get_andrew_case x)]
-  | Assign (x,y,_) -> (match y with | SimExpr s -> decompile_simple_assign x s | FCall (f,e) -> [AndrewLang.AndrewLang.FCall ((get_andrew_function_call x f),e)])
+  | Assign (x,y,_,_) -> (match y with | SimExpr s -> decompile_simple_assign x s | FCall (f,e) -> [AndrewLang.AndrewLang.FCall ((get_andrew_function_call x f),e)])
   | Split (x,lc) -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "got a split node erroneously!!")) 
 
 and get_andrew_case = function
@@ -168,7 +168,7 @@ and get_andrew_otherwise = function
   | Otherwise (x,_) -> AndrewLang.AndrewLang.Otherwise (get_andrew_stmt x)
 
 let get_andrew_filter = function
-  | Filter (x,y,z,t) -> 
+  | Filter (x,y,z,t,_) -> 
     let () = IFDEF DEBUG THEN print_endline ("Filter: " ^ (Dot.get_symbol x)) ELSE () ENDIF in
     AndrewLang.AndrewLang.Function ((get_andrew_symbol x),(List.map (fun x -> decompile_typedsymbol x)y),
 						      (List.map (fun x -> decompile_typedsymbol x) z), get_andrew_stmt t)

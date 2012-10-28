@@ -106,7 +106,7 @@ let dot_expr = function
   | FCall (x,extern) -> let t = dot_filtercall x in if extern then ("extern" ^ t) else t
 
 let rec dot_stmt = function
-  | Assign (x,y,_) -> 
+  | Assign (x,y,_,_) -> 
     let rvalue = (dot_expr y) in
     let lvalue = (( "(" ^ (dot_allsym_list x)) ^ ")") in
     (lvalue ^ " = " ) ^ rvalue

@@ -144,7 +144,7 @@ let rec process_rexpr = function
 
 
 let rec process_procedure = function
-  | Procedure (x,y,z,s) -> Language.Language.Filter (process_symbol x, List.map process_storage y, List.map process_storage z, List.hd (process_stmt s))
+  | Procedure (x,y,z,s) -> Language.Language.Filter (process_symbol x, List.map process_storage y, List.map process_storage z, List.hd (process_stmt s),None)
 
 and get_vec_declare = function
   | Language.Language.ComTypedSymbol (_,x,_) -> (match x with 
@@ -242,7 +242,7 @@ and evaluate_stride_expression index start = function
   | _ -> raise (Internal_compiler_error "POLY DOES NOT SUPPORT ANYTHING ELSE")
 
 and get_loop_stride index start = function
-  | Language.Language.Assign (_,x,lc) -> 
+  | Language.Language.Assign (_,x,lc,_) -> 
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_expr x) ELSE () ENDIF in
     let vconst_stride = evaluate_stride_expression index start (match x with | Language.Language.SimExpr x -> x 
       | _ -> raise (Internal_compiler_error "Not function calls in stride calcs")) in
@@ -264,11 +264,11 @@ and process_stmt = function
       Language.Language.AllAddressedSymbol x | Language.Language.VarRef (x,_) -> Language.Language.AllSymbol x 
       | _ -> raise (Internal_compiler_error "Cannot assign to const")) in
     let se = process_simexpr expr in
-    [Language.Language.Assign ([re],Language.Language.SimExpr se,get_lc)]
+    [Language.Language.Assign ([re],Language.Language.SimExpr se,get_lc,None)]
   | DeclareAndAssign (storage,expression) ->
     let re = process_storage storage in
     let ex = process_simexpr expression in
-    [Language.Language.Assign ([Language.Language.AllTypedSymbol re], Language.Language.SimExpr ex,get_lc)]
+    [Language.Language.Assign ([Language.Language.AllTypedSymbol re], Language.Language.SimExpr ex,get_lc,None)]
   | DeclareArrayConst (storage,expression) -> 
     (* Make this into a vector type *)
     (* 1.) We send a block back with a.) A comtyped symbol declaration
@@ -277,7 +277,7 @@ and process_stmt = function
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_typed_symbol re) ELSE () ENDIF in
     let rev = get_vec_declare re in
     let sev = get_const_vector expression in
-    [Language.Language.VarDecl (re,get_lc);Language.Language.Assign([rev],Language.Language.SimExpr sev,get_lc)]
+    [Language.Language.VarDecl (re,get_lc);Language.Language.Assign([rev],Language.Language.SimExpr sev,get_lc,None)]
     (* Language.Language.Assign([Language.Language.AllTypedSymbol re],Language.Language.SimExpr sev,get_lc) *)
   | Block x -> [Language.Language.Block (List.flatten (List.map process_stmt x), get_lc)]
   | Noop -> [Language.Language.Noop]
@@ -319,7 +319,7 @@ and process_stmt = function
       | Language.Language.VarRef (x,_) -> Language.Language.AllSymbol x 
       | _ -> raise (Internal_compiler_error " No other type but AddrRef and VarRef can be allocated in assign"))) outputs in
     let fc = Language.Language.Call (id,inputs,get_lc) in
-    [Language.Language.Assign (outputs,Language.Language.FCall (fc,false), get_lc)]
+    [Language.Language.Assign (outputs,Language.Language.FCall (fc,false), get_lc,None)]
   | _ -> raise (Internal_compiler_error "Filters can not be declared inside other filters!!")
 
 let process = function
@@ -328,8 +328,8 @@ let process = function
     let fs = List.map (fun x -> (match x with 
       | DeclareEntry x -> 
 	let proc = process_procedure x in
-	let proc = (match proc with Language.Language.Filter(x,y,z,t) -> 
-	  Language.Language.Filter (Language.Language.Symbol ("main",get_lc),y,z,t)) in
+	let proc = (match proc with Language.Language.Filter(x,y,z,t,sp) -> 
+	  Language.Language.Filter (Language.Language.Symbol ("main",get_lc),y,z,t,sp)) in
 	Language.Language.DefMain (proc, None, get_lc) 
       | DeclareFun x -> Language.Language.Def (process_procedure x, None, get_lc)
       | _ -> raise (Internal_compiler_error "Could not filter procedures out!!"))) f in

@@ -49,7 +49,7 @@ let rec make_stmt symbol_table list = function
     let enode = Endnode (s,node,1) in
     (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)
     let (vinit,vend,vstride,lcc) = (match y with | ColonExpr (x,y,z,l) -> (x,y,z,l) | _ -> failwith "Loop cannot have any, but colonExpr") in
-    let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc), 
+    let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc,None), 
 			       (build_loop symbol_table vend vstride lc enode x z)) in
     symbol_table := !rsym;
     Startnode (s, vinitode)
@@ -126,7 +126,7 @@ let rec make_stmt symbol_table list = function
 	 let enode = Endnode (s,node,1) in
 	 (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)
 	 let (vinit,vend,vstride,lcc) = (match y with | ColonExpr (x,y,z,lc) -> (x,y,z,lc) | _ -> failwith "Loop cannot have any, but colonExpr") in
-	 let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc), 
+	 let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc,None), 
 				    (build_loop symbol_table vend vstride lc enode x z)) in
 	 symbol_table := !rsym;
 	 Startnode (s, vinitode))
@@ -151,10 +151,10 @@ and build_loop symbol_table vend vstride lc enode x stmt =
     if ( List.length stmt_list > 1) then 
       let to_send = List.tl stmt_list in
       let stmt = List.hd stmt_list in
-      make_stmt symbol_table (to_send@[(Assign ([AllSymbol x],(SimExpr sexpr),lc))]) stmt
-    else if (List.length stmt_list = 1) then (make_stmt symbol_table [(Assign ([AllSymbol x],(SimExpr sexpr),lc))] (List.hd stmt_list))
+      make_stmt symbol_table (to_send@[(Assign ([AllSymbol x],(SimExpr sexpr),lc,None))]) stmt
+    else if (List.length stmt_list = 1) then (make_stmt symbol_table [(Assign ([AllSymbol x],(SimExpr sexpr),lc,None))] (List.hd stmt_list))
     (* Note that the list gets attached at the end of the tree *)
-    else make_stmt symbol_table [Assign ([AllSymbol x],(SimExpr sexpr),lc)] stmt
+    else make_stmt symbol_table [Assign ([AllSymbol x],(SimExpr sexpr),lc,None)] stmt
   in
   (* let tbranch = make_stmt [Assign ([AllSymbol x],(SimExpr sexpr))] stmt in *)
   let back = ref Empty in
@@ -187,7 +187,7 @@ and build_clause_stmt symbol_table t ostmt = function
 
 
 let rec make_cfg r e = function
-  | Filter (x,y,z,w) -> 
+  | Filter (x,y,z,w,sp) -> 
     let (name,lc) = (match x with Symbol (x,lc) -> (x,lc)) in
     let inl = get_it lc y in
     let outl = get_it lc z in
@@ -195,7 +195,7 @@ let rec make_cfg r e = function
     let () = Vectorization.Convert.build_symbol_table symbol_table w in
     symbol_table := (y@z) @ !symbol_table;
     let node = make_stmt symbol_table [] w in
-    Topnode (e, name, r, [inl;outl;node])
+    Topnode (e, name, r, [inl;outl;node],sp)
 and get_it lc = function
   | h :: t -> Squarenode (VarDecl (h,lc), get_it lc t)
   | [] -> Empty

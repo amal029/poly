@@ -122,9 +122,10 @@ let dot_expr = function
   | FCall (x,extern) -> let t = dot_filtercall x in if extern then ("extern" ^ t) else t
 
 let rec dot_stmt = function
-  | Assign (x,y,(l,c)) -> 
+  | Assign (x,y,(l,c),spe) -> 
     let rvalue = (dot_expr y) in
-    let lvalue = (( "(" ^ (dot_allsym_list x)) ^ ")") in
+    let spe = (match spe with Some x -> (match x with NVVM -> "NVVM" | _ -> raise (Internal_compiler_error ""))) in
+    let lvalue = (( "(" ^ (dot_allsym_list x)) ^ " " ^ spe ^ " )") in
     (* FIXME: I am attaching this to the required nodes for graph-part
        to work correctly, with tiling, but this should be moved into its
        own function *)
@@ -298,7 +299,7 @@ let rec dot_cfg ll = function
 let fcounter = ref 1
 
 let dot_topnode = function
-  | Topnode (fcall, name, r, cfg_list) -> 
+  | Topnode (fcall, name, r, cfg_list,_) -> 
     (* Debugging *)
     (* let () = print_endline ("Building new filter named************: " ^ name) in *)
     let cfg_dot_list = ref [] in 

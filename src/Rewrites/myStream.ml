@@ -83,7 +83,7 @@ let rec debug = function
   | EmptyActor -> print_endline "Empty actor"
 
 let change_stmt_location i = function
-  | Assign (x,y,(l,c)) -> Assign (x,y,(l, (c+i)))
+  | Assign (x,y,(l,c),sp) -> Assign (x,y,(l, (c+i)),sp)
   | Split (x,(l,c)) -> Split (x,(l, (c+i)))
   | Par (x,y,z,(l,c)) -> Par (x,y,z,(l, (c+i)))
   | Noop -> Escape ("Noop",(i,i))
@@ -281,13 +281,13 @@ let get_lvalue_size sym = function
   | AllAddressedSymbol x -> get_addressed_symbol_used_size sym x
 
 let get_used_size sym = function
-  | Assign (x,y,_) as s -> max (List.fold_right (fun x t -> (get_lvalue_size sym x) + t) x 0) (get_rvalue_size sym y)
+  | Assign (x,y,_,_) as s -> max (List.fold_right (fun x t -> (get_lvalue_size sym x) + t) x 0) (get_rvalue_size sym y)
   | Noop -> 0
   | Escape _ -> 0
   | _ as s -> raise (Internal_compiler_error ("erroneously obtained: " ^ Dot.dot_stmt s))
 
 let get_dep_actor sym = function
-  | Assign (x,y,_) as s -> 
+  | Assign (x,y,_,_) as s -> 
     let () = IFDEF DEBUG THEN print_endline "Checking for connection to store" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_stmt s) ELSE () ENDIF in
     let ret = get_lvalue sym x || get_rvalue sym y in
@@ -346,7 +346,7 @@ let make_edge tsym list node =
   list := []; ret
 
 let rec process_filter filters num_instr num_vec = function
-  | Filter (x,y,z,stmt) as s ->
+  | Filter (x,y,z,stmt,sp) as s ->
     (* First get all the declarations from the arguments declared with this filter 
        and put them into the declarations list ref *)
     let declarations = ref (y@z) in
@@ -364,7 +364,7 @@ let rec process_filter filters num_instr num_vec = function
 
 and process_stmt declarations list filters num_instr num_vec = function
 
-  | Assign (sts,x,lc) as s ->
+  | Assign (sts,x,lc,sp) as s ->
     (* Here we need to check if a call is being made to a different filter!! *)
     (* Get all the declaration types *)
     let nni = if num_instr = 0 then 1 else num_instr in
@@ -377,7 +377,7 @@ and process_stmt declarations list filters num_instr num_vec = function
       | FCall (x,b) ->
 	(* If this is the case then we need to go into the filter and make its node *)
 	(try 
-	   let ret = process_filter filters num_instr num_vec (List.find (fun x1 -> (match x with | Call (x,_,_) -> x = (match x1 with Filter(x,_,_,_) -> x))) filters) in
+	   let ret = process_filter filters num_instr num_vec (List.find (fun x1 -> (match x with | Call (x,_,_) -> x = (match x1 with Filter(x,_,_,_,_) -> x))) filters) in
 	   let () = IFDEF DEBUG THEN print_endline "replacing task_parallel empty actor" ELSE () ENDIF in
 	   let ret = replace_empty_actor ret child in 
 	   let () = IFDEF DEBUG THEN print_endline "replaced" ELSE () ENDIF in

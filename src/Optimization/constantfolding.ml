@@ -223,7 +223,7 @@ struct
       Hashtbl.add consts sym (get_vardecl_consts x)
     (*FIXME: you are not checking that the assignment is of equal sized
       dimensions, do that --> Done in the type inference engine *)
-    | Assign (x,y,_) ->
+    | Assign (x,y,_,_) ->
       let () = IFDEF DEBUG THEN (print_endline "getting rvalue") ELSE () ENDIF in
       let rvalue =  get_expr_const (get_lvalue_type x) y in
       let () = IFDEF DEBUG THEN (print_endline "assigning to lvalues") ELSE () ENDIF in
@@ -242,7 +242,7 @@ struct
     | [] -> []
   and get_stmt_vars = function
     | VarDecl (x,_) -> [get_typed_symbol x]
-    | Assign (x,_,_) -> get_stmt2_vars x
+    | Assign (x,_,_,_) -> get_stmt2_vars x
     | _ -> []
 
 (* FIXME: We also need to get the dimensions so that even those can be
@@ -519,7 +519,7 @@ struct
 	      (match x with
 		| VarDecl (x,_) -> if name = (get_typed_symbol x) then get_dims list v x
 		  else get_vardecl_dims list name v t
-		| Assign (x,_,_) -> let d = ref false in get_ass_list d list name v x; if (not !d) then get_vardecl_dims list name v t else ()
+		| Assign (x,_,_,_) -> let d = ref false in get_ass_list d list name v x; if (not !d) then get_vardecl_dims list name v t else ()
 		| _ -> get_vardecl_dims list name v t)
 	    | _ -> get_vardecl_dims list name v t))
     | [] -> ()
@@ -541,7 +541,7 @@ struct
 	  (match x with 
 	    | Squarenode (x,_) -> 
 	      (match x with
-		| Assign (x,y,_) as assign -> 
+		| Assign (x,y,_,_) as assign -> 
 		  if assign = fcall then 
 		    let () = IFDEF DEBUG THEN print_endline ("Found the calling site, it is: " ^ (Dot.dot_stmt assign)) ELSE () ENDIF in
 		    let args = (match y with
@@ -770,7 +770,7 @@ struct
     (* let () = propogate_top body in () *)
 
   let propogate_topnode vipr prev_topnode = function
-    | Topnode (fcall, x,_,y) as s ->
+    | Topnode (fcall, x,_,y,_) as s ->
       let () = Hashtbl.clear consts in
       let () = Hashtbl.clear nodes in
       let () = Hashtbl.clear endnodes in
@@ -1052,13 +1052,13 @@ struct
     (* If it is an addressed symbol then make the non-constant dimensions constants in here*)
     (* assignment remains NULL string*)
     | VarDecl (x,lc) -> VarDecl (fold_var_decl consts x,lc)
-    | Assign (x,y,lc) as s -> 
+    | Assign (x,y,lc,sp) as s -> 
       (* Put this stmt in the hashtbl if this stmt has type FCall in lvalue *)
       let put = (match y with | FCall _ -> true | _ -> false) in
       let rvalue = fold_expr consts y in
       (* Fold the constants here on the lavalue side as well*)
       let lvalue = List.map (fun x -> fold_assign_decl consts x) x in
-      let ret = Assign (lvalue,rvalue,lc) in
+      let ret = Assign (lvalue,rvalue,lc,sp) in
       if put then let () = Hashtbl.add fcall_map s ret in ret else ret
     | Escape (x,lc) -> Escape (x,lc)
     | Noop -> Noop
@@ -1154,7 +1154,7 @@ struct
     | Backnode _ ->raise (Internal_compiler_error "I am a backnode") 
 
   let fold_topnode vipr nodes = function
-    | Topnode (f,name,r,y) -> 
+    | Topnode (f,name,r,y,sp) -> 
       (* Just get the new f from the hashtbl *)
       let f = (try
 		 (match f with | Noop -> Noop 
@@ -1165,14 +1165,14 @@ struct
       (match r with | Some _ -> 
 	let get_from = (match (List.hd y) with | Empty -> (List.nth y 1) | _ as s -> s) in
 	let c_consts = get_consts_from_nodes nodes get_from in
-	if not vipr then Topnode(f,name,(fold_constraints c_consts r), (fold_cfg_list nodes (List.rev y)))
-	else Topnode(f,name,(fold_constraints c_consts r), (fold_cfg_list nodes y))
-	| None -> if not vipr then Topnode(f,name,r,(fold_cfg_list nodes (List.rev y))) else Topnode(f,name,r,(fold_cfg_list nodes y)))
+	if not vipr then Topnode(f,name,(fold_constraints c_consts r), (fold_cfg_list nodes (List.rev y)),sp)
+	else Topnode(f,name,(fold_constraints c_consts r), (fold_cfg_list nodes y),sp)
+	| None -> if not vipr then Topnode(f,name,r,(fold_cfg_list nodes (List.rev y)),sp) else Topnode(f,name,r,(fold_cfg_list nodes y),sp))
     | Null -> raise (Internal_compiler_error "TopNode is null")
 
   let rec fold vipr top_nodes = function
     | Filternode (x,y) -> 
-      let () = print_endline ("Filter: " ^ (match x with | Topnode (_,x,_,_) -> x | Null -> raise (Internal_compiler_error "Hit a Null, by mistake")) ^ "...Done") in
+      let () = print_endline ("Filter: " ^ (match x with | Topnode (_,x,_,_,_) -> x | Null -> raise (Internal_compiler_error "Hit a Null, by mistake")) ^ "...Done") in
       let topnode = fold_topnode vipr (Hashtbl.find top_nodes x) x in
       let ll = fold_rest vipr top_nodes y in
       Filternode (topnode,ll)

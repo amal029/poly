@@ -167,12 +167,6 @@ struct
     | SimTypedSymbol of DataTypes.t * symbol * (line * column) (* Type Symbol *)
     | ComTypedSymbol of DataTypes.t * addressedSymbol * (line * column)
 
-  type callArgument = 
-    | CallAddrressedArgument of addressedSymbol
-    | CallSymbolArgument of symbol
-
-  and filterCall = Call of symbol * callArgument list * (line * column)
-
   type relExpr = 
     | LessThan of simpleExpr * simpleExpr * (line * column)
     | LessThanEqual of simpleExpr * simpleExpr * (line * column)
@@ -189,18 +183,11 @@ struct
     | AllTypedSymbol of typedSymbol
     | AllVecSymbol of int array * vecaddresssymbol
 
-  type intrinsic_type =
-    | NVVM_CALL
-    (* blockIdx.(num: 0 => x, 1 => y, 2 => z) *)
-    | NVVM_CTAID of int
-    (* blockDim.(num: 0 => x, 1 => y, 2 => z) *)
-    | NVVM_NTID of int
-    (* threadIdx.(num: 0 => x, 1 => y, 2 => z) *)
-    | NVVM_TID of int
+  type special =
+    | NVVM
 
   type stmt = 
-    | Assign of allsym list * expr * (line * column) (*a=10*)
-    | Intrinsic of allsym list * expr * intrinsic_type * (line * column)	(* special intrinsics to be called *)
+    | Assign of allsym list * expr * (line * column) * special option (*a=10*)
     | VarDecl of typedSymbol * (line * column) (*create *)
     | CaseDef of case * (line * column) 
     | Escape of string * (line * column)
@@ -219,8 +206,15 @@ struct
   and otherwise = 
     | Otherwise of stmt * (line * column)
 
+  and callArgument = 
+    | CallAddrressedArgument of addressedSymbol
+    | CallSymbolArgument of symbol
+
+  and filterCall = Call of symbol * callArgument list * (line * column)
+
+
   (* Top level  *)
-  type filter = Filter of symbol * typedSymbol list * typedSymbol list * stmt
+  and filter = Filter of symbol * typedSymbol list * typedSymbol list * stmt * special option
 
   type toplevelStmt = 
     | Def of filter * relExpr option * (line * column)
@@ -265,7 +259,7 @@ struct
     | Backnode of cfg ref (* For loops (*pun intended*) *)
     | Empty
   and topnode = 
-    | Topnode of stmt * string * relExpr option * cfg list (* These are my statements within a filter and its name *)
+    | Topnode of stmt * string * relExpr option * cfg list * special option (* These are my statements within a filter and its name *)
     | Null
   type filternode = 
     | Filternode of topnode * filternode list (* These are the connections to other filters' topnodes *)

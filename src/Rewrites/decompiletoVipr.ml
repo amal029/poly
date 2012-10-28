@@ -132,7 +132,7 @@ let vipr_fcall_assign_left r l =
 let rec vipr_stmt = function
   | VarDecl (x,_) -> Vipr.Declare (vipr_typed_symbols x)
 
-  | Assign (x,e,_) -> 
+  | Assign (x,e,_,_) -> 
     (match e with 
       | SimExpr _ -> 
 	(if List.length x > 1 then 
@@ -177,7 +177,7 @@ let rec vipr_stmt = function
   | _ as s -> raise (Internal_compiler_error ("Vipr too stupid to handle: " ^ (Dot.dot_stmt s)))
 
 let vipr_procedure = function
-  | Filter (symbol,inputs,outputs,stmt) -> 
+  | Filter (symbol,inputs,outputs,stmt,_) -> 
     Vipr.Procedure (get_symbol symbol,
 		    List.map vipr_proc_inputs inputs, List.map vipr_proc_outputs outputs, 
 		    vipr_stmt stmt)

@@ -9,12 +9,15 @@ exception Error of string
 exception Internal_compiler_error of string
 
 module List = Batteries.List
+module String = Batteries.String
 
 let slots = ref false
 let march = ref "x86_64"
+let march_gpu = ref ""
 let myopt = ref true
 
-let context = global_context ()
+(* let context = global_context () *)
+let context = create_context ()
 let the_module = create_module context "poly jit"
 let builder = builder context
 
@@ -793,7 +796,7 @@ let codegen_callargs defmore lc declarations = function
       if (List.length !actual_dims) = 0 then build_load pointer (if not !slots then "pointercall" else "") builder
       else pointer
 
-let codegen_fcall stmt lc declarations = function
+let codegen_fcall stmt lc declarations special = function
   | FCall (x,e) ->
     (* First lookup the name of the function *)
     let (name,args,lc) =
@@ -834,15 +837,35 @@ let codegen_fcall stmt lc declarations = function
 	(* Set the alignment for the parameters *)
 	let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
 	let callee_attrs = (function_attr callee) in
-	let callee = (match lookup_function name the_module with
-	  | Some x -> x
-	  | None -> 
-	    let () = IFDEF DEBUG THEN print_endline ("building extern " ^ name ^ " declaration") ELSE () ENDIF in
-	    let eft = function_type (void_type context) param_types in
-	    let reft = declare_function name eft the_module in
-	    (* Also set the attributes for this function *)
-	    let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
-	    reft) in
+	(* Is this already declared in this module!! *)
+	let callee = 
+	  if (match special with
+	    | Some x -> false
+	    | None -> true) then
+	    (match lookup_function name the_module with
+	      | Some x -> x
+	      | None ->
+		(* this is the normal case *)
+		let () = IFDEF DEBUG THEN print_endline ("building extern " ^ name ^ " declaration") ELSE () ENDIF in
+		let eft = function_type (void_type context) param_types in
+		let reft = declare_function name eft the_module in
+		(* Also set the attributes for this function *)
+		let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+		reft)
+	     else if
+		 (* This the special case of calling the CUDA kernel with  *)
+		 (match special with
+		   | Some x -> (match x with | NVVM -> true | _ -> false)
+		   | None -> false) then
+	       (match lookup_function name the_module with
+		 | Some x -> x
+		 | None ->
+		   let () = IFDEF DEBUG THEN print_endline ("building extern " ^ name ^ " declaration") ELSE () ENDIF in
+		   let () = IFDEF DEBUG THEN Array.iter (fun x -> print_endline (string_of_lltype x)) param_types ELSE () ENDIF in
+		   let eft = function_type (void_type context) param_types in
+		   (* FIXME: For now this is fine, but we need to fix this *)
+		   declare_function name eft the_module)
+	     else raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Got an unidentified extern function")) in
 	(* Set the linkage to external type *)
 	let () = set_linkage Linkage.External callee in
 	let () = IFDEF DEBUG THEN print_endline (match linkage callee with | Linkage.External -> "External" | _ -> "Some other linkage type") ELSE () ENDIF in
@@ -876,7 +899,7 @@ let rec strech v s1 to_inc vtyp declaration =
     strech v (vector_size (type_of v)) to_inc vtyp declaration
 
 let codegen_stmt f declarations = function
-  | Assign (ll, expr, lc) as stmt -> 
+  | Assign (ll, expr, lc,sp) as stmt -> 
     (* codegen the rhs *)
     let () = IFDEF DEBUG THEN print_endline "assigning" ELSE () ENDIF in
     (* add the declaration to the *)
@@ -1041,7 +1064,7 @@ let codegen_stmt f declarations = function
 		    build_store rval vptr builder in ())) ll
 
       | FCall (_,e) as s ->
-	let (callee,args) = codegen_fcall stmt lc !declarations s in
+	let (callee,args) = codegen_fcall stmt lc !declarations sp s in
 	let () = IFDEF DEBUG THEN print_endline "Dumping arguments which will the func be called with" ELSE () ENDIF in
 	let () = IFDEF DEBUG THEN (List.iter (fun x -> dump_value x) args) ELSE () ENDIF in
 	(* The assignments types are all alloca types just get the actual alloca *)
@@ -1073,7 +1096,7 @@ let codegen_stmt f declarations = function
 	      let tempaddref = AddrRef(x,(get_addressed_symbol_lc x)) in
 	      codegen_simexpr !declarations tempaddref)) ll in
 	(* Now make the call *)
-	let () = IFDEF DEBUG THEN print_endline "Duping output arguments" ELSE () ENDIF in
+	let () = IFDEF DEBUG THEN print_endline "Dumping output arguments" ELSE () ENDIF in
 	let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) oargs ELSE () ENDIF in
 	let d =  build_call callee (Array.of_list (args@oargs)) "" builder in
 	let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ())
@@ -1085,7 +1108,7 @@ let codegen_stmt f declarations = function
 
 let get_vars = function
   | VarDecl (x,_)  -> [x]
-  | Assign (x,_,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
+  | Assign (x,_,_,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
     (* | Block x -> List.flatten (List.map (fun x -> get_vars x) x) *)
   | _ -> []
 
@@ -1326,7 +1349,7 @@ let codegen_output_params the_function declarations input_size outputs =
 	add_to_declarations s ai declarations)) output_params
 
 let llvm_topnode vipr = function
-  | Topnode (fcall,name,_,cfg_list) -> 
+  | Topnode (fcall,name,_,cfg_list,_) -> 
     let func_name = name ^ (string_of_int !func_name_counter) in
     (*Increment the func_name counter *)
     let () = func_name_counter := !func_name_counter + 1 in
@@ -1360,10 +1383,15 @@ let llvm_topnode vipr = function
   | Null -> raise (Internal_compiler_error "Hit a Null fcall expression while producing llvm IR")
 
 let rec llvm_filter_node vipr filename = function
-  | Filternode (topnode, ll) -> 
+  | Filternode (topnode, ll) as ff -> 
     let () = List.iter (fun x -> llvm_filter_node vipr filename x) ll in 
     let the_function = llvm_topnode vipr topnode in
-    (match topnode with Topnode(_,n,_,_) ->
+    (match topnode with Topnode(_,n,_,_,special) ->
+      (* This means call the GPU generation kernel *)
+      (if (match special with | Some x -> (match x with NVVM -> true | _ -> false) | None -> false) then
+	  (* This function delcaration should happen on its own, because
+	     it is an external function from this modules perspective *)
+	  MyLlvm_cuda.llvm_filter_node vipr filename ff);
       if n = "main" then
     	(* let () = dump_module the_module in *)
 	let () = 
@@ -1375,18 +1403,19 @@ let rec llvm_filter_node vipr filename = function
       (* let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in () *)
       else ())
 
-let compile optimize myarch myslots vipr modules filename cfg = 
+let compile optimize myarch_gpu myarch myslots vipr modules filename cfg = 
   (* Set the modules that need to be loaded *)
   (* Try loading the memory buffer file *)
   (* Go through all the files and do it!!*)
   slots := myslots;
   march := myarch;
+  march_gpu := myarch_gpu;
   myopt := optimize;
   target_data := 
     (if !march = "x86_64" then !target_data
      else Llvm_target.DataLayout.create "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32");
 
-(* Set the target triple *)
+  (* Set the target triple *)
   (if !march = "x86_64" then
       let () = set_target_triple "x86_64-apple-darwin10.0.0" the_module in
       let () = set_data_layout
@@ -1397,19 +1426,15 @@ let compile optimize myarch myslots vipr modules filename cfg =
      let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32" the_module in ()
    else if !march = "x86_64-gnu-linux" then
      let () = set_target_triple "x86_64-unknown-linux-gnu" the_module in
-     let () = set_data_layout 
-       "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128" the_module in ()
-   else if !march = "nvvm-cuda-i32" then
-     let () = set_target_triple "nvvm-cuda-i32" the_module in
-     let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64" the_module
-     in ()
-   else if !march = "nvvm-cuda-i64" then
-     let () = set_target_triple "nvvm-cuda-i64" the_module in
-     let () = set_data_layout "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64" the_module in ());
+     let () = set_data_layout "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128" the_module in ()
+   else if (!march = "nvvm-cuda-i32") || (!march = "nvvm-cuda-i64") then raise (Error "Provided the wrong CPU archtecture!!"));
 
   let membufs = List.map (fun x -> MemoryBuffer.of_file x) modules in
   (* Now read the bit code in *)
   let modules = List.map (fun x -> Llvm_bitreader.get_module context x) membufs in
-  (* Set the user ssupported modules *)
+  (* Set the user supported modules *)
   user_modules := modules;
+  (* Initialize the GPU *)
+  if (!march_gpu <> "") then user_modules := (MyLlvm_cuda.init optimize !march_gpu myslots vipr modules filename) :: !user_modules;
+  (* Now compile *)
   let () = llvm_filter_node vipr filename cfg in ()

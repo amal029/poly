@@ -108,7 +108,7 @@ and process_otherwise = function
   | Otherwise (x,lc) -> Otherwise (process_filter_stmts x, lc)
 
 let process_filter = function
-  | Filter (x,y,z,s) -> Filter (x,y,z,process_filter_stmts s)
+  | Filter (x,y,z,s,sp) -> Filter (x,y,z,process_filter_stmts s,sp)
 
 let rec interchange = function
   | FCFG.Node (e,f,r,fl) -> FCFG.Node (e,process_filter f,r,(List.map interchange fl))

@@ -23,6 +23,7 @@ try
   let slots = ref false in
   let output = ref "" in
   let march = ref "x86_64" in
+  let march_gpu = ref "" in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag_stg, " Decompile to stg-lang");
 		      ("-vipr-lang", Arg.Set decompile_flag_vipr, " Decompile to vipr-lang");
 		      ("-floop-vectorize", Arg.Set vectorize, " Loop Vectorize");
@@ -30,7 +31,8 @@ try
 		      ("-O0", Arg.Clear optimize, " Do not perform any optimizations");
 		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
-		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n x86_64-gnu-linux and nvvm-cuda-i32 nvvm-cuda-i64 [default = x86_64, which is apple darwin]");
+		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n x86_64-gnu-linux and [default = x86_64, which is apple darwin]");
+		      ("-march-gpu", Arg.String (fun x -> march_gpu := x), " Set the march for compilation, available: nvvm-cuda-i32 nvvm-cuda-i64, [default:Off] ");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part, 
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
@@ -66,6 +68,10 @@ try
 	let cfg = VecCFG.check_fcfg !vectorize fcfg in
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
+	let fcfg = 
+	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
+	      Loop_out.Kernel.process fcfg
+	   else fcfg) in
 	let () = print_endline ".....Building CFG..." in
 	let cfg = VecCFG.check_fcfg !vectorize fcfg in
 	let r1 = (Str.regexp "/") in
@@ -78,11 +84,7 @@ try
 	let () = print_endline "....Performing constant folding..." in
 	let cfg = Constantfolding.Constantfolding.fold !vipr tbl cfg in
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () =
-	  (if !march = "nvvm-cuda-i64" || !march = "nvvm-cuda-i32" then
-	      MyLlvm_cuda.compile !optimize !march !slots !vipr !load_modules llvm_file cfg
-	   else
-	      MyLlvm.compile !optimize !march !slots !vipr !load_modules llvm_file cfg) in
+	let () = MyLlvm.compile !optimize !march_gpu !march !slots !vipr !load_modules llvm_file cfg in
 	(* Make some system calls to complete the process *)
 	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
 	  (* We can make some sys calls *)
@@ -92,7 +94,9 @@ try
 	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else if not !optimize then 
-	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in ()
+	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
+	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
+	      let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ());
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
       if !decompile_flag_vipr then
@@ -141,14 +145,18 @@ try
       let llvm_file = (List.hd slist) in
       let llvm_file = if not (!output = "") then !output else llvm_file in
       let file_name = ((List.hd slist) ^ ".xml") in
+      let () = print_endline "....Decompiling to AST......" in
+      let ast = DecompiletoAST.decompile cfgt in
+      let () = print_endline "....Vectorizing......" in
+      let fcfgv = Fcfg.check_ast ast in
       (* By default do not always produce llvm IR *)
       let cfgt =
 	if !optimize && !vectorize then
-	  let () = print_endline "....Decompiling to AST......" in
-	  let ast = DecompiletoAST.decompile cfgt in
-	  let () = print_endline "....Vectorizing......" in
-	  let fcfgv = Fcfg.check_ast ast in
 	  let fcfgv = LoopInterchange.interchange fcfgv in
+	  let fcfgv =
+	    (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
+		Loop_out.Kernel.process fcfgv
+	     else fcfgv) in
 	  (* Now call the vectorization function on this *)
 	  VecCFG.check_fcfg !vectorize fcfgv
 	else 
@@ -161,11 +169,7 @@ try
       else ();
       if !llvm then
 	let () = print_endline ".....Generating LLVM IR..." in
-	let () =
-	  (if !march = "nvvm-cuda-i64" || !march = "nvvm-cuda-i32" then
-	      MyLlvm_cuda.compile !optimize !march !slots !vipr !load_modules llvm_file cfgt
-	   else
-	      MyLlvm.compile !optimize !march !slots !vipr !load_modules llvm_file cfgt) in
+	let () = MyLlvm.compile !optimize !march_gpu !march !slots !vipr !load_modules llvm_file cfgt in
 	(* let () = MyLlvm.compile !optimize !march !slots !vipr !load_modules llvm_file cfgt in *)
 	(* Make some system calls to complete the process *)
 	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
@@ -175,7 +179,9 @@ try
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else if not !optimize then 
-	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in ()
+	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
+	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
+	      let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ());
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
       if !decompile_flag_stg then

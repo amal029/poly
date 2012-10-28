@@ -15,14 +15,14 @@ DOTLIB=codegen.cmxa
 BATLIBBOPT=batteries.cmxa
 OCMLOPTS=-a
 OCMXALDEBUG=-g
-SRC=andrewxml.ml myLlvm.ml myLlvm_cuda.ml
+SRC=andrewxml.ml myLlvm_cuda.ml myLlvm.ml
 CC=ocamlopt
 
 all: backend.cmxa
 
 
 backend.cmxa: check
-	$(CC) -a *.cmx -o $@
+	$(CC) -a andrewxml.cmx myLlvm_cuda.cmx myLlvm.cmx -o $@
 
 check: 
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(LANGDIR) -I	\

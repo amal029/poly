@@ -25,7 +25,7 @@ let add_to_stack x =
   else Stack.push x one_place_stack
 
 let extract_loop_variable = function
-  | Assign (x,y,_) as s -> 
+  | Assign (x,y,_,_) as s -> 
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_stmt s) ELSE () ENDIF in
     let lvar = List.map (fun x -> match x with AllTypedSymbol x -> (match x with SimTypedSymbol (_,x,_) -> x 
       | _ -> raise (Internal_compiler_error "While decompiling loop start_decl symbol not of type SimTypedSymbol"))
@@ -40,7 +40,7 @@ let extract_loop_end_expr = function
   | _ -> raise (Internal_compiler_error "Loop bound expression not of type <= or >= ")
 
 let extract_loop_stride_expr = function
-  | Assign (_,y,_) -> (match y with 
+  | Assign (_,y,_,_) -> (match y with 
       SimExpr y -> 
 	(match y with Plus (_,y,_) -> y | _ -> raise (Internal_compiler_error "While decompiling loop stride expr not of type Plus "))
       | _ -> raise (Internal_compiler_error " Loop stride expression not of type simple expression"))
@@ -133,20 +133,20 @@ let replace_stars_expr declarations = function
   | FCall (x,e) -> FCall ((replace_stars_filtercall declarations x),e)
 
 let replace_stars declarations = function
-  | Assign (x,y,lc) -> 
+  | Assign (x,y,lc,sp) -> 
     let lvalue = List.map (fun x -> replace_stars_allsym declarations x) x in
     let rvalue = replace_stars_expr declarations y in
-    Assign (lvalue,rvalue,lc)
+    Assign (lvalue,rvalue,lc,sp)
   | _ as s -> s
 
 let add_var_decls declarations = function
   | VarDecl (x,_) -> declarations := x :: !declarations
-  | Assign (x,y,_) -> declarations := (List.flatten ((List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> []))) x)) @ !declarations
+  | Assign (x,y,_,_) -> declarations := (List.flatten ((List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> []))) x)) @ !declarations
   | _ -> ()
 
 let get_vars = function
   | VarDecl (x,_)  -> [x]
-  | Assign (x,_,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
+  | Assign (x,_,_,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
     (* | Block x -> List.flatten (List.map (fun x -> get_vars x) x) *)
   | _ -> []
 
@@ -195,19 +195,19 @@ let rec decompile_cfg declarations arg = function
       (try
 	 let nname = Hashtbl.find fcall_map x in
 	 (match x with
-	   | Assign (a,y,lc) -> 
+	   | Assign (a,y,lc,sp) -> 
 	     (match y with
-	       | FCall (y,e) -> (match y with Call (_,y,lc) -> (Assign (a, (FCall(Call (nname,y,lc),e)),lc)))
+	       | FCall (y,e) -> (match y with Call (_,y,lc) -> (Assign (a, (FCall(Call (nname,y,lc),e)),lc,sp)))
 	       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Fcall_map assign rvalue not of type Fcall!!")))
 	   | _  -> raise (Internal_compiler_error ("Fcall_map hashtbl not of type Assign!!")))
        with
 	 | Not_found -> 
 	   (match x with
-	     | Assign (a,y,lc) -> (match y with | FCall (y,e) -> 
+	     | Assign (a,y,lc,sp) -> (match y with | FCall (y,e) -> 
 	       if not e then
 		 raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Right hand side FCall, yet new name not found in the hashtbl")) 
 	       else 
-		 (match y with Call (nname,y,lc) -> (Assign (a, (FCall(Call (nname,y,lc),e)),lc)))
+		 (match y with Call (nname,y,lc) -> (Assign (a, (FCall(Call (nname,y,lc),e)),lc,sp)))
 		 | _ -> x)
 	     | _ -> x)) in
     (* First we need to add the vardecl if there are any !! *)
@@ -345,7 +345,7 @@ let rec decompile_filter_params = function
   | _ -> raise (Internal_compiler_error "Inputs/Outputs not declared in a square node!!")
 
 let decompile_topnode = function
-  | Topnode (fcall,name,r,cfg_list) -> 
+  | Topnode (fcall,name,r,cfg_list,sp) -> 
     let () = IFDEF DEBUG THEN print_endline ("Filter: " ^ name) ELSE () ENDIF in
     let inputs = decompile_filter_params (List.nth cfg_list 0) in
     let outputs = decompile_filter_params (List.nth cfg_list 1) in
@@ -355,7 +355,7 @@ let decompile_topnode = function
     let body = decompile_cfg declarations BLOCK (List.nth cfg_list 2) in
     let body_list = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-block in the Topnode"))) body in
     if name = "main" || name = "Main" then
-      DefMain(Filter((Symbol (name, (0,0))), inputs, outputs, (Block (body_list,(0,0)))), None, (0,0))
+      DefMain(Filter((Symbol (name, (0,0))), inputs, outputs, (Block (body_list,(0,0))),sp), None, (0,0))
     else 
       begin
 	(* First change the name of the filter *)
@@ -366,7 +366,7 @@ let decompile_topnode = function
 	let () = IFDEF DEBUG THEN print_endline ("Adding to hashtbl: " ^ Dot.dot_stmt fcall) ELSE () ENDIF in
 	Hashtbl.add fcall_map fcall name;
 	let body_list = List.map (fun x -> (match x with S x -> x | _ -> raise (Internal_compiler_error "Got a non-block in the Topnode"))) body in
-	Def(Filter(name, inputs, outputs, (Block (body_list, (0,0)))), None, (0,0))
+	Def(Filter(name, inputs, outputs, (Block (body_list, (0,0))),sp), None, (0,0))
       end
   | Null -> raise (Internal_compiler_error "Got a Null type while decompiling topnode to AST")
 

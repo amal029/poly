@@ -9,7 +9,7 @@ let tbl = Hashtbl.create (25);;
 
 let get_tfs = function
   | Def (t,r,lc) | DefMain (t,r,lc) -> 
-    (match t with Filter (x,_,_,_) -> 
+    (match t with Filter (x,_,_,_,_) -> 
       match x with Symbol (x,lc) -> 
 	(try
 	   let _ = Hashtbl.find tbl x in
@@ -41,7 +41,7 @@ let rec check_expr mystmt = function
   | _ -> []
 
 and check_stmt = function
-  | Assign (_,y,_) as s -> check_expr s y
+  | Assign (_,y,_,_) as s -> check_expr s y
   | Block (x,_) -> check_block x
   | For (_,_,x,_) -> check_stmt x
   | Par (_,_,x,_) -> check_stmt x
@@ -55,7 +55,7 @@ and check_block = function
   | [] -> []
 
 and main = function
-  | Filter (n,_,_,stmt) -> (match n with Symbol (n,_) -> Stack.push n nested_names); 
+  | Filter (n,_,_,stmt,_) -> (match n with Symbol (n,_) -> Stack.push n nested_names); 
     let ret = check_stmt stmt in
     let _ = Stack.pop nested_names in
     ret (* return the checked list back *)

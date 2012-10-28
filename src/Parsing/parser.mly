@@ -59,16 +59,16 @@ toplevelstmtlist:
 toplevelstmt:
     | filter {Language.Language.Def ($1, None, ln())}
     | filter Where relExpr {Language.Language.Def ($1, Some $3, ln())}
-    | TMain stmt {Language.Language.DefMain(Language.Language.Filter(Language.Language.Symbol("main",ln()),[],[],$2), None, ln())}
-    | TMain stmt Where relExpr {Language.Language.DefMain(Language.Language.Filter(Language.Language.Symbol("main",ln()),[],[],$2), Some $4, ln())}
+    | TMain stmt {Language.Language.DefMain(Language.Language.Filter(Language.Language.Symbol("main",ln()),[],[],$2,None), None, ln())}
+    | TMain stmt Where relExpr {Language.Language.DefMain(Language.Language.Filter(Language.Language.Symbol("main",ln()),[],[],$2,None), Some $4, ln())}
     | TEscapedCode {Language.Language.TopEscape ($1, ln())}
 ;
 
 filter:
-    | symbol TIn argumentlist_in TOut argumentlist_out stmt { Language.Language.Filter($1,$3,$5,$6)}
-    | symbol stmt { Language.Language.Filter($1,[],[],$2)}
-    | symbol TIn argumentlist_in stmt { Language.Language.Filter($1,$3,[],$4)}
-    | symbol TOut argumentlist_out stmt { Language.Language.Filter($1,[],$3,$4)}
+    | symbol TIn argumentlist_in TOut argumentlist_out stmt { Language.Language.Filter($1,$3,$5,$6,None)}
+    | symbol stmt { Language.Language.Filter($1,[],[],$2,None)}
+    | symbol TIn argumentlist_in stmt { Language.Language.Filter($1,$3,[],$4,None)}
+    | symbol TOut argumentlist_out stmt { Language.Language.Filter($1,[],$3,$4,None)}
 ;
 
 argumentlist_out:
@@ -103,8 +103,8 @@ stmtlist:
     | stmt {$1}*/
 
 stmt:
-    | allsymlist TEqual expr {Language.Language.Assign($1,$3, ln())}
-    | TOP allsymlist TCP TEqual expr {Language.Language.Assign($2,$5, ln())} /* this is just a tuple back */
+    | allsymlist TEqual expr {Language.Language.Assign($1,$3, ln(),None)}
+    | TOP allsymlist TCP TEqual expr {Language.Language.Assign($2,$5, ln(),None)} /* this is just a tuple back */
     | typedsymbol {Language.Language.VarDecl($1, ln())}
     | varsymbol {Language.Language.VarDecl($1, ln())}
     /*| TEscapedCode  {Language.Language.Escape ($1, ln())}*/

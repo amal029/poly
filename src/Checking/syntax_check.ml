@@ -84,7 +84,7 @@ struct
     | [] -> ()
 
   let rec check_stmt vars errors warns = function
-      | Assign (x,y,lc) -> let used = ref [] in
+      | Assign (x,y,lc,_) -> let used = ref [] in
 			let vs = ref [] in
 			get_all_symbols vs used x;
 			check_scope_existence !vs errors !vars;
@@ -126,7 +126,7 @@ struct
       | [] -> ()
 
   let rec check_filter = function
-      | Filter (fname, ins , outs, stmt) -> 
+      | Filter (fname, ins , outs, stmt,sp) -> 
 	(* First build the argument list to this filter *)
 	let ints = get_args ins in
 	let outs = get_args outs in

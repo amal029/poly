@@ -413,10 +413,10 @@ struct
 
   (* You have to do this for Assign with var decls as well *)
   let rec replace_var_decls declarations = function
-    | Assign (x,r,lc) ->
+    | Assign (x,r,lc,sp) ->
       Assign ((List.map (fun x -> (match x with 
 	| AllTypedSymbol x -> AllTypedSymbol (get_new_typed_symbol declarations x x) 
-	| _ as s -> s)) x), r,lc)
+	| _ as s -> s)) x), r,lc,sp)
     | VarDecl (x,lc) as ret ->
       let v = x in
       (match x with
@@ -465,7 +465,7 @@ struct
     | VarDecl (x,lc) as s -> 
       (*let () = set_curr_line_num s in*)
       let () = add_to_declarations x declarations in s
-    | Assign (x,y,lc) as s -> 
+    | Assign (x,y,lc,sp) as s -> 
       let extern = (match y with
 	| FCall (_,e) -> e
 	| _ -> false) in
@@ -475,7 +475,7 @@ struct
 	if List.length x <> List.length expr_type then 
 	  raise (Error ((Reporting.get_line_and_column lc) ^ "Simple: Input and output types do not unify"))
 	else 
-	  Assign ( (infer_assign_lvalue_list declarations expr_type 0 x) , y, lc)
+	  Assign ( (infer_assign_lvalue_list declarations expr_type 0 x) , y, lc,sp)
     | Block (x,lc) -> 
       (* let () = print_endline ("Checking block") in *)
       let vcopy = !declarations in 
@@ -661,7 +661,7 @@ struct
     | [] -> []
 
   let infer_filter = function
-    | Filter (x,y,z,w) ->
+    | Filter (x,y,z,w,sp) ->
       (* let () = print_string (("Filter: " ^ (get_symbol x)) ^ " : ") in *)
       (* If the declarations are Addr type then the dims are also vars that can be accessed *)
       let dim_decs = get_dim_params (y@z) in
@@ -681,7 +681,7 @@ struct
 	    let () = List.iter (fun x -> print_string (("" ^ (DataTypes.print_datatype (get_typed_type x))) ^ " * " )) zo in
 	    let () = print_endline "())" in ());
 	Hashtbl.add filter_signatures (get_symbol x) ((List.map (fun x -> (get_typed_type x)) zi), (List.map (fun x -> (get_typed_type x)) zo));
-	let f = Filter(x,zi,zo,ret_stmt) in f
+	let f = Filter(x,zi,zo,ret_stmt,sp) in f
       with
 	| Not_found -> raise (Internal_compiler_error "Filter re-build declarations don't have all the outputs")
 
@@ -965,7 +965,7 @@ struct
   let rec infer_stmt declarations = function
     | VarDecl (x,lc) as s -> 
       let () = Simple.add_to_declarations x declarations in s
-    | Assign (x,y,lc) as s ->
+    | Assign (x,y,lc,sp) as s ->
       if (match y with FCall _ -> false | _ -> true) then
 	let expr_type = infer_expr !declarations y in
 	if List.length x <> List.length expr_type then
@@ -1062,7 +1062,7 @@ struct
 	
   let get_vars = function
     | VarDecl (x,_)  -> [x]
-    | Assign (x,_,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
+    | Assign (x,_,_,_) -> List.flatten (List.map (fun x -> (match x with AllTypedSymbol x -> [x] | _ -> [])) x)
     (* | Block x -> List.flatten (List.map (fun x -> get_vars x) x) *)
     | _ -> []
 
@@ -1140,7 +1140,7 @@ struct
     | [] -> []
 
   let infer_topnode check = function
-    | Topnode (x,t,constraints,y) ->
+    | Topnode (x,t,constraints,y,sp) ->
       let () = IFDEF DEBUG THEN print_endline ("Filter: " ^ t) ELSE () ENDIF in
       (* First look at the fcall_map and see if you are there, you have to be there whatever happens !! *)
       let filter_signature = 
@@ -1157,7 +1157,7 @@ struct
       let y = y @ [(List.nth temp 2)] in
       (* let ret = Topnode (x,t, (List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) (List.rev y))) in *)
       let () = print_string (("Filter " ^ t) ^ " : ") in
-      let ret = Topnode (x,t, constraints,(List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) y)) in
+      let ret = Topnode (x,t, constraints,(List.map ((fun x -> fun y -> infer_cfg x y) (ref [])) y),sp) in
       (* Give out the final type signature for this thing *)
       (* let ins = (get_ins_and_outs (List.nth (List.rev y) 0)) in *)
       let ins = (get_ins_and_outs (List.nth y 0)) in
