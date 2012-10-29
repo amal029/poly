@@ -44,6 +44,7 @@ struct
      auto-tuner*)
 
   let pindices = ref []
+  let plimits = ref []
   let vars_used = ref []
   let vars_used_out = ref []
   let fmap = Hashtbl.create 10
@@ -61,8 +62,9 @@ struct
     | SimTypedSymbol (_,x,_) -> get_symbol x
     | ComTypedSymbol (_,x,_) -> get_addressed_symbol x
 
-  let add_to_pindices ll = 
-    List.map (fun r -> if (List.exists (fun x -> (get_symbol x) = (get_symbol r)) !pindices) then () else pindices := !pindices@[r]) ll
+  let add_to_pindices limits ll = 
+    List.map2 (fun r -> fun (vstart,vend,vstride) -> if (List.exists (fun x -> (get_symbol x) = (get_symbol r)) !pindices) then () 
+      else (pindices := !pindices@[r]; plimits := !plimits@[(Convert.get_access_size vstart vend vstride)];)) ll limits
 
   let add_used_var_out symbol_table x =
     if (List.exists (fun y -> (get_typed_symbol y) = x) symbol_table) then
@@ -114,7 +116,7 @@ struct
     | Assign (x,y,lc,_) as s -> 
       (* Now make the kernel with generic block and thread ids *)
       (* Add the indices to the pindices *)
-      add_to_pindices indices;
+      add_to_pindices limits indices;
       (* Now get all the vars other than indices being used in here *)
       (List.iter (get_vars_used_l symbol_table) x);
       (get_vars_used_r symbol_table y); 
@@ -175,7 +177,7 @@ struct
     let nstmts = ref [] in
     stmts_without_pars nstmts z;
     let block = Block ((stmts @ !nstmts),lc) in
-    Filter ((Symbol (("__kernel__" ^ (string_of_int !counter)),lc)),!vars_used,!vars_used_out,block,Some NVVM)
+    Filter ((Symbol (("__kernel__" ^ (string_of_int !counter)),lc)),!vars_used,!vars_used_out,block,Some (NVVM {ll= !plimits; outs= []; ins = []}))
 
   let get_call_symbol_names lc x = CallSymbolArgument (Symbol (get_typed_symbol x,lc))
   let get_assign_symbol_names lc x = AllSymbol (Symbol (get_typed_symbol x,lc))
@@ -183,7 +185,7 @@ struct
   let build_intrinsic_call lc =
     let sym = Symbol (("__kernel__"^(string_of_int !counter)),lc) in
     let fcall = FCall (Call(sym,(List.map (get_call_symbol_names lc) !vars_used),lc),true) in
-    Assign (List.map (get_assign_symbol_names lc) !vars_used_out,fcall,lc,Some NVVM)
+    Assign (List.map (get_assign_symbol_names lc) !vars_used_out,fcall,lc,Some (NVVM {ll = !plimits; outs= !vars_used_out; ins= !vars_used}))
 
   let rec process_filter_stmts symbol_table = function
     | Par (x,y,z,lc) as s -> 
@@ -200,6 +202,7 @@ struct
 	     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
 						      ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
 	     pindices := [];
+	     plimits := [];
 	     vars_used := [];
 	     vars_used_out := [];
 	     build_kernel [x]  [(vstart,vend,vstride)] !symbol_table z;

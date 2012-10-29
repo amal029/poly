@@ -5,14 +5,14 @@ INCLUDES=/usr/local/cuda/include
 INCLUDES +=-I$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/NVIDIA_NVVM/LibNVVM/lib/universal_Darwin_release/
 INCLUDES +=-I.
 
-CFLAGS=-S -emit-llvm -DDEBUG -I$(INCLUDES)
+CFLAGS=-DDEBUG -O3 -S -emit-llvm -DDEBUG -I$(INCLUDES)
 
-all: print.bc nvvm.bc
+all: print.ll nvvm.ll
 
-print.bc:
+print.ll:
 	$(CC) $(CFLAGS) -o $@ print.c
 
-nvvm.bc:
+nvvm.ll:
 	$(CC) $(CFLAGS) -o $@ nvvm.c
 
 clean:

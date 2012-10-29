@@ -8,6 +8,9 @@
 */
 
 
+/* FIXME: Currently we can only run one kernel at a time */
+
+
 #include <math.h>
 #include <cuda.h>
 #include <builtin_types.h>
@@ -16,20 +19,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-
+#include <sys/queue.h>
 #include <stdarg.h>
 
-enum Errors {platform,memory,filename};
 
-enum Types {UINT=0, 
-	    INT=1, 
-	    FLOAT=2, 
-	    DOUBLE=3, 
-	    ULL=4};
-
-#ifdef __linux__
-#else __report_errors (paltform, __FILE__, __LINE__)
-#endif
+enum Errors {platform,memory,filename,noninit};
 
 void
 __report_errors (enum Errors err, const char *file, const int line){
@@ -42,107 +36,145 @@ __report_errors (enum Errors err, const char *file, const int line){
     fprintf(stderr,"Not enough memory: %s,\t line: %i\n", file, line);
   case filename:
     fprintf(stderr,"No file to load: %s,\t line: %i\n",file, line);
+  case noninit :
+    fprintf(stderr,"INIT NOT CALLED ON ABI: %s,\t line: %i\n",file, line);
   default: break;
   }
   exit (-1);
 }
 
 struct arg {
-  enum Types type;		/* The type of the input argument */
-  /* Each input can be of size 65535 */
-  /* x dimension on CUDA */
-  /* y dimension on CUDA */
-  /* z dimension on CUDA */
-  int dim [3]; 		
   /* The actual pointer to data */
   void *data;
+  /* The size  */
+  size_t memsize;
+  /* The list pointers */
+  LIST_ENTRY (arg) enteries;
 };
 
-/* We can have a number of input and output arguments for any given CUDA
-   call */
-struct arg *inputs = NULL;
-struct arg *outputs = NULL;
-size_t input_size = -1;
-size_t output_size = -1;
+struct device_ptrs {
+  CUdeviceptr d_data;
+  LIST_ENTRY (device_ptrs) devices;
+};
 
-/* The number of definitions */
-#define POLY_INPUT_PARAM_INIT (t) poly_kernel_initialize (input_size,inputs,t)
-#define POLY_OUTPUT_PARAM_INIT (t) poly_kernel_initialize (output_size,outputs,t)
-#define POLY_INPUT_PARAM_TYPE (...) poly_param_type (input_size,inputs,__VA_ARGS__)
-#define POLY_OUTPUT_PARAM_TYPE (...) poly_param_type (output_size,outputs,__VA_ARGS__)
-#define POLY_INPUT_PARAM_SIZE (...) poly_param_size (input_size,inputs,__VA_ARGS__)
-#define POLY_OUTPUT_PARAM_SIZE (...) poly_param_size (output_size,outputs,__VA_ARGS__)
-#define POLY_INPUT_PARAM_VALUE (...) poly_param_size (input_size,inputs,__VA_ARGS__)
-#define POLY_OUTPUT_PARAM_VALUE (...) poly_param_size (output_size,outputs,__VA_ARGS__)
-#define POLY_INPUT_PARAM_CLEAR (t) poly_param_size (input_size,inputs)
-#define POLY_OUTPUT_PARAM_CLEAR (t) poly_param_size (output_size,outputs)
-#define POLY_RUN_KERNEL (t) poly_run_kernel (t)
+LIST_HEAD (dev_list, device_ptrs) devs = 
+  LIST_HEAD_INITIALIZER (devs);
 
-/* Initialize the parameters for a kernel */
+LIST_HEAD (in_list, arg) ins =
+  LIST_HEAD_INITIALIZER(ins);
+
+LIST_HEAD (out_list, arg) outs =
+  LIST_HEAD_INITIALIZER(outs);
+
+#define checkCudaErrors(err)  __checkCudaErrors (err, __FILE__, __LINE__)
+int launch (size_t [3], const char *, const char*);
+void __checkCudaErrors( CUresult err, const char *file, const int line );
+
+/* First initialize the linked list */
 void
-poly_kernel_initialize (size_t size, struct arg* value, size_t sval) {
-  sval = size;
-  if ((value = (struct arg*) calloc (sizeof(struct arg),size)) == NULL) {
-    __report_errors (memory,__FILE__,__LINE__);
+POLY_INIT(){
+  static unsigned char done = 0;
+  if (!done) {
+    LIST_INIT (&ins);
+    LIST_INIT (&outs);
+    LIST_INIT (&devs);
+    done = 1;
   }
 }
 
-/* Initialize the type of the parameters for a kernel */
-void 
-poly_param_type (size_t size, struct arg *value, enum Types t, ...) {
-
-  va_list list;
-  va_start (list, t);
-  size_t i = 0;
-
-  for (i=0;i<size;++i)
-    value[i].type = (enum Types) va_arg (list,enum Types);
-
-  va_end (list);
-}
-
-/* Initialize the size of the parameters for a kernel. One can pass a
-   zero value in the index is not to be used.
-*/
-void 
-poly_param_size (size_t size, struct arg *value, int dim_sizes [3], ...) {
-
-  va_list list;
-  va_start (list, dim_sizes);
-  size_t i = 0;
-
-  for (i=0;i<size;++i) {
-    value[i].dim[0] = (int) va_arg (list,int*)[0];
-    value[i].dim[1] = (int) va_arg (list,int*)[1];
-    value[i].dim[2] = (int) va_arg (list,int*)[2];
+void
+poly_set_param (void *data, size_t memsize, struct in_list *i, struct out_list *o) {
+  struct arg* n = malloc (sizeof (struct arg));
+  n->data = data;
+  n->memsize = memsize;
+  struct arg* p = NULL;
+  if (i != NULL) {
+    if ((p = LIST_FIRST(i)) == NULL ) {
+      POLY_INIT ();
+      LIST_INSERT_HEAD(i, n, enteries);
+    }
+    else {
+      while ((p=LIST_NEXT(p,enteries)) != NULL) ;
+      /* Now we have the pointer in hand */
+      LIST_INSERT_AFTER (p,n,enteries);
+    }
   }
-
-  va_end (list);
-}
-
-
-void
-poly_param_value (size_t size, struct arg* value, void *t,...){
-
-  va_list list;
-  va_start (list, t);
-  size_t i = 0;
-
-  for (i=0;i<size;++i)
-    value[i].data = (void*) va_arg (list,void*);
-
-  va_end (list);  
+  else if (o!=NULL) {
+    if ((p = LIST_FIRST(o)) == NULL ) {
+      POLY_INIT ();
+      LIST_INSERT_HEAD(i, n, enteries);
+    }
+    else {
+      while ((p = LIST_NEXT(p,enteries)) != NULL) ;
+      /* Now we have the pointer in hand */
+      LIST_INSERT_AFTER (p,n,enteries);
+    }
+  }
+  /* Traverse */
+  else __report_errors (noninit,__FILE__,__LINE__);
 }
 
 void
-poly_kernel_clear (size_t size, struct arg *v) {
-  size = -1;
-  free (v);
+poly_delete_param (struct in_list *i, struct out_list *o) {
+  struct arg* p = NULL;
+  if (i != NULL) {
+    if (!LIST_EMPTY (i)) {
+      p = LIST_FIRST (i);
+      LIST_REMOVE (p,enteries);
+      free (p);
+    }
+  }
+  else if (o != NULL) {
+    p = LIST_FIRST (o);
+    LIST_REMOVE (p,enteries);
+    free (p);
+  }
 }
 
-#include "cuda_kernel_launch.c"
+
 /* This function actually runs the whole kernel on CUDA */
 void
-poly_run_kernel (const char *kernel) {
-  launch (kernel);
+poly_run_kernel (size_t pindices[3], const char *filename, const char *kernel) {
+  launch (pindices,filename, kernel);
 }
+
+size_t
+get_size (struct arg *p) {
+  return p->memsize;
+} 
+
+/* Allocates memory on the device */
+void
+assign_dev_mem () {
+  /* First we put the device memory online */
+  struct arg *p= NULL;
+  LIST_FOREACH (p,&ins,enteries) {
+    size_t memsize = get_size (p);
+    struct device_ptrs *dev_t = malloc (sizeof (struct device_ptrs));
+    dev_t->d_data = 0;
+    LIST_INSERT_HEAD (&devs,dev_t,devices);
+    checkCudaErrors (cuMemAlloc (&(dev_t->d_data),memsize));
+    checkCudaErrors (cuMemcpyHtoD(dev_t->d_data,p->data,memsize));
+  }
+  p = NULL;
+  LIST_FOREACH (p,&outs,enteries) {
+    size_t memsize = get_size (p);
+    struct device_ptrs *dev_t = malloc (sizeof (struct device_ptrs));
+    dev_t->d_data = 0;
+    LIST_INSERT_HEAD (&devs,dev_t,devices);
+    checkCudaErrors (cuMemAlloc (&(dev_t->d_data),memsize));
+    checkCudaErrors (cuMemcpyHtoD(dev_t->d_data,p->data,memsize));
+  }
+}
+
+/* THE ABI */
+
+void POLY_REGISTER_INPUT(void *d, size_t s){poly_set_param (d,s,&ins,NULL);}
+void POLY_REGISTER_OUTPUT(void *d, size_t s){poly_set_param (d,s,NULL,&outs); }
+void POLY_DEREGISTER_INPUTS (){ poly_delete_param (&ins,NULL);}
+void POLY_DEREGISTER_OUTPUTS (){poly_delete_param (NULL,&outs);}
+void POLY_LAUNCH_KERNEL (size_t p [3],const char *f, const char *t){poly_run_kernel (p,f,t);}
+
+#include "cuda_kernel_launch.c"
+
+

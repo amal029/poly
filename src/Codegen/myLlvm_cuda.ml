@@ -1346,7 +1346,7 @@ let codegen_output_params the_function declarations input_size outputs =
 let llvm_topnode vipr = function
   | Topnode (fcall,name,_,cfg_list,_) -> 
     let func_name = name in
-    (* Added the new function name to the facll_name hashtbl *)
+    (* Added the new function name to the fcall_name hashtbl *)
     let () = Hashtbl.add fcall_names fcall func_name in 
     let () = IFDEF DEBUG THEN print_endline (string_of_int (List.length cfg_list)) ELSE () ENDIF in
     (* You need to build the function prototype here *)
@@ -1438,3 +1438,75 @@ let init optimize myarch myslots vipr modules filename =
   (* Set the user supported modules *)
   user_modules := modules;
   the_module
+
+(* This function builds the ABI calls to the CUDA DRIVER ABI *)
+(* This function build in a different builder than the CUDA one *)
+let build_nvvm_abi_calls fname inptrs outptrs my_builder my_module my_context extra my_intptr_type = 
+
+  (* First try to get the signature of the POLY_REGISTER_INPUT *)
+  let poly_reg_input = List.filter (fun x -> match (lookup_function "POLY_REGISTER_INPUT" x) with | Some _ -> true | None -> false) !user_modules in
+  if List.length poly_reg_input <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_INPUT function in the user_modules (ABI)!!");
+  let poly_reg_input = List.hd poly_reg_input in
+  let callee = match (lookup_function "POLY_REGISTER_INPUT" poly_reg_input) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
+
+  let () = IFDEF DEBUG THEN dump_value poly_reg_input ELSE () ENDIF in
+  let param_types = Array.map (fun x -> type_of x) (params callee) in
+  let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
+  let callee_attrs = (function_attr callee) in
+
+  (* Declare the function *)
+  let eft = function_type (void_type context) param_types in
+  let reft = declare_function "POLY_REGISTER_INPUT" eft my_module in
+  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+
+
+  (* Now we need to call the fucker in a sequence for all the inputs *)
+  let in_sizes = List.map (fun x -> 
+    (match x with
+	| SimTypedSymbol (dt,_,_) -> DataTypes.getdata_size dt 
+	| ComTypedSymbol (dt,(AddressedSymbol (_,_,(x::[]),_)),_) -> 
+	  let dims = 
+	    (match x with 
+	      | BracDim x -> List.map get_brac_dims x) in
+	  List.fold_right ( * ) (List.map int_of_string dims) (DataTypes.getdata_size dt))) extra.ins in
+
+  (* Should now turn it into the size_t type *)
+  let in_sizes = List.map (fun x -> const_int my_intptr_type x) in_sizes in
+  
+
+  (* Bitcast the input pointers to type void* *)
+  let inptrs = List.map (fun x -> build_bitcast x (pointer_type (void_type my_context)) "" my_builder) inptrs in
+
+  (* Now call the ABI function *)
+  let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" my_builder) inptrs in_sizes in
+
+  (* Now the same for output *)
+  let poly_reg_output = List.filter (fun x -> match lookup_function "POLY_REGISTER_OUTPUT" x with | Some _ -> true | None -> false) !user_modules in
+  if List.length poly_reg_output <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_OUTPUT function in the user_modules (ABI)!!");
+  let poly_reg_output = List.hd poly_reg_output in
+  let callee = match (lookup_function "POLY_REGISTER_INPUT" poly_reg_output) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
+  let () = IFDEF DEBUG THEN dump_value poly_reg_output ELSE () ENDIF in
+  let param_types = Array.map (fun x -> type_of x) (params callee) in
+  let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
+  let callee_attrs = (function_attr callee) in
+
+  (* Declare the function *)
+  let eft = function_type (void_type context) param_types in
+  let reft = declare_function "POLY_REGISTER_INPUT" eft my_module in
+  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+
+  let out_sizes = List.map (fun x -> 
+    (match x with
+	| SimTypedSymbol (dt,_,_) -> DataTypes.getdata_size dt 
+	| ComTypedSymbol (dt,(AddressedSymbol (_,_,(x::[]),_)),_) -> 
+	  let dims = 
+	    (match x with 
+	      | BracDim x -> List.map get_brac_dims x) in
+	  List.fold_right ( * ) (List.map int_of_string dims) (DataTypes.getdata_size dt))) extra.outs in
+
+  let out_sizes = List.map (fun x -> const_int my_intptr_type x) out_sizes in
+  let outptrs = List.map (fun x -> build_bitcast x (pointer_type (void_type my_context)) "" my_builder) outptrs in
+
+  (* Now call the ABI function *)
+  let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" my_builder) outptrs out_sizes in
+  ()

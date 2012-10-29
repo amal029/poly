@@ -838,12 +838,14 @@ let codegen_fcall stmt lc declarations special = function
 	let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
 	let callee_attrs = (function_attr callee) in
 	(* Is this already declared in this module!! *)
-	let callee = 
+	let (callee,bargs) = 
 	  if (match special with
 	    | Some x -> false
 	    | None -> true) then
 	    (match lookup_function name the_module with
-	      | Some x -> x
+	      | Some x ->
+		let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in
+		(x,bargs)
 	      | None ->
 		(* this is the normal case *)
 		let () = IFDEF DEBUG THEN print_endline ("building extern " ^ name ^ " declaration") ELSE () ENDIF in
@@ -851,26 +853,42 @@ let codegen_fcall stmt lc declarations special = function
 		let reft = declare_function name eft the_module in
 		(* Also set the attributes for this function *)
 		let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
-		reft)
+		(* Set the linkage to external type *)
+		let () = set_linkage Linkage.External reft in
+		let () = IFDEF DEBUG THEN print_endline (match linkage reft with | Linkage.External -> "External" | _ -> "Some other linkage type") ELSE () ENDIF in
+		let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in
+		let () = IFDEF DEBUG THEN print_endline "found the external function delcaration" ELSE () ENDIF in
+		(reft,bargs))
 	     else if
 		 (* This the special case of calling the CUDA kernel with  *)
 		 (match special with
-		   | Some x -> (match x with | NVVM -> true | _ -> false)
+		   | Some x -> (match x with | (NVVM _) -> true | _ -> false)
 		   | None -> false) then
 	       (match lookup_function name the_module with
-		 | Some x -> x
+		 | Some x ->
+		   let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in
+		   (x,bargs)
 		 | None ->
 		   let () = IFDEF DEBUG THEN print_endline ("building extern " ^ name ^ " declaration") ELSE () ENDIF in
 		   let () = IFDEF DEBUG THEN Array.iter (fun x -> print_endline (string_of_lltype x)) param_types ELSE () ENDIF in
 		   let eft = function_type (void_type context) param_types in
 		   (* FIXME: For now this is fine, but we need to fix this *)
-		   declare_function name eft the_module)
+		   (* This function that we have right now declares the kernel function directly *)
+		   (* We need to get the following:
+		      a. The kernel function name -- "name"
+		      b. The parameter types -- use params
+		      c. The pointer to the arguments -- "bargs"
+		      d. We just return a single function -- POLY_LAUNCH_KERNEL (pindices, file_name, kernel_name)
+		   *)
+		   let callee = declare_function name eft the_module in
+		   (* Set the linkage to external type *)
+		   let () = set_linkage Linkage.External callee in
+		   let () = IFDEF DEBUG THEN print_endline (match linkage callee with | Linkage.External -> "External" | _ -> "Some other linkage type") ELSE () ENDIF in
+		   let bargs = List.map (fun x -> codegen_callargs (not e) lc declarations x) args in
+		   let () = IFDEF DEBUG THEN print_endline "found the external function delcaration" ELSE () ENDIF in
+		   (* BUILD THE ABI CALLS *)
+		   (callee,bargs))
 	     else raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Got an unidentified extern function")) in
-	(* Set the linkage to external type *)
-	let () = set_linkage Linkage.External callee in
-	let () = IFDEF DEBUG THEN print_endline (match linkage callee with | Linkage.External -> "External" | _ -> "Some other linkage type") ELSE () ENDIF in
-	let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in
-	let () = IFDEF DEBUG THEN print_endline "found the external function delcaration" ELSE () ENDIF in
 	(callee,bargs)
   | SimExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ended up with SimExpr when it shouldn't"))
 
@@ -951,7 +969,7 @@ let codegen_stmt f declarations = function
 		if dll <> [] then
 		  let aptr = AddrRef (AddressedSymbol (name,[],[BracDim (List.map (fun x -> DimSpecExpr x) dll)],lc),lc) in
 		(* Now load the vector with the returned pointer *)
-		codegen_simexpr !declarations aptr
+		  codegen_simexpr !declarations aptr
 		else match get !declarations (get_vec_symbol x) with | (_,x) -> x in
 	      let () = IFDEF DEBUG THEN dump_value vptr ELSE () ENDIF in
 	      let () = IFDEF DEBUG THEN print_endline "getting length of CE" ELSE () ENDIF in
@@ -965,7 +983,7 @@ let codegen_stmt f declarations = function
 		  let indices_converted = Array.to_list indices_converted in
 		  let vsize = (match symbol with ComTypedSymbol (dtype,x,_) -> 
 		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
-			(* First we need to filter out the ones, which will be converted *)
+		      (* First we need to filter out the ones, which will be converted *)
 		      let to_calc = List.mapi (fun i (DimSpecExpr x) -> 
 			if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
 		      let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
@@ -981,12 +999,12 @@ let codegen_stmt f declarations = function
 		  let indices_converted = Array.to_list indices_converted in
 		  let (dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) -> 
 		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
-			(* First we need to filter out the ones, which will be converted *)
+		      (* First we need to filter out the ones, which will be converted *)
 		      let to_calc = List.mapi (fun i (DimSpecExpr x) -> 
 			if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
 		      let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
 		      (((get_llvm_primitive_type lc dtype) context)),((List.fold_right 
-									(fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1)))
+									 (fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1)))
 		    | _ -> raise (Internal_compiler_error "Not a comtpyed symbol")) in 
 		  (* Bitcast is giving a cast error!! *)
 		  let () = IFDEF DEBUG THEN print_endline "bitcasting" ELSE () ENDIF in
@@ -1063,7 +1081,7 @@ let codegen_stmt f declarations = function
 		  else
 		    build_store rval vptr builder in ())) ll
 
-      | FCall (_,e) as s ->
+      | FCall (eftt,e) as s ->
 	let (callee,args) = codegen_fcall stmt lc !declarations sp s in
 	let () = IFDEF DEBUG THEN print_endline "Dumping arguments which will the func be called with" ELSE () ENDIF in
 	let () = IFDEF DEBUG THEN (List.iter (fun x -> dump_value x) args) ELSE () ENDIF in
@@ -1098,8 +1116,20 @@ let codegen_stmt f declarations = function
 	(* Now make the call *)
 	let () = IFDEF DEBUG THEN print_endline "Dumping output arguments" ELSE () ENDIF in
 	let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) oargs ELSE () ENDIF in
-	let d =  build_call callee (Array.of_list (args@oargs)) "" builder in
-	let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ())
+	(* Do this only if this is not a special call *)
+	(match sp with 
+	  | Some x -> 
+	  (* This is the special case and we need to call the ABI *)
+	    (match x with 
+	      | NVVM x -> 
+		(* Now call the CUDA ABI builder *)
+		MyLlvm_cuda.build_nvvm_abi_calls (match eftt with 
+		  | Call (name,_,_) -> get_symbol name) args 
+		  oargs builder the_module context x (Llvm_target.intptr_type !target_data)
+	      | _ -> raise (Internal_compiler_error "Unrecognixed special call!!"))
+	  | None ->
+	    let d =  build_call callee (Array.of_list (args@oargs)) "" builder in
+	    let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ()))
   | VarDecl (x,lc) -> codegen_typedsymbol f declarations x
   | Noop -> ()
   | _ as s -> 
@@ -1388,7 +1418,7 @@ let rec llvm_filter_node vipr filename = function
     let the_function = llvm_topnode vipr topnode in
     (match topnode with Topnode(_,n,_,_,special) ->
       (* This means call the GPU generation kernel *)
-      (if (match special with | Some x -> (match x with NVVM -> true | _ -> false) | None -> false) then
+      (if (match special with | Some x -> (match x with (NVVM _) -> true | _ -> false) | None -> false) then
 	  (* This function delcaration should happen on its own, because
 	     it is an external function from this modules perspective *)
 	  MyLlvm_cuda.llvm_filter_node vipr filename ff);

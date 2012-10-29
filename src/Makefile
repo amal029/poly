@@ -20,6 +20,7 @@ compile:
 	$(MAKE) -e -C Vectorization/ all
 	$(MAKE) -e -C Codegen/ all
 	$(MAKE) -e -C Tests/ all
+	$(MAKE) -e -C libsrc/ all
 	ctags -R -e *
 	mkdir -p output
 	mkdir -p output1
@@ -36,6 +37,7 @@ clean:
 	$(MAKE) -e -C Codegen/ clean
 	$(MAKE) -e -C Vectorization/ clean
 	$(MAKE) -e -C Tests/ clean
+	$(MAKE) -e -C libsrc/ clean
 	rm -rf *.ll *.lle *.bc *.s *.dot *.grf *.part* gmon.out TAGS
 
 run:

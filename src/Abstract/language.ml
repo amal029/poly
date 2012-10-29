@@ -127,7 +127,6 @@ struct
 
   type index = int
 
-
   type value = string
 
   type simpleExpr = 
@@ -183,8 +182,10 @@ struct
     | AllTypedSymbol of typedSymbol
     | AllVecSymbol of int array * vecaddresssymbol
 
+  type ('a,'b) extra_data = {ll: 'a list; outs:'b list; ins:'b list;}
+
   type special =
-    | NVVM
+    | NVVM of (int,typedSymbol) extra_data
 
   type stmt = 
     | Assign of allsym list * expr * (line * column) * special option (*a=10*)
