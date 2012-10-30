@@ -154,7 +154,7 @@ char *generatePTX(const char *ll, size_t size)
   return PTX;
 }
 
-int launch (size_t pindices[3], const char* fn, const char *argv)
+int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv)
 {
     
   /* Changed this to use just 1 thread */
@@ -200,31 +200,31 @@ int launch (size_t pindices[3], const char* fn, const char *argv)
 #ifdef NTPBX
   threadsperblockX = NTPBX;
 #else
-  if (pindices[0] <= 1024)
-    threadsperblockX = pindices[0];
+  if (p1 <= 1024)
+    threadsperblockX = p1;
   else 
     threadsperblockX = 1024;
 #endif
 #ifdef NTPBY
   threadsperblockY = NTPBY;
 #else
-  if (pindices [1] <= 1024)
-    threadsperblockY = pindices[1];
+  if (p2 <= 1024)
+    threadsperblockY = p2;
   else 
     threadsperblockY = 1024;
 #endif
 #ifdef NTPBZ
   threadsperblockZ = NTPBZ;
 #else
-  if (pindices[2] <= 1024)
-    threadsperblockZ = pindices[2];
+  if (p3 <= 1024)
+    threadsperblockZ = p3;
   else 
     threadsperblockZ = 1024;
 #endif
 
-  int blockspergridX = pindices[0]/threadsperblockX;
-  int blockspergridY = pindices[1]/threadsperblockY;
-  int blockspergridZ = pindices[2]/threadsperblockZ;
+  int blockspergridX = p1/threadsperblockX;
+  int blockspergridY = p2/threadsperblockY;
+  int blockspergridZ = p3/threadsperblockZ;
   
   /* Set the parameters for the kernel argument */
   /* The inputs come before outputs */

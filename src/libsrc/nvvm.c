@@ -67,7 +67,7 @@ LIST_HEAD (out_list, arg) outs =
   LIST_HEAD_INITIALIZER(outs);
 
 #define checkCudaErrors(err)  __checkCudaErrors (err, __FILE__, __LINE__)
-int launch (size_t [3], const char *, const char*);
+int launch (size_t, size_t, size_t, const char *, const char*);
 void __checkCudaErrors( CUresult err, const char *file, const int line );
 
 /* First initialize the linked list */
@@ -134,8 +134,8 @@ poly_delete_param (struct in_list *i, struct out_list *o) {
 
 /* This function actually runs the whole kernel on CUDA */
 void
-poly_run_kernel (size_t pindices[3], const char *filename, const char *kernel) {
-  launch (pindices,filename, kernel);
+poly_run_kernel (size_t p1, size_t p2, size_t p3, const char *filename, const char *kernel) {
+  launch (p1,p2,p3,filename, kernel);
 }
 
 size_t
@@ -173,7 +173,7 @@ void POLY_REGISTER_INPUT(void *d, size_t s){poly_set_param (d,s,&ins,NULL);}
 void POLY_REGISTER_OUTPUT(void *d, size_t s){poly_set_param (d,s,NULL,&outs); }
 void POLY_DEREGISTER_INPUTS (){ poly_delete_param (&ins,NULL);}
 void POLY_DEREGISTER_OUTPUTS (){poly_delete_param (NULL,&outs);}
-void POLY_LAUNCH_KERNEL (size_t p [3],const char *f, const char *t){poly_run_kernel (p,f,t);}
+void POLY_LAUNCH_KERNEL (size_t p1,size_t p2, size_t p3, const char *f, const char *t){poly_run_kernel (p1,p2,p3,f,t);}
 
 #include "cuda_kernel_launch.c"
 

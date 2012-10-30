@@ -30,6 +30,7 @@ let slots = ref false
 (* By default I consider it to be a 32-bit CUDA environment *)
 let march = ref "nvvm-cuda-i32"
 let myopt = ref false
+let myfilename = ref ""
 
 let kernel_values = ref []
 
@@ -1405,6 +1406,7 @@ let init optimize myarch myslots vipr modules filename =
   (* Set the modules that need to be loaded *)
   (* Try loading the memory buffer file *)
   (* Go through all the files and do it!!*)
+  myfilename := filename;
   slots := myslots;
   march := myarch;
   myopt := optimize;
@@ -1441,7 +1443,7 @@ let init optimize myarch myslots vipr modules filename =
 
 (* This function builds the ABI calls to the CUDA DRIVER ABI *)
 (* This function build in a different builder than the CUDA one *)
-let build_nvvm_abi_calls fname inptrs outptrs my_builder my_module my_context extra my_intptr_type = 
+let build_nvvm_abi_calls kname inptrs outptrs my_builder my_module my_context extra my_intptr_type = 
 
   (* First try to get the signature of the POLY_REGISTER_INPUT *)
   let poly_reg_input = List.filter (fun x -> match (lookup_function "POLY_REGISTER_INPUT" x) with | Some _ -> true | None -> false) !user_modules in
@@ -1492,7 +1494,7 @@ let build_nvvm_abi_calls fname inptrs outptrs my_builder my_module my_context ex
 
   (* Declare the function *)
   let eft = function_type (void_type context) param_types in
-  let reft = declare_function "POLY_REGISTER_INPUT" eft my_module in
+  let reft = declare_function "POLY_REGISTER_OUTPUT" eft my_module in
   let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
 
   let out_sizes = List.map (fun x -> 
@@ -1509,4 +1511,27 @@ let build_nvvm_abi_calls fname inptrs outptrs my_builder my_module my_context ex
 
   (* Now call the ABI function *)
   let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" my_builder) outptrs out_sizes in
-  ()
+  
+  (* Now we need to call the launch kernel function *)
+
+  let poly_reg_input = List.filter (fun x -> match (lookup_function "POLY_LAUNCH_KERNEL" x) with | Some _ -> true | None -> false) !user_modules in
+  if List.length poly_reg_input <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_INPUT function in the user_modules (ABI)!!");
+  let poly_reg_input = List.hd poly_reg_input in
+  let callee = match (lookup_function "POLY_LAUNCH_KERNEL" poly_reg_input) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
+
+  let () = IFDEF DEBUG THEN dump_value poly_reg_input ELSE () ENDIF in
+  let param_types = Array.map (fun x -> type_of x) (params callee) in
+  let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
+  let callee_attrs = (function_attr callee) in
+
+  (* Declare the function *)
+  let eft = function_type (void_type context) param_types in
+  let reft = declare_function "POLY_LAUNCH_KERNEL" eft my_module in
+  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+
+(* Now just make the ABI launch kernel call *)
+  let limits = List.map (fun x -> const_int (Llvm_target.intptr_type !target_data) x) extra.ll in
+  let mf = !myfilename ^ ".gpu.ll" in
+  let limits = (const_string my_context mf) :: limits in
+  let limits = (const_string my_context kname) :: limits in
+  let _ = build_call reft (Array.of_list limits) "" my_builder in ()

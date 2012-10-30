@@ -884,7 +884,7 @@ let codegen_fcall stmt lc declarations special = function
 		   (* Set the linkage to external type *)
 		   let () = set_linkage Linkage.External callee in
 		   let () = IFDEF DEBUG THEN print_endline (match linkage callee with | Linkage.External -> "External" | _ -> "Some other linkage type") ELSE () ENDIF in
-		   let bargs = List.map (fun x -> codegen_callargs (not e) lc declarations x) args in
+		   let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in
 		   let () = IFDEF DEBUG THEN print_endline "found the external function delcaration" ELSE () ENDIF in
 		   (* BUILD THE ABI CALLS *)
 		   (callee,bargs))
@@ -1423,11 +1423,13 @@ let rec llvm_filter_node vipr filename = function
 	     it is an external function from this modules perspective *)
 	  MyLlvm_cuda.llvm_filter_node vipr filename ff);
       if n = "main" then
-    	(* let () = dump_module the_module in *)
 	let () = 
 	  (if !myopt then
 	      let _ = PassManager.run_module the_module the_mpm in
 	      let () = IFDEF DEBUG THEN print_endline ("Changed the module with IPO") ELSE () ENDIF in ()) in
+	(* Try writing the gpu file as well *)
+	(if (match special with | Some x -> (match x with (NVVM _) -> true | _ -> false) | None -> false) then
+	    MyLlvm_cuda.finalize filename);
     	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".bc") then ()
     	  else raise (Error ("Could not write the llvm module to output.ll file")) in ()
       (* let _ = Llvm_executionengine.ExecutionEngine.run_function_as_main the_function [||] [||] exec_engine in () *)
