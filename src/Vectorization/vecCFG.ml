@@ -5,6 +5,7 @@ open CFG
 exception Internal_compiler_error of string
 
 let my_vectorize = ref false
+let my_transpose = ref false
 
 let rec get_new_block enode = function
   | Startnode (x,y) -> Startnode (x,get_new_block enode  y)
@@ -25,33 +26,37 @@ let rec is_op = function
   | Brackets (x,_) -> is_op x
   | _ -> false
 
-let rec make_stmt symbol_table list = function
+let rec make_stmt for_indices symbol_table list = function
   | Block (x,_) as s -> 
-    let enode =  make_block symbol_table list in (* This is where I will continue to *)
-    let n = make_block symbol_table x in (* This is my own list *)
+    let enode =  make_block for_indices symbol_table list in (* This is where I will continue to *)
+    let n = make_block for_indices symbol_table x in (* This is my own list *)
     let snode = Startnode (s,n) in
     let my_end_node = Endnode (s,enode,1) in
     get_new_block my_end_node snode
 
   | Split (x,y) as s -> 
     let x = (match x with Block (x,_) -> x) in
-    let enode =  make_block symbol_table list in (* This is where I will continue to *)
-    let n = make_block symbol_table x in (* This is my own list *)
+    let enode =  make_block for_indices symbol_table list in (* This is where I will continue to *)
+    let n = make_block for_indices symbol_table x in (* This is my own list *)
     let snode = Startnode (s,n) in
     let my_end_node = Endnode (s,enode,1) in
     get_new_block my_end_node snode
       
-  | For (x,y,z,lc) as s -> 
+  | For (x,y,z,lc) as s ->
     (* Add the loop induction variable to the symbol_table *)
     let rsym = symbol_table in
+    let fsym = for_indices in
     symbol_table := (SimTypedSymbol (DataTypes.Int32s, x, lc)):: !symbol_table; 
-    let node = make_block symbol_table list in (* This is where I continue to *)
+    let (vinit,vend,vstride,lcc) = (match y with | ColonExpr (x,y,z,l) -> (x,y,z,l) | _ -> failwith "Loop cannot have any, but colonExpr") in
+    let (fvs,fve,fvst) = Vectorization.Convert.get_par_bounds y in
+    for_indices := (x,Vectorization.Convert.get_access_size fvs fve fvst) :: !for_indices;
+    let node = make_block for_indices symbol_table list in (* This is where I continue to *)
     let enode = Endnode (s,node,1) in
     (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)
-    let (vinit,vend,vstride,lcc) = (match y with | ColonExpr (x,y,z,l) -> (x,y,z,l) | _ -> failwith "Loop cannot have any, but colonExpr") in
     let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc,None), 
-			       (build_loop symbol_table vend vstride lc enode x z)) in
+			       (build_loop for_indices symbol_table vend vstride lc enode x z)) in
     symbol_table := !rsym;
+    for_indices := !fsym;
     Startnode (s, vinitode)
 
   | Par (x,y,z,lc) as s ->
@@ -107,11 +112,11 @@ let rec make_stmt symbol_table list = function
 	    
 
 	 *)
-	 let enode =  make_block symbol_table list in (* This is where I will continue to *)
+	 let enode =  make_block for_indices symbol_table list in (* This is where I will continue to *)
 	 (* Check if your child is a par stmt, if it is then call yourself!! *)
-	 let (vec_block as s ) = LoopCollapse.convert !symbol_table s in
+	 let (vec_block as s ) = LoopCollapse.convert !my_transpose !for_indices !symbol_table s in
 	 let x = (match vec_block with | Block (x,_) -> x | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ " not a Block type"))) in
-	 let n = make_block symbol_table x in (* This is my own list *)
+	 let n = make_block for_indices symbol_table x in (* This is my own list *)
 	 let snode = Startnode (s,n) in
 	 let my_end_node = Endnode (s,enode,1) in
 	 get_new_block my_end_node snode 
@@ -119,28 +124,32 @@ let rec make_stmt symbol_table list = function
      with
        | Vectorization.Convert.Error e | Vectorization.Convert.Internal_compiler_error e -> 
 	 let () = print_endline ("Warning: not converting par statement " ^ (Dot.dot_stmt s) ^ " to a vector") in 
-	 let () = print_endline ("Because of :" ^ e) in
+	 let () = print_endline ("Because :" ^ e) in
 	 let rsym = symbol_table in
+	 let fsym = for_indices in
 	 symbol_table := (SimTypedSymbol (DataTypes.Int32s, x, lc)):: !symbol_table; 
-	 let node = make_block symbol_table list in (* This is where I continue to *)
+	 let (vinit,vend,vstride,lcc) = (match y with | ColonExpr (x,y,z,lc) -> (x,y,z,lc) | _ -> failwith "Loop cannot have any, but colonExpr") in
+	 let (fvs,fve,fvst) = Vectorization.Convert.get_par_bounds y in
+	 for_indices := (x,Vectorization.Convert.get_access_size fvs fve fvst) :: !for_indices;
+	 let node = make_block for_indices symbol_table list in (* This is where I continue to *)
 	 let enode = Endnode (s,node,1) in
 	 (* Make sure that the vinit, vstride and vend are all expressions with correct Assign, etc*)
-	 let (vinit,vend,vstride,lcc) = (match y with | ColonExpr (x,y,z,lc) -> (x,y,z,lc) | _ -> failwith "Loop cannot have any, but colonExpr") in
 	 let vinitode = Squarenode (Assign ([AllTypedSymbol (SimTypedSymbol (DataTypes.Int32s, x,lc))],(SimExpr vinit),lc,None), 
-				    (build_loop symbol_table vend vstride lc enode x z)) in
+				    (build_loop for_indices symbol_table vend vstride lc enode x z)) in
 	 symbol_table := !rsym;
+	 for_indices := !fsym;
 	 Startnode (s, vinitode))
 
   | CaseDef (x,_) as s ->
-    let node = make_block symbol_table list in (* Where I need to continue to *)
+    let node = make_block for_indices symbol_table list in (* Where I need to continue to *)
     let enode = Endnode (s,node,(get_num_case x)) in
-    let cnode = build_case symbol_table x in
+    let cnode = build_case for_indices symbol_table x in
     let snode = Startnode (s, cnode) in
     get_new_block enode snode
 
-  | _ as s -> Squarenode (s , make_block symbol_table list) (* TODO: There shoud be no colon expr assigns left when coming here *)
+  | _ as s -> Squarenode (s , make_block for_indices symbol_table list) (* TODO: There shoud be no colon expr assigns left when coming here *)
 
-and build_loop symbol_table vend vstride lc enode x stmt = 
+and build_loop for_indices symbol_table vend vstride lc enode x stmt = 
   let sexpr = Plus ((VarRef (x,lc)),Brackets(Cast(DataTypes.Int32s,vstride,lc),lc),lc) in (*FIXME: vstride needs to be of type Int32s*)
   (* First get the stmt list from the block stmt, iff it is a block stmt *)
   (* Needed, because in constant prpogation, the end-block is hit before
@@ -151,10 +160,10 @@ and build_loop symbol_table vend vstride lc enode x stmt =
     if ( List.length stmt_list > 1) then 
       let to_send = List.tl stmt_list in
       let stmt = List.hd stmt_list in
-      make_stmt symbol_table (to_send@[(Assign ([AllSymbol x],(SimExpr sexpr),lc,None))]) stmt
-    else if (List.length stmt_list = 1) then (make_stmt symbol_table [(Assign ([AllSymbol x],(SimExpr sexpr),lc,None))] (List.hd stmt_list))
+      make_stmt for_indices symbol_table (to_send@[(Assign ([AllSymbol x],(SimExpr sexpr),lc,None))]) stmt
+    else if (List.length stmt_list = 1) then (make_stmt for_indices symbol_table [(Assign ([AllSymbol x],(SimExpr sexpr),lc,None))] (List.hd stmt_list))
     (* Note that the list gets attached at the end of the tree *)
-    else make_stmt symbol_table [Assign ([AllSymbol x],(SimExpr sexpr),lc,None)] stmt
+    else make_stmt for_indices symbol_table [Assign ([AllSymbol x],(SimExpr sexpr),lc,None)] stmt
   in
   (* let tbranch = make_stmt [Assign ([AllSymbol x],(SimExpr sexpr))] stmt in *)
   let back = ref Empty in
@@ -171,19 +180,19 @@ and build_loop symbol_table vend vstride lc enode x stmt =
   (*Debugging*)
   (* print_endline (match bedge with Backnode x -> if (!x == cond) then "true" else "false"); *)
   cond
-and make_block symbol_table = function
-  | h::t -> make_stmt symbol_table t h;
+and make_block for_indices symbol_table = function
+  | h::t -> make_stmt for_indices symbol_table t h;
   | [] -> Empty
-and build_case symbol_table = function
+and build_case for_indices symbol_table = function
   | Case (x,y,_) -> 
-    let ostmt = make_stmt symbol_table [] (match y with Otherwise (x,_) -> x) in
-    build_case_clause symbol_table ostmt x
-and build_case_clause symbol_table ostmt = function
-  | h::t -> build_clause_stmt symbol_table t ostmt h
+    let ostmt = make_stmt for_indices symbol_table [] (match y with Otherwise (x,_) -> x) in
+    build_case_clause for_indices symbol_table ostmt x
+and build_case_clause for_indices symbol_table ostmt = function
+  | h::t -> build_clause_stmt for_indices symbol_table t ostmt h
   | [] -> ostmt
-and build_clause_stmt symbol_table t ostmt = function
+and build_clause_stmt for_indices symbol_table t ostmt = function
   (* The Empty needs to get replaced with else if or otherwise stmts *)
-  | Clause (x,y,_) -> Conditionalnode (x, (make_stmt symbol_table [] y), (build_case_clause symbol_table ostmt t) )
+  | Clause (x,y,_) -> Conditionalnode (x, (make_stmt for_indices symbol_table [] y), (build_case_clause for_indices symbol_table ostmt t) )
 
 
 let rec make_cfg r e = function
@@ -192,22 +201,24 @@ let rec make_cfg r e = function
     let inl = get_it lc y in
     let outl = get_it lc z in
     let symbol_table = ref [] in
+    let for_indices = ref [] in
     let () = Vectorization.Convert.build_symbol_table symbol_table w in
     symbol_table := (y@z) @ !symbol_table;
-    let node = make_stmt symbol_table [] w in
+    let node = make_stmt for_indices symbol_table [] w in
     Topnode (e, name, r, [inl;outl;node],sp)
 and get_it lc = function
   | h :: t -> Squarenode (VarDecl (h,lc), get_it lc t)
   | [] -> Empty
 
-let rec check_fcfg vectorize = function
+let rec check_fcfg transpose vectorize = function
   | FCFG.Node (e,x,r,y) ->
     my_vectorize := vectorize;
+    my_transpose := transpose;
     (* Me is a top node *)
     let me = make_cfg r e x in 
     (* These are all also top nodes for all the other filters *)
-    let ll = check_fcfg_nodes vectorize y in
+    let ll = check_fcfg_nodes transpose vectorize y in
     Filternode (me, ll)
-and check_fcfg_nodes vectorize = function
-  | h::t -> check_fcfg vectorize h::check_fcfg_nodes vectorize t
+and check_fcfg_nodes transpose vectorize = function
+  | h::t -> check_fcfg transpose vectorize h::check_fcfg_nodes transpose vectorize t
   | [] -> [] (* These are the topnode nodes list *)

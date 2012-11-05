@@ -21,64 +21,143 @@ module List = Batteries.List
 module Int = Batteries.Int
 module Float = Batteries.Float
 
+let my_transpose = ref false
+
 let strech_looking_at_child size list = 
   Array.of_list (List.flatten (List.map (fun x -> Array.to_list (Array.init size (fun i -> x))) list))
 
 let strech_looking_at_parent size list = 
   Array.of_list (List.flatten (Array.to_list (Array.init size (fun i -> list))))
 
-let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc = function
+let rec get_used_indices_and_access_sizes indices limits for_indices = function
+  | Brackets (x,_) -> get_used_indices_and_access_sizes indices limits for_indices x
+  | Cast (_,x,_) -> get_used_indices_and_access_sizes indices limits for_indices x
+  | VarRef (x,lc) -> 
+    if List.exists (fun i -> (get_symbol x) = (get_symbol i)) indices then
+      let (index,_) = List.findi (fun i t -> (get_symbol t) = (get_symbol x)) indices in
+      let () = IFDEF DEBUG THEN print_endline ("Var ref index: " ^ (string_of_int index)) ELSE () ENDIF in
+      let (vstart,vend,vstride) = List.nth limits index in
+      (* This is your own repitition vector *)
+      let my_size = get_access_size vstart vend vstride in
+      [(x,my_size)]
+    (* This might exist in the for loop bounds try to find it*)
+    else
+      List.filter (fun (i,y) -> (get_symbol x) = (get_symbol i)) for_indices
+  | Const (_,_,lc)  -> [(Symbol ("Const",lc),0)]
+  | _ -> []
+
+let rec existsin indices = function
+  | Brackets (x,_) -> existsin indices x
+  | Cast (_,x,_) -> existsin indices x
+  | VarRef (x,lc) -> 
+    List.exists (fun i -> (get_symbol x) = (get_symbol i)) indices
+  | Const _ -> true
+  | _ -> false
+
+let transpose_varref indices limits for_indices used index dropped yexpr to_rep = function
+  | VarRef (x,lc) ->
+    let () = IFDEF DEBUG THEN print_endline "Inside print" ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN List.iter (fun (DimSpecExpr x) -> print_endline (Dot.dot_simpleexpr x)) !yexpr ELSE () ENDIF in
+    if not (List.exists (fun i -> (get_symbol x) = (get_symbol i)) indices) then
+      (* We need to replace this index with the one that is in par *)
+      (* Only if it exists in the used symbol list *)
+      (try 
+	 let (x,size) = List.find (fun (i,t) -> (get_symbol x) = (get_symbol i)) used in
+	 (* Now try to get another index which is in the par indices from
+	    the rest of the dropped list *)
+	 let (id,xd) = List.findi (fun i (DimSpecExpr x) -> existsin indices x) dropped in
+	 (* Check if they both have equal access sizes *)
+	 (* Now we can replace the two indices id and index with each others expressions *)
+	 let dused = (get_used_indices_and_access_sizes indices limits for_indices) (match xd with DimSpecExpr x -> x)  in
+	 let dused_size = List.map (fun (_,x) -> x) dused in
+	 let dused_size = 
+	   if (List.length dused_size) <> 1 then raise (Internal_compiler_error "")
+	   else List.hd dused_size in
+	 if dused_size = 0 || dused_size = size then
+	   (* We can replace the two expressions with each other in yexpr *)
+	   yexpr := List.mapi (fun i (DimSpecExpr x) -> 
+	     if i = (id+index+1) then 
+	       let () = IFDEF DEBUG THEN print_endline ("i is: " ^ (string_of_int i) ^ " id is: " ^ (string_of_int id) ^ " expr is: " ^ (Dot.dot_simpleexpr to_rep)) 
+		 ELSE () ENDIF in
+	       DimSpecExpr to_rep 
+	     else if i = index then 
+	       let () = IFDEF DEBUG THEN print_endline ("i is: " ^ (string_of_int i) ^ " index is: " ^ (string_of_int index) ^ " expr is: " ^ (Dot.dot_simpleexpr (match xd with DimSpecExpr xd -> xd))) 
+		 ELSE () ENDIF in
+	       xd 
+	     else DimSpecExpr x) !yexpr;
+       with
+	 | _ -> ())
+
+  | _ -> raise (Internal_compiler_error "")
+
+let transpose_indices indices limits for_indices used index ll yexpr = function
+  | Brackets (x,lc) as s ->
+    (match x with 
+      | VarRef _ as x -> 
+	transpose_varref indices limits for_indices used index ll yexpr s x
+      | _ -> ())
+  | Cast (d,x,lc) as s -> 
+    (match x with 
+      | VarRef _ as x -> 
+	transpose_varref indices limits for_indices used index ll yexpr s x
+      | _ -> ())
+  | VarRef _ as s -> 
+    transpose_varref indices limits for_indices used index ll  yexpr s s
+  | _ -> ()
+  
+
+let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc = function
   | Plus (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x in
-    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x in
+    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     Plus (l,r,lc)
 
   | Minus (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x in
-    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x in
+    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     Minus (l,r,lc)
 
   | Times (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x in
-    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x in
+    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     Times (l,r,lc)
 
   | Div (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x in
-    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x in
+    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     Div (l,r,lc)
 
   | Pow (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x in
-    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x in
+    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     Pow (l,r,lc)
 
   | Mod (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x in
-    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x in
+    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     Mod (l,r,lc)
 
   | Rshift (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x in
-    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x in
+    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     Rshift (l,r,lc)
 
   | Lshift (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x in
-    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x in
+    let r = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     Lshift (l,r,lc)
 
-  | Brackets (x,lc) -> Brackets (build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x, lc)
+  | Brackets (x,lc) -> Brackets (build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x, lc)
 
   (* FIXME: (Improve) Cannot cast need to make a vector type cast!! *)
   | Cast (x,y,lc) -> 
-    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc y in
+    let l = build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc y in
     (* If this is a const matrix then it is easy to cast else for now give an error type!! *)
     (match l with 
       | Constvector (r,_,x1,lc) -> Constvector(r,x,x1,lc)
       | _ -> raise (Internal_compiler_error "Cannot cast non const vector types yet!! "))
 
-  | Opposite (x,lc) -> Opposite (build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc x, lc)
+  | Opposite (x,lc) -> Opposite (build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x, lc)
 
   | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
 
@@ -90,7 +169,7 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc = 
     Constvector (None,x,(Array.init size (fun i -> Const (x,y,lc))),lc)
 
   | AddrRef (x,lc) -> 
-    let vecad = build_collapsed_addressed_symbol_vec indices limits symbol_table lc x in
+    let vecad = build_collapsed_addressed_symbol_vec indices limits symbol_table for_indices lc x in
     let (access_sizes,dims) = (match vecad with | VecAddress (_,x,y,_) -> (x,y)) in
     let shuffle_mask = List.mapi (fun i x -> try (i,(calculate_shuffle_mask access_sizes lc x)) with | Ignore _ -> (i,x) | _ -> raise (Internal_compiler_error "")) dims in
     let shuffle_mask = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) shuffle_mask in
@@ -149,48 +228,69 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table lc = 
       let ar = Array.map (fun x -> Const(DataTypes.Int32s, (string_of_int x), lc)) ar in
       Constvector (Some (get_symbol x), DataTypes.Int32s, ar, lc)
     (* Now we start taking care of scalars, which are tops as well *)
+    (* This means we have called this function for converting and index
+       type, which is a non loop induction variable in this loop. For
+       now we assume that this is an invariant variable in this
+       loop. Else the person has given a wring par loop!! *)
     else if index_arg then 
-      let () = IFDEF DEBUG THEN print_endline ("We are raising invaraint indexing error for index: " ^ (get_symbol x)) ELSE () ENDIF in
+      let () = IFDEF DEBUG THEN print_endline ("We are raising invariant indexing error for index: " ^ (get_symbol x)) ELSE () ENDIF in
       raise (Internal_compiler_error " Index argument ")
     else
       (* First get the definition of the variable *)
       (* We have assumed that this scalar is invariant in the loop *)
       let symbol = try get symbol_table (get_symbol x) with | Not_found -> raise (Internal_compiler_error "Symbol being dereferenced cannot be found in the table!") in
-      let typ = (match symbol with | SimTypedSymbol (x,_,_) -> x) in
+      let typ = (match symbol with | SimTypedSymbol (x,_,_) -> x | _ -> raise (Internal_compiler_error "Currently addreref type vectorization is not supported!!")) in
       let size = List.fold_right(fun (vstart,vend,vstride) x -> (get_access_size vstart vend vstride) * x) limits 1 in
       Vector (typ, s, size, lc)
 
   | VecRef _ | Constvector _ as s -> s
 
-and build_collapsed_addressed_symbol_vec indices limits symbol_table lc = function
-  | AddressedSymbol (x,_,y,lc) as s -> 
+
+and build_collapsed_addressed_symbol_vec indices limits symbol_table for_indices lc = function
+  | AddressedSymbol (x,_,y,lc) as s ->
     (* First attach yourself into array_inverse *)
-    let yexpr = (match (List.hd (y)) with BracDim x -> x) in
+    let yexpr = ref (List.rev ((match (List.hd (y)) with BracDim x -> x))) in
+    let yexpr = 
+      if !my_transpose then
+	(* Try to transpose the indices of equal access_sizes to put all the
+	   par indices in rows *)
+	(* FIXME: This is a special case where only VarRef types are being
+	   transposed.  I am not doing expression transposes, because they
+	   require one to calculate the exact interation vectors!! Will do
+	   that later on!! *)
+	let used = List.flatten (List.map (fun (DimSpecExpr x) -> get_used_indices_and_access_sizes indices limits for_indices x) (List.rev !yexpr)) in
+	(* After this the yexr_copy list might be completely changed!! *)
+	let () = List.iteri (fun i (DimSpecExpr x) -> 
+	  let droped_list = List.drop (i+1) !yexpr in
+	  transpose_indices indices limits for_indices used i droped_list yexpr x) 
+	  (!yexpr) in
+	List.rev !yexpr
+      else List.rev !yexpr in
     let converted = ref false in
     let yexpr = List.map (fun (DimSpecExpr x) -> 
       try 
-	let ret = build_collaped_vec_simexpr_1 true indices limits symbol_table lc x in 
+	let ret = build_collaped_vec_simexpr_1 true indices limits symbol_table for_indices lc x in 
 	converted := true; 
 	let () = IFDEF DEBUG THEN print_endline ("Converted is: " ^ (string_of_bool !converted)) ELSE () ENDIF in
 	ret 
       with 
 	| _ -> 
 	  let () = IFDEF DEBUG THEN print_endline ("Converted is: " ^ (string_of_bool !converted)) ELSE () ENDIF in
-	  if !converted then raise (Error "Currently we do support interchanged, but not transposed access to multi-dimensional Arrays") 
+	  if !converted then raise (Error "No possible transpose could help vectorize this loop!!") 
 	  else x) yexpr in
-    if not !converted then raise (Error "Cannot convert to vector type try -O4");
+    if not !converted then raise (Error "Cannot convert to vector type try -floop-runtime-vectorize (this is currently an unsafe operation)");
     let access_sizes = List.map2 (fun (x,y,z) v -> ((get_symbol v),(get_access_size x y z))) limits indices in
     let lone = match (List.nth access_sizes (List.length access_sizes - 1)) with | (x,_) -> x in
     let access_sizes = List.rev (List.tl (List.rev access_sizes)) in
     let access_sizes = access_sizes @ [(lone,1)] in
     VecAddress (x, access_sizes, yexpr, lc)
 
-let build_collapsed_vecs indices limits symbol_table lc = function
+let build_collapsed_vecs indices limits symbol_table for_indices lc = function
   | AllAddressedSymbol x ->
     let () = IFDEF DEBUG THEN List.iter (fun (vstart,vend,vstride) -> 
       print_endline ("LVALUE par bounds: (start:) " 
 		     ^(string_of_int vstart) ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride))) limits ELSE () ENDIF in
-    let vecad = build_collapsed_addressed_symbol_vec indices limits symbol_table lc x in
+    let vecad = build_collapsed_addressed_symbol_vec indices limits symbol_table for_indices lc x in
     let (access_sizes,dims) = (match vecad with | VecAddress (_,x,y,_) -> (x,y)) in
     let shuffle_mask = List.mapi (fun i x -> try (i,(calculate_shuffle_mask access_sizes lc x)) with | Ignore _ -> (i,x) | _ -> raise (Internal_compiler_error "")) dims in
     let shuffle_mask = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) shuffle_mask in
@@ -229,35 +329,45 @@ let build_collapsed_vecs indices limits symbol_table lc = function
   | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got non addressed symbol assignment, currently this is not supported!!"))
 
 
-let build_collapsed_vec_simexpr indices limits symbol_table lc = function
-  | SimExpr x -> SimExpr (build_collaped_vec_simexpr_1 false indices limits symbol_table lc x)
+let build_collapsed_vec_simexpr indices limits symbol_table for_indices lc = function
+  | SimExpr x -> SimExpr (build_collaped_vec_simexpr_1 false indices limits symbol_table for_indices lc x)
   | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "trying to convert a non simple expression to vec type"))
 
-let build_collapsed_data_parallel_vectors indices limits symbol_table = function
+let build_collapsed_data_parallel_vectors indices limits for_indices symbol_table = function
   | Assign (x,y,lc,sp) -> 
-    let lvals = List.map (build_collapsed_vecs indices limits symbol_table lc) x in
-    let rvals = build_collapsed_vec_simexpr indices limits symbol_table lc y in
+    let lvals = List.map (build_collapsed_vecs indices limits symbol_table for_indices lc) x in
+    let rvals = build_collapsed_vec_simexpr indices limits symbol_table for_indices lc y in
     Assign (lvals,rvals,lc,sp)
   | Noop -> Noop
   | _ as s -> raise (Internal_compiler_error (("Got erroneously: ") ^ (Dot.dot_stmt s)))
 
-let rec collapse_par indices limits symbol_table = function
-  | Block (x,lc) -> Block ((List.map (collapse_par indices limits symbol_table) x), lc)
+let rec collapse_par indices limits for_indices symbol_table = function
+  | Block (x,lc) -> Block ((List.map (collapse_par indices limits for_indices symbol_table) x), lc)
   | Par (x,y,z,lc) ->
     let (vstart,vend,vstride) = get_par_bounds y in
     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
 					     ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
-    collapse_par (indices @ [x])  (limits@[(vstart,vend,vstride)]) symbol_table z
+    collapse_par (indices @ [x])  (limits@[(vstart,vend,vstride)]) for_indices symbol_table z
   | For _ ->
     (* Just call loop interchange here!! *)
-    raise (Internal_compiler_error " Cannot collapse loops, because For detected, you should apply loop interchange")
-  | _ as s -> build_collapsed_data_parallel_vectors indices limits symbol_table s
+    raise (Internal_compiler_error " Cannot collapse loops, because For detected, you should apply loop interchange with -floop-interchange")
+  | _ as s -> build_collapsed_data_parallel_vectors indices limits for_indices symbol_table s
 
-let convert symbol_table = function
+let convert tranpose for_indices symbol_table = function
+  | Par (x,y,z,lc) ->
+    my_transpose := tranpose;
+    let (vstart,vend,vstride) = get_par_bounds y in
+    let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
+					     ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
+    collapse_par [x]  [(vstart,vend,vstride)] for_indices symbol_table z
+
+  | _ as s -> raise (Internal_compiler_error (" Cannot parallelize : " ^ (Dot.dot_stmt s)))
+
+let internal_convert symbol_table = function
   | Par (x,y,z,lc) ->
     let (vstart,vend,vstride) = get_par_bounds y in
     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
 					     ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in
-    collapse_par [x]  [(vstart,vend,vstride)] symbol_table z
+    collapse_par [x]  [(vstart,vend,vstride)] [] symbol_table z
 
   | _ as s -> raise (Internal_compiler_error (" Cannot parallelize : " ^ (Dot.dot_stmt s)))

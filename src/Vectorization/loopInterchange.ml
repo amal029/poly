@@ -61,12 +61,12 @@ let build_pars stmt pars =
   !st
 
 let is_only_loops = function
-  | Block (x,_) -> List.for_all (fun x -> (match x with | Par _ | For _ -> true | _ -> false)) x
+  | Block (x,_) -> List.for_all (fun x -> (match x with | Par _ | For _ | CaseDef _ -> true | _ -> false)) x
   | Par _ | For _ -> true
 
 let rec process_stmt my_stack = function
   | For (symbol,simpleExpr,stmt,lc) as s ->
-    (* If there are only par and for statements internally then
+    (* If there are only par, for, and case statements internally then
        process, else just build the par statments and give it back *)
     if is_only_loops stmt then
       if ((List.length my_stack = 0) || is_independent my_stack s) then 
@@ -88,6 +88,20 @@ let rec process_stmt my_stack = function
     else build_pars s my_stack
 
   | Block (x,lc) -> Block (List.map (process_stmt my_stack) x, lc)
+
+  | CaseDef (x,lc) as t -> 
+    if ((List.length my_stack = 0) || is_independent my_stack t) then 
+      let (ll,o,lc) = (match x with | Case (l,o,lc) -> (l,o,lc)) in
+      let clauses = List.map (fun (Clause (r,s,lc)) -> 
+	if is_only_loops s then 
+	  Clause (r, (process_stmt my_stack s), lc)
+	else Clause (r,(build_pars s my_stack),lc)) ll in
+      let o = (match o with | Otherwise (s,lc) -> 
+	if is_only_loops s then
+	  Otherwise ((process_stmt my_stack s),lc)
+	else Otherwise ((build_pars s my_stack),lc))  in
+      CaseDef(Case(clauses,o,lc),lc)
+    else build_pars t my_stack
 
   | _ as s -> raise (Internal_compiler_error ("Hit a non loop node when performing loop interchange: " ^ (Dot.dot_stmt s)))
 

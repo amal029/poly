@@ -54,11 +54,11 @@ extern void print_array2(int size, int s2, int* A , int *ret)
 /*   *ret = (i+j); */
 /* } */
 
-extern void print_array3 (int size, int A[size][size][size], int *ret){
+extern void print_array3 (int size, int s2, int s3, int A[size][s2][s3], int *ret){
   int i =0,j =0,k=0;
   for (;i<size;++i)
-    for(j=0;j<size;++j)
-      for(k=0;k<size;++k)
+    for(j=0;j<s2;++j)
+      for(k=0;k<s3;++k)
       fprintf(stdout,"%d\t",A[i][j][k]);
   fprintf(stdout,"\n");
   *ret = (i+j+k);

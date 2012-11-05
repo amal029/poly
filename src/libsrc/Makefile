@@ -11,6 +11,7 @@ all: print.ll nvvm.ll
 
 print.ll:
 	$(CC) $(CFLAGS) -o $@ print.c
+	llvm-as print.ll -o print.bc
 
 nvvm.ll:
 	$(CC) $(CFLAGS) -o $@ nvvm.c

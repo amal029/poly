@@ -15,7 +15,7 @@ matmul in first[M,N], second[M,N] out int32s result[M,N]
 
 main
 {
-    var size = 8
+    var size = 4
     var a[size,size] = ones()
     var result2[size,size] = zeros()
     result2 = matmul(a, a)

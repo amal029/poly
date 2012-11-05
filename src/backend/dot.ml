@@ -124,7 +124,7 @@ let dot_expr = function
 let rec dot_stmt = function
   | Assign (x,y,(l,c),spe) -> 
     let rvalue = (dot_expr y) in
-    let spe = (match spe with Some x -> (match x with (NVVM _) -> "NVVM" | _ -> raise (Internal_compiler_error ""))) in
+    let spe = (match spe with Some x -> (match x with (NVVM _) -> "NVVM" | _ -> raise (Internal_compiler_error "")) | None -> "") in
     let lvalue = (( "(" ^ (dot_allsym_list x)) ^ " " ^ spe ^ " )") in
     (* FIXME: I am attaching this to the required nodes for graph-part
        to work correctly, with tiling, but this should be moved into its

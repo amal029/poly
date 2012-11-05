@@ -41,10 +41,12 @@ let () = add_memory_to_register_promotion the_fpm
 let () = add_memcpy_opt the_fpm
 let () = add_constant_propagation the_fpm
 (* Add sparse conditional constant propogation *)
-let () = add_sccp the_fpm
+(* The current llvm gives an error *)
+(* let () = add_sccp the_fpm *)
 
 (* Now make the loop optimizations *)
-let () = add_loop_unroll the_fpm
+(* Current llvm lib gives an error *)
+(* let () = add_loop_unroll the_fpm *)
 
 (* Add the IPO transformations *)
 let () = add_global_optimizer the_mpm
@@ -53,7 +55,8 @@ let () = add_function_inlining the_mpm
 let () = add_function_attrs the_mpm
 let () = add_constant_merge the_mpm
 let () = add_global_dce the_mpm
-let () = add_ipsccp the_mpm
+(* llvm optimizer gives and error *)
+(* let () = add_ipsccp the_mpm *)
 let () = add_strip_symbols the_mpm
 let () = add_argument_promotion the_mpm
 let () = add_strip_dead_prototypes the_mpm
@@ -127,7 +130,6 @@ let create_entry_block_alloca_array f vn t size =
   let ret = build_alloca t vn builder in
   let amd = mdstring context "align 128" in
   (* let () = set_metadata ret 0 amd in *) ret
-  
 
 let drop_dimspec_expr counter_list counter = function
   | DimSpecExpr x ->

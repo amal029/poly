@@ -58,10 +58,12 @@ let () = add_memory_to_register_promotion the_fpm
 let () = add_memcpy_opt the_fpm
 let () = add_constant_propagation the_fpm
 (* Add sparse conditional constant propogation *)
+(* Current gives an error *)
 let () = add_sccp the_fpm
 
 (* Now make the loop optimizations *)
-let () = add_loop_unroll the_fpm
+(* Current gives an error *)
+(* let () = add_loop_unroll the_fpm *)
 
 (* Add the IPO transformations *)
 let () = add_global_optimizer the_mpm

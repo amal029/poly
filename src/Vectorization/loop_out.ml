@@ -196,7 +196,9 @@ struct
 	 (if SafeToConvert.process_par s then
 	     let (_,_,vstride) = Convert.get_par_bounds y in
 	     if vstride <> 1 then raise (Internal_compiler_error "Currently we do not support CUDAing non stride 1 kernels!!");
-	     let _ = LoopCollapse.convert !symbol_table s in 
+	     (* Should I call convert instead?? GPUs are too different
+		from CPUs to be sure of this *)
+	     let _ = LoopCollapse.internal_convert !symbol_table s in 
 	     (* Build the CUDA kernel *)
 	     let (vstart,vend,vstride) = Convert.get_par_bounds y in
 	     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)

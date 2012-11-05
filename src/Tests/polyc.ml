@@ -19,6 +19,7 @@ try
   let outline = ref false in
   let optimize = ref true in
   let floop_interchange = ref false in
+  let floop_transpose = ref false in
   let vipr = ref false in
   let slots = ref false in
   let output = ref "" in
@@ -30,6 +31,7 @@ try
 		      ("-floop-outline", Arg.Set outline, " Loop outline");
 		      ("-O0", Arg.Clear optimize, " Do not perform any optimizations");
 		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations");
+		      ("-floop-transpose", Arg.Set floop_transpose, " Transpose loops for locality optimizations");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
 		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n x86_64-gnu-linux and [default = x86_64, which is apple darwin]");
 		      ("-march-gpu", Arg.String (fun x -> march_gpu := x), " Set the march for compilation, available: nvvm-cuda-i32 nvvm-cuda-i64, [default:Off] ");
@@ -65,7 +67,7 @@ try
 	else fcfg in
       if !dot then
 	let () = print_endline ".....Building CFG..." in
-	let cfg = VecCFG.check_fcfg !vectorize fcfg in
+	let cfg = VecCFG.check_fcfg !floop_transpose !vectorize fcfg in
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
 	let fcfg = 
@@ -73,7 +75,7 @@ try
 	      Loop_out.Kernel.process fcfg
 	   else fcfg) in
 	let () = print_endline ".....Building CFG..." in
-	let cfg = VecCFG.check_fcfg !vectorize fcfg in
+	let cfg = VecCFG.check_fcfg !floop_transpose !vectorize fcfg in
 	let r1 = (Str.regexp "/") in
 	let slist = Str.split r1 !file_name in
 	let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
@@ -89,7 +91,7 @@ try
 	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
 	  (* We can make some sys calls *)
 	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " 
-			       ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in	
+			       ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in
 	  let _ = Sys.command ("rm -rf *.lle") in ()
@@ -152,13 +154,16 @@ try
       (* By default do not always produce llvm IR *)
       let cfgt =
 	if !optimize && !vectorize then
-	  let fcfgv = LoopInterchange.interchange fcfgv in
+	  let fcfgv = 
+	    if !floop_interchange then
+	      let () = print_endline ".....Performing loop interchange......" in
+	      LoopInterchange.interchange fcfgv else fcfgv in
 	  let fcfgv =
 	    (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
 		Loop_out.Kernel.process fcfgv
 	     else fcfgv) in
 	  (* Now call the vectorization function on this *)
-	  VecCFG.check_fcfg !vectorize fcfgv
+	  VecCFG.check_fcfg !floop_transpose !vectorize fcfgv
 	else 
 	  (* let ast = DecompiletoAST.decompile cfgt in *)
 	  (* let fcfg = Fcfg.check_ast ast in *)
