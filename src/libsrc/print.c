@@ -21,10 +21,10 @@ extern void p2 (int a, int b, int *ret){
   *ret = 0;
 }
 
-extern void print_array (int size, int A[size], int *ret){
+extern void print_array (int size, int* A, int *ret){
   int i =0;
-  for (;i<size;++i)
-    fprintf(stdout,"%d\t", A[i]);
+  for (i=0;i<size;++i)
+    fprintf(stdout,"%d\t", *A++);
   fprintf(stdout,"\n");
   *ret = i;
 }

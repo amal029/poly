@@ -64,7 +64,7 @@ struct
     | _ -> raise (Internal_compiler_error "")
 
 
-  let rec calculate_shuffle_mask access_sizes lc = function
+  let rec calculate_shuffle_mask runtime_vec access_sizes lc = function
     | Plus (x,y,lc) ->
       let l = calculate_shuffle_mask access_sizes lc x in
       let r = calculate_shuffle_mask access_sizes lc y in
@@ -119,7 +119,11 @@ struct
     | AddrRef _-> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a AddrRef"))
 
     | VarRef _ -> raise (Ignore ((Reporting.get_line_and_column lc) ^ " erroroneously got a VarRef"))
-    | VecRef _ | Vector _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VecRef"))
+    | Vector _ -> 
+      if runtime_vec then
+	raise (Ignore ((Reporting.get_line_and_column lc) ^ " erroroneously got a Vector type index without runtime vectorization option"))
+      else raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VecRef"))
+    | VecRef _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VecRef"))
     | Constvector (i1,d,ar,lc) as s -> s
 
   let get_symbol_lc = function

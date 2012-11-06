@@ -6,6 +6,7 @@ exception Internal_compiler_error of string
 
 let my_vectorize = ref false
 let my_transpose = ref false
+let my_runtime_vec = ref false
 
 let rec get_new_block enode = function
   | Startnode (x,y) -> Startnode (x,get_new_block enode  y)
@@ -114,7 +115,7 @@ let rec make_stmt for_indices symbol_table list = function
 	 *)
 	 let enode =  make_block for_indices symbol_table list in (* This is where I will continue to *)
 	 (* Check if your child is a par stmt, if it is then call yourself!! *)
-	 let (vec_block as s ) = LoopCollapse.convert !my_transpose !for_indices !symbol_table s in
+	 let (vec_block as s ) = LoopCollapse.convert !my_runtime_vec !my_transpose !for_indices !symbol_table s in
 	 let x = (match vec_block with | Block (x,_) -> x | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc) ^ " not a Block type"))) in
 	 let n = make_block for_indices symbol_table x in (* This is my own list *)
 	 let snode = Startnode (s,n) in
@@ -210,10 +211,11 @@ and get_it lc = function
   | h :: t -> Squarenode (VarDecl (h,lc), get_it lc t)
   | [] -> Empty
 
-let rec check_fcfg transpose vectorize = function
+let rec check_fcfg runtime_vec transpose vectorize = function
   | FCFG.Node (e,x,r,y) ->
     my_vectorize := vectorize;
     my_transpose := transpose;
+    my_runtime_vec := runtime_vec;
     (* Me is a top node *)
     let me = make_cfg r e x in 
     (* These are all also top nodes for all the other filters *)

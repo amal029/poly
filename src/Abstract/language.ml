@@ -150,7 +150,8 @@ struct
     | Opposite of simpleExpr * (line * column)
     | Constvector of string option * DataTypes.t * simpleExpr array * (line * column)
     | Vector of DataTypes.t * simpleExpr * int * (line * column)
-    | VecRef of int array * vecaddresssymbol * (line * column)
+    (* The list is the shuffle mask for this vecref *)
+    | VecRef of simpleExpr list * vecaddresssymbol * (line * column)
   and addressedSymbol =
       AddressedSymbol of symbol * angledim list * dimspec list * (line * column)
   and vecaddresssymbol =
@@ -176,13 +177,15 @@ struct
     | Or of relExpr * relExpr * (line * column)
     | Rackets of relExpr * (line * column)
 
+  type ('a,'b) allvec_masks = {ism: 'a array; sm:'b list;}
+  type ('a,'b) extra_data = {ll: 'a list; outs:'b list; ins:'b list;}
+
   type allsym =
     | AllAddressedSymbol of addressedSymbol
     | AllSymbol of symbol
     | AllTypedSymbol of typedSymbol
-    | AllVecSymbol of int array * vecaddresssymbol
+    | AllVecSymbol of (simpleExpr,int) allvec_masks * vecaddresssymbol
 
-  type ('a,'b) extra_data = {ll: 'a list; outs:'b list; ins:'b list;}
 
   type special =
     | NVVM of (int,typedSymbol) extra_data

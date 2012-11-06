@@ -22,6 +22,7 @@ module Int = Batteries.Int
 module Float = Batteries.Float
 
 let my_transpose = ref false
+let my_runtime_vec = ref false
 
 let strech_looking_at_child size list = 
   Array.of_list (List.flatten (List.map (fun x -> Array.to_list (Array.init size (fun i -> x))) list))
@@ -105,6 +106,32 @@ let transpose_indices indices limits for_indices used index ll yexpr = function
     transpose_varref indices limits for_indices used index ll  yexpr s s
   | _ -> ()
   
+let rec multiply_indices multiplicand = function
+  | Plus (x,y,lc) -> Plus (multiply_indices multiplicand x,multiply_indices multiplicand y,lc)
+  | Minus (x,y,lc) -> Minus (multiply_indices multiplicand x,multiply_indices multiplicand y,lc)
+  | Times (x,y,lc) -> Times (multiply_indices multiplicand x,multiply_indices multiplicand y,lc)
+  | Div (x,y,lc) -> Div (multiply_indices multiplicand x,multiply_indices multiplicand y,lc)
+  | Rshift (x,y,lc) -> Rshift (multiply_indices multiplicand x,multiply_indices multiplicand y,lc)
+  | Lshift (x,y,lc) -> Lshift (multiply_indices multiplicand x,multiply_indices multiplicand y,lc)
+  | Mod (x,y,lc) -> Mod (multiply_indices multiplicand x,multiply_indices multiplicand y,lc)
+  | Brackets (x,lc) -> Brackets (multiply_indices multiplicand x, lc)
+  | Opposite (x,lc) -> Opposite (multiply_indices multiplicand x, lc)
+  | ConstVector (o,dt,array,lc) -> ConstVector (o,dt,(Array.map (fun x -> x*multiplicand) x),lc)
+  | Vector (dt,expr,ii,lc) ->
+    if !my_runtime_vec then Vector (dt,((match expr with VarRef _ as s -> Times (s,Const(DataTypes.Int32s,(string_of_int multiplicand),lc),lc))),ii,lc)
+    else raise (Internal_compiler_error "Got a Vector type index without the -floop-runtime-vector option")
+  | _ s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Currently index type: " ^ (Dot.dot_simpleexpr s) ^ " not supported"))
+
+let rec filter_shm = function
+  | Plus (x,y,lc)| Minus (x,y,lc) | Times (x,y,lc) 
+  | Div (x,y,lc) | Rshift (x,y,lc) | Lshift (x,y,lc)
+  | Mod (x,y,lc) -> filter_shm x && filter_shm y
+  | Brackets (x,lc) -> filter_shm x
+  | Opposite (x,lc) -> filter_shm y
+  | Constvector _ -> true 
+  | Vector _ -> !my_runtime_vec (* Also account for the runtime vectors if the user asks for runtime vectorization *)
+  | _ -> false
+
 
 let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc = function
   | Plus (x,y,lc) -> 
@@ -172,10 +199,10 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_i
     let vecad = build_collapsed_addressed_symbol_vec indices limits symbol_table for_indices lc x in
     let (access_sizes,dims) = (match vecad with | VecAddress (_,x,y,_) -> (x,y)) in
     let shuffle_mask = List.mapi (fun i x -> try (i,(calculate_shuffle_mask access_sizes lc x)) with | Ignore _ -> (i,x) | _ -> raise (Internal_compiler_error "")) dims in
-    let shuffle_mask = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) shuffle_mask in
+    let shuffle_mask = List.filter (fun (_,x) -> filter_shm x) shuffle_mask in
+    (* let shuffle_mask = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) shuffle_mask in *)
     (* First we need to get the integer variables from these *)
     let indices_converted = List.map (fun (x,_) -> x) shuffle_mask in
-    let shuffle_mask = List.map (fun (_,Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) shuffle_mask in
     let symbol = try get symbol_table (get_symbol (match x with | AddressedSymbol (x,_,_,_) -> x)) with 
       | Not_found -> raise (Internal_compiler_error "Symbol being dereferenced cannot be found in the table!") in
     let (tot_size,to_calc) = (match symbol with ComTypedSymbol (_,x,_) -> 
@@ -192,8 +219,23 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_i
     let shuffle_mask = List.mapi (fun i x -> 
       let to_calc = List.drop (i+1) to_calc in
       let multiplicand = List.fold_right (fun x y -> x * y) to_calc 1 in
-      Array.map (fun x -> x * multiplicand) x) shuffle_mask in
-    let shuffle_mask = List.reduce (Array.map2 (+)) shuffle_mask in
+      multiply_indices multiplicand x) shuffle_mask in
+    (* Add all the constantvectors in the compiler itself the non
+       constants need to be added at runtime. The result is either a
+       constantvector or a simple expression list *)
+    (* Filtering out the constant vectors *)
+    let smm = List.filter (fun (_,x) -> (match x with Constantvector _ -> true | _ -> false)) shuffle_mask in
+    let shuffle_mask = 
+      if not List.is_empty smm then
+	let smmv = List.filter (fun (_,x) -> (match x with Constantvector _ -> false | _ -> true)) shuffle_mask in
+	let smma = List.map (fun (_,Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) smm in
+	let (a,b,c) = (match List.hd (smm) with | Constvector (a,b,_,lv) -> (a,b,lv)) in
+	let rsm = Array.init (Array.length (List.hd smma)) (fun i -> 0) in
+	let () = List.iter (fun x -> Array.iteri (fun i x -> rsm.(i) <- rsm.(i) + x) x) smma in
+	(* The ordering of the shuffle mask should not matter, bcecause it
+	   is an addition operation which is assocative and commutative *)
+	Constvector (a,b,rsmm,c) :: smmv  
+      else shuffle_mask in
     VecRef (shuffle_mask,vecad,lc)
 
   | VarRef (x,lc) as s ->
@@ -232,12 +274,12 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_i
        type, which is a non loop induction variable in this loop. For
        now we assume that this is an invariant variable in this
        loop. Else the person has given a wring par loop!! *)
-    else if index_arg then 
-      let () = IFDEF DEBUG THEN print_endline ("We are raising invariant indexing error for index: " ^ (get_symbol x)) ELSE () ENDIF in
-      raise (Internal_compiler_error " Index argument ")
+    else if index_arg && not !my_runtime_vec then
+      let () = IFDEF DEBUG THEN print_endline ("Not performing runtime vectorization") ELSE () ENDIF in
+      raise (Internal_compiler_error "Index argument")
     else
       (* First get the definition of the variable *)
-      (* We have assumed that this scalar is invariant in the loop *)
+      (* FIXME: We have assumed that this scalar is invariant in the loop *)
       let symbol = try get symbol_table (get_symbol x) with | Not_found -> raise (Internal_compiler_error "Symbol being dereferenced cannot be found in the table!") in
       let typ = (match symbol with | SimTypedSymbol (x,_,_) -> x | _ -> raise (Internal_compiler_error "Currently addreref type vectorization is not supported!!")) in
       let size = List.fold_right(fun (vstart,vend,vstride) x -> (get_access_size vstart vend vstride) * x) limits 1 in
@@ -283,8 +325,10 @@ and build_collapsed_addressed_symbol_vec indices limits symbol_table for_indices
     let lone = match (List.nth access_sizes (List.length access_sizes - 1)) with | (x,_) -> x in
     let access_sizes = List.rev (List.tl (List.rev access_sizes)) in
     let access_sizes = access_sizes @ [(lone,1)] in
+    (* We have not changed anything here *)
     VecAddress (x, access_sizes, yexpr, lc)
 
+(* This is the lhs side *)
 let build_collapsed_vecs indices limits symbol_table for_indices lc = function
   | AllAddressedSymbol x ->
     let () = IFDEF DEBUG THEN List.iter (fun (vstart,vend,vstride) -> 
@@ -292,40 +336,77 @@ let build_collapsed_vecs indices limits symbol_table for_indices lc = function
 		     ^(string_of_int vstart) ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride))) limits ELSE () ENDIF in
     let vecad = build_collapsed_addressed_symbol_vec indices limits symbol_table for_indices lc x in
     let (access_sizes,dims) = (match vecad with | VecAddress (_,x,y,_) -> (x,y)) in
-    let shuffle_mask = List.mapi (fun i x -> try (i,(calculate_shuffle_mask access_sizes lc x)) with | Ignore _ -> (i,x) | _ -> raise (Internal_compiler_error "")) dims in
-    let shuffle_mask = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) shuffle_mask in
+    let shuffle_mask = List.mapi (fun i x -> try (i,(calculate_shuffle_mask !my_runtime_vec access_sizes lc x)) with | Ignore _ -> (i,x) | _ -> raise (Internal_compiler_error "")) dims in
+    (* Get the constant vectors out *)
+    let shuffle_mask = List.filter (fun (_,x) -> filter_shm x) shuffle_mask in
     (* First we need to get the integer variables from these *)
     let indices_converted = List.map (fun (x,_) -> x) shuffle_mask in
-    let shuffle_mask = List.map (fun (_,Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) shuffle_mask in
+    (* let shuffle_mask = List.map (fun (_,Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) shuffle_mask in *)
     let () = IFDEF DEBUG THEN print_endline "The shuffle_mask is: " ELSE () ENDIF in
-    let () = IFDEF DEBUG THEN List.iter (fun x -> (Array.iter (fun x -> print_endline (string_of_int x)) x); print_endline "") shuffle_mask ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN List.iter (fun x -> print_endline (Dot.dot_simpleexpr x) x) shuffle_mask ELSE () ENDIF in
     let symbol = try get symbol_table (get_symbol (match x with | AddressedSymbol (x,_,_,_) -> x)) with 
       | Not_found -> raise (Internal_compiler_error "Symbol being dereferenced cannot be found in the table!") in
     let () = IFDEF DEBUG THEN print_endline "Calculating the tot_size" ELSE () ENDIF in
+    (* Total size is only going to be used for calculating the inverse
+       mask *)
     let (tot_size,to_calc) = (match symbol with ComTypedSymbol (_,x,_) -> 
       (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
 	(* First we need to filter out the ones, which will be converted *)
+	(* Only the indices that we have converted, but when doing the
+	   the runtime vectorization we also need to take care of the
+	   vector types *)
 	let to_calc = List.mapi (fun i (DimSpecExpr x) -> if (List.exists (fun x -> x = i) indices_converted) then x else TStar) x in
 	let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
 	(((List.fold_right (fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1),to_calc)))
       | _ -> raise (Internal_compiler_error "")) in
+    (* Get the interger dimensions from the array declaration only for
+       those that got converted*)
     let to_calc = List.map (fun (Const(_,x,_)) -> (int_of_string x)) to_calc in
-    let () = IFDEF DEBUG THEN print_endline "The shuffle_mask is: " ELSE () ENDIF in
+    let () = IFDEF DEBUG THEN print_endline "The shuffle_mask length is: " ELSE () ENDIF in
     let () = IFDEF DEBUG THEN print_endline (string_of_int (List.length shuffle_mask)) ELSE () ENDIF in
     let shuffle_mask = List.mapi (fun i x -> 
       let to_calc = List.drop (i+1) to_calc in
       let multiplicand = List.fold_right (fun x y -> x * y) to_calc 1 in
-      Array.map (fun x -> x * multiplicand) x) shuffle_mask in
+      multiply_indices multiplicand x) shuffle_mask in
     let () = IFDEF DEBUG THEN print_endline "The shuffle_mask after multplication is: " ELSE () ENDIF in
     let () = IFDEF DEBUG THEN print_endline ("Length: " ^ (string_of_int (List.length shuffle_mask))) ELSE () ENDIF in
     let () = IFDEF DEBUG THEN List.iter (fun x -> (Array.iter (fun x -> print_endline (string_of_int x) ) x)) shuffle_mask ELSE () ENDIF in
-    let rsm = Array.init (Array.length (List.hd shuffle_mask)) (fun i -> 0) in
-    let () = List.iter (fun x -> Array.iteri (fun i x -> rsm.(i) <- rsm.(i) + x) x) shuffle_mask in
-    let shuffle_mask = rsm in
+
+    (* Add all the constantvectors in the compiler itself the non
+       constants need to be added at runtime. The result is either a
+       constantvector or a simple expression list *)
+    (* Filtering out the constant vectors *)
+    let smm = List.filter (fun (_,x) -> (match x with Constantvector _ -> true | _ -> false)) shuffle_mask in
+    let shuffle_mask = 
+      if not List.is_empty smm then
+	let smmv = List.filter (fun (_,x) -> (match x with Constantvector _ -> false | _ -> true)) shuffle_mask in
+	let smma = List.map (fun (_,Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) smm in
+	let (a,b,c) = (match List.hd (smm) with | Constvector (a,b,_,lv) -> (a,b,lv)) in
+	let rsm = Array.init (Array.length (List.hd smma)) (fun i -> 0) in
+	let () = List.iter (fun x -> Array.iteri (fun i x -> rsm.(i) <- rsm.(i) + x) x) smma in
+	(* The ordering of the shuffle mask should not matter, bcecause it
+	   is an addition operation which is assocative and commutative *)
+	Constvector (a,b,rsmm,c) :: smmv  
+      else shuffle_mask in
+
+    (* How to build the reverse shuffle mask?? *)
+    (* Look at the ../programs/test_bitcast.ll file to see how the
+       runtime shuffle masks are taken care off!! *)
     let () = IFDEF DEBUG THEN print_endline ("tot_size: " ^ (string_of_int tot_size)) ELSE () ENDIF in
-    let tot_mask = build_counter_mask 0 tot_size in
-    let inv_mask = build_inverse_shuffle_mask tot_mask shuffle_mask lc in
-    AllVecSymbol (inv_mask, vecad)
+    let smm = List.filter (fun (_,x) -> (match x with Constantvector _ -> true | _ -> false)) shuffle_mask in
+    let smma = List.map (fun (_,Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) smm in
+    let (inv_mask,shuffle_mask) = 
+      if not !my_runtime_vec then
+	let tot_mask = build_counter_mask 0 tot_size in
+	(build_inverse_shuffle_mask tot_mask smma lc, [])
+      else
+	let smmv = List.filter (fun (_,x) -> (match x with Constantvector _ -> false | _ -> true)) shuffle_mask in
+	if List.is_empty smmv then
+	  let tot_mask = build_counter_mask 0 tot_size in
+	  (build_inverse_shuffle_mask tot_mask smma lc,[]) in
+	else
+	  ([], shuffle_mask) in
+    AllVecSymbol ({ism=inv_mask;sm= shuffle_mask}, vecad)
   | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got non addressed symbol assignment, currently this is not supported!!"))
 
 
@@ -353,9 +434,10 @@ let rec collapse_par indices limits for_indices symbol_table = function
     raise (Internal_compiler_error " Cannot collapse loops, because For detected, you should apply loop interchange with -floop-interchange")
   | _ as s -> build_collapsed_data_parallel_vectors indices limits for_indices symbol_table s
 
-let convert tranpose for_indices symbol_table = function
+let convert runtim_vec tranpose for_indices symbol_table = function
   | Par (x,y,z,lc) ->
     my_transpose := tranpose;
+    my_runtime_vec := runtim_vec;
     let (vstart,vend,vstride) = get_par_bounds y in
     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
 					     ^ "(end:) " ^ (string_of_int vend) ^ "(stride:) " ^ (string_of_int vstride)) ELSE () ENDIF in

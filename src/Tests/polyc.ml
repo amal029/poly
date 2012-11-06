@@ -20,6 +20,7 @@ try
   let optimize = ref true in
   let floop_interchange = ref false in
   let floop_transpose = ref false in
+  let floop_runtime_vec = ref false in
   let vipr = ref false in
   let slots = ref false in
   let output = ref "" in
@@ -32,6 +33,7 @@ try
 		      ("-O0", Arg.Clear optimize, " Do not perform any optimizations");
 		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations");
 		      ("-floop-transpose", Arg.Set floop_transpose, " Transpose loops for locality optimizations");
+		      ("-floop-runtime-vectorize", Arg.Set floop_runtime_vec, " Vectorize the loops at runtime (dangerous!!)");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
 		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n x86_64-gnu-linux and [default = x86_64, which is apple darwin]");
 		      ("-march-gpu", Arg.String (fun x -> march_gpu := x), " Set the march for compilation, available: nvvm-cuda-i32 nvvm-cuda-i64, [default:Off] ");
@@ -67,7 +69,7 @@ try
 	else fcfg in
       if !dot then
 	let () = print_endline ".....Building CFG..." in
-	let cfg = VecCFG.check_fcfg !floop_transpose !vectorize fcfg in
+	let cfg = VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfg in
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
 	let fcfg = 
@@ -75,7 +77,7 @@ try
 	      Loop_out.Kernel.process fcfg
 	   else fcfg) in
 	let () = print_endline ".....Building CFG..." in
-	let cfg = VecCFG.check_fcfg !floop_transpose !vectorize fcfg in
+	let cfg = VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfg in
 	let r1 = (Str.regexp "/") in
 	let slist = Str.split r1 !file_name in
 	let slist = Str.split (Str.regexp "\\.") (List.hd (List.rev slist)) in
@@ -149,7 +151,6 @@ try
       let file_name = ((List.hd slist) ^ ".xml") in
       let () = print_endline "....Decompiling to AST......" in
       let ast = DecompiletoAST.decompile cfgt in
-      let () = print_endline "....Vectorizing......" in
       let fcfgv = Fcfg.check_ast ast in
       (* By default do not always produce llvm IR *)
       let cfgt =
@@ -163,7 +164,8 @@ try
 		Loop_out.Kernel.process fcfgv
 	     else fcfgv) in
 	  (* Now call the vectorization function on this *)
-	  VecCFG.check_fcfg !floop_transpose !vectorize fcfgv
+	  let () = print_endline "....Vectorizing......" in
+	  VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfgv
 	else 
 	  (* let ast = DecompiletoAST.decompile cfgt in *)
 	  (* let fcfg = Fcfg.check_ast ast in *)
