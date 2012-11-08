@@ -219,8 +219,8 @@ let rec check_fcfg runtime_vec transpose vectorize = function
     (* Me is a top node *)
     let me = make_cfg r e x in 
     (* These are all also top nodes for all the other filters *)
-    let ll = check_fcfg_nodes transpose vectorize y in
+    let ll = check_fcfg_nodes runtime_vec transpose vectorize y in
     Filternode (me, ll)
-and check_fcfg_nodes transpose vectorize = function
-  | h::t -> check_fcfg transpose vectorize h::check_fcfg_nodes transpose vectorize t
+and check_fcfg_nodes runtime_vec transpose vectorize = function
+  | h::t -> check_fcfg runtime_vec transpose vectorize h::check_fcfg_nodes runtime_vec transpose vectorize t
   | [] -> [] (* These are the topnode nodes list *)

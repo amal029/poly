@@ -25,6 +25,7 @@ exception Error of string
 exception Internal_compiler_error of string
 
 module List = Batteries.List
+module Array = Batteries.Array
 
 let slots = ref false
 (* By default I consider it to be a 32-bit CUDA environment *)
@@ -541,13 +542,16 @@ let rec codegen_simexpr declarations = function
   (* Generating the non constant vector *)
   | VecRef (mask,x,lc) as s ->
 
+    (* ll --> is the yexpr *)
     let (name,access_sizes,ll) = (match x with VecAddress (x,a,ll,_) -> (x,a,ll)) in
     (* This might be a complex expression, in which case we want try calculating the shuffle mask *)
     let shuffle_mask = List.mapi (fun i x -> try (i,(Vectorization.Convert.calculate_shuffle_mask access_sizes lc x)) with 
       | Vectorization.Convert.Ignore _ -> (i,x)
       | _ -> raise (Internal_compiler_error "")) ll in
-    let ce = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) shuffle_mask in
-    let dll = List.filter (fun (_,x) -> (match x with Constvector _ -> false | _ -> true)) shuffle_mask in
+    let ce = List.filter (fun (_,x) -> Vectorization.Convert.filter_shm x) shuffle_mask in
+    let ce = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) ce in
+    let vce = List.filter (fun (_,x) -> (match x with Constvector _ -> false | _ -> true)) ce in
+    let dll = List.filter (fun (_,x) -> not (Vectorization.Convert.filter_shm x)) shuffle_mask in
     let dll = List.map (fun (_,x) -> x) dll in
     (* Now make the address symbol *)
     let vptr =
@@ -558,17 +562,25 @@ let rec codegen_simexpr declarations = function
       else match get declarations (get_vec_symbol x) with | (_,x) -> x in
     let () = IFDEF DEBUG THEN dump_value vptr ELSE () ENDIF in
     (* Now build the shuffle mask *)
+    (* Why are we rebuilding the shuffle mask, we have the mask in "mask" *)
+
     let (vptr,vtyp) =
-      if (List.length ce) = 1 then 
+
+      (* This is the case when there is just a single vector in the yexpr! *)
+      (* This will only happen when -floop-runtime-vectorize is not given *)
+      if (List.length ce) = 1 && (List.is_empty vce) then 
 	let symbol = match get declarations (get_vec_symbol x) with | (x,_) -> x in
 	let dtype = (match symbol with ComTypedSymbol (dtype,_,_) -> dtype) in 
-	(* If the vptr is not pf type ptr then make it by bitcasting it into a vptr *)
+	(* If the vptr is not of type ptr then make it by bitcasting it into a vptr *)
 	let vptr = get_vptr_bit_cast vptr (derefence_pointer vptr) in (vptr,dtype)
+
+      (* This says make a vector of only the required length *)
       else
 	let symbol = match get declarations (get_vec_symbol x) with | (x,_) -> x in
 	(* Only the first elements, which are not being convereted into vector types *)
 	let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
 	let indices_converted = Array.to_list indices_converted in
+
 	let (ddtype, dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) -> 
 	  (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
 	    (* First we need to filter out the ones, which will be converted *)
@@ -577,14 +589,73 @@ let rec codegen_simexpr declarations = function
 	    (dtype, (((get_llvm_primitive_type lc dtype) context)),
 	     ((List.fold_right (fun (Const (_,x,_)) y -> ((int_of_string x))* y) to_calc 1)-1))))
 	  | _ -> raise (Internal_compiler_error "Not a comptyed symbol")) in 
+
 	let () = IFDEF DEBUG THEN print_endline "bitcasting" ELSE () ENDIF in
 	(build_bitcast vptr (pointer_type (vector_type dtype (tot_size+1))) 
 	   (if not !slots then "bitcast" else "") builder, ddtype) in
-    let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of (derefence_pointer vptr))))) in
-    build_shufflevector (derefence_pointer vptr) uptl 
-      (const_vector (Array.map (fun x -> const_int (i32_type context) x) mask)) 
-      (if not !slots then "shuff_vec" else "") builder
-      
+
+    (* Now we have access to the vptr and vtype bitcasted *)
+    (* This will only work if we have no vectors in the indices *)
+    let cmsv = List.filter (fun x -> (match x with |Constvector _ -> true | _ -> false)) mask in
+    let nvmsv = List.filter (fun x -> (match x with |Constvector _ -> false | _ -> true)) mask in
+    
+    (* This is the case when you only have a constvector mask *)
+    if List.is_empty nvmsv then
+      let mask = 
+	if (List.length cmsv = 1) then
+	  List.hd (List.map (fun (Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) mask)
+	else raise (Internal_compiler_error "Got more than one const vector in the mask!!") in
+      let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of (derefence_pointer vptr))))) in
+      build_shufflevector (derefence_pointer vptr) uptl 
+	(const_vector (Array.map (fun x -> const_int (i32_type context) x) mask)) 
+	(if not !slots then "shuff_vec" else "") builder
+    (* This is the case where runtime vector indices are solved *)
+    else
+      (* First we get the result of the multiplication and any other
+	 instruction that needs to be performed for calculating the
+	 indices *)
+      (* FIXME: This is just the extra bit, which will need to be done!! *)
+      (* CHECK: IF THIS GETS OPTIMIZED AWAY BY LLVM OPT *)
+      let nvec = List.map (fun x -> codegen_simexpr declarations x) nvmsv in
+      let () = IFDEF DEBUG THEN print_endline "The multiplicand values are: " ELSE () ENDIF in
+      let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) nvec ELSE () ENDIF in
+
+      (* First build rsm, which is a constvector of zeros!! *)
+      let size = (vector_size (type_of (List.hd nvec))) in
+      (* This is the result vector of point wise additions *)
+      let rsm = ref (Constvector (None,vtyp,Array.init size (fun i -> Const(vtyp,(string_of_int 0),lc)),lc)) in
+      let () = List.iter (fun x -> rsm := Plus (x,!rsm,lc)) mask in
+      (* This is the result *)
+      let shuffle_mask = codegen_simexpr declarations !rsm in
+      (* Now start getting the elements out one by one and put them into a
+	 temporary array!! *)
+
+      (* FIXME: we currently just extract element one by one and put it into a temporary array of the required size *)
+      (* Here is the place to check if this is contiguous memory access or non-contigous memory access *)
+      (* First we alloca a temp array of the required size *)
+      let temp = build_alloca (array_type ((get_llvm_primitive_type lc vtyp) context) size) "" builder in
+      (* This is the vector from which we will be extracting elements *)
+      let vec = (derefence_pointer vptr) in
+      let aptr = build_bitcast vptr (pointer_type (array_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vec)))) "" builder in
+      let vec = derefence_pointer aptr in
+      let shuffle_maskptr = build_alloca (array_type (i32_type context) size) "" builder in
+      let shuffle_mask_vec_ptr = build_bitcast shuffle_maskptr (pointer_type (array_type ((get_llvm_primitive_type lc vtyp) context) size)) "" builder in
+      let _ = build_store shuffle_mask shuffle_mask_vec_ptr builder in
+
+      let smi = Array.init size (fun i -> build_in_bounds_gep shuffle_maskptr [|(const_int (Llvm_target.intptr_type !target_data) 0)
+								      ;(const_int (i32_type context) i)|] "" builder) in
+      (* Now we have the actual values of the indices *)
+      let smi = Array.map (fun x -> derefence_pointer x) smi in
+      let vecptrs = Array.map (fun x -> build_in_bounds_gep aptr [|(const_int (Llvm_target.intptr_type !target_data) 0);
+								  x|] "" builder) smi in
+      let vec = Array.map (fun x -> derefence_pointer x) vecptrs in
+      (* Now store these elements into the temp vector and send it back *)
+      let tempptrs = Array.init size (fun x -> build_in_bounds_gep temp [|(const_int (Llvm_target.intptr_type !target_data) 0);
+									  (const_int ((get_llvm_primitive_type lc vtyp) context) x)|] "" builder) in
+      let debu = Array.map2 (fun x y -> build_store x y builder) vec tempptrs in 
+      let () = IFDEF DEBUG THEN Array.iter dump_value debu ELSE () ENDIF in
+      (* Finally bitcast the temp into a vector type and send it back *)
+      build_bitcast temp (vector_type ((get_llvm_primitive_type lc vtyp) context) size) "" builder
 
   (* Generating the const vector *)
   | Constvector (t, dt, sa, lc) -> 
@@ -935,35 +1006,40 @@ let codegen_stmt f declarations = function
 	      let () = IFDEF DEBUG THEN print_endline "built the store" ELSE () ENDIF in ()
 
 	    | AllVecSymbol (mask,x) ->
+	      let smask = mask.sm in
+	      let mask = mask.ism in
 	      (* FIXME: Make this go away later on!! *)
 	      let (name,access_sizes,ll) = (match x with VecAddress (x,a,ll,_) -> (x,a,ll)) in
 	      (* This might be a complex expression, in which case we want try calculating the shuffle mask *)
 	      let shuffle_mask = List.mapi (fun i x -> try (i,(Vectorization.Convert.calculate_shuffle_mask access_sizes lc x)) with 
 		| Vectorization.Convert.Ignore _ -> (i,x)
 		| _ -> raise (Internal_compiler_error "")) ll in
-	      let ce = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) shuffle_mask in
-	      let dll = List.filter (fun (_,x) -> (match x with Constvector _ -> false | _ -> true)) shuffle_mask in
+	      let ce = List.filter (fun (_,x) -> Vectorization.Convert.filter_shm x) shuffle_mask in
+	      let ce = List.filter (fun (_,x) -> (match x with Constvector _ -> true | _ -> false)) ce in
+	      let vce = List.filter (fun (_,x) -> (match x with Constvector _ -> false | _ -> true)) ce in
+	      let dll = List.filter (fun (_,x) -> not (Vectorization.Convert.filter_shm x)) shuffle_mask in
 	      let dll = List.map (fun (_,x) -> x) dll in
 	      (* Now make the address symbol *)
 	      let vptr =
 		if dll <> [] then
 		  let aptr = AddrRef (AddressedSymbol (name,[],[BracDim (List.map (fun x -> DimSpecExpr x) dll)],lc),lc) in
-		(* Now load the vector with the returned pointer *)
-		codegen_simexpr !declarations aptr
+		  (* Now load the vector with the returned pointer *)
+		  codegen_simexpr !declarations aptr
 		else match get !declarations (get_vec_symbol x) with | (_,x) -> x in
 	      let () = IFDEF DEBUG THEN dump_value vptr ELSE () ENDIF in
 	      let () = IFDEF DEBUG THEN print_endline "getting length of CE" ELSE () ENDIF in
 	      (* If there is only one ce then do not bitcast, else bitcast to total vector size *)
 	      let () = IFDEF DEBUG THEN print_endline ("length of CE: " ^ (string_of_int (List.length ce))) ELSE () ENDIF in
 	      let (vptr,tot_size) =
-		if (List.length ce) = 1 then
+
+		if (List.length ce) = 1 && (List.is_empty vce) then
 		  let () = IFDEF DEBUG THEN print_endline "Trying to get the vector size" ELSE () ENDIF in
 		  let symbol = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
 		  let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
 		  let indices_converted = Array.to_list indices_converted in
 		  let vsize = (match symbol with ComTypedSymbol (dtype,x,_) -> 
 		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
-			(* First we need to filter out the ones, which will be converted *)
+		      (* First we need to filter out the ones, which will be converted *)
 		      let to_calc = List.mapi (fun i (DimSpecExpr x) -> 
 			if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
 		      let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
@@ -972,94 +1048,148 @@ let codegen_stmt f declarations = function
 		  let () = IFDEF DEBUG THEN print_endline ("AllVec Vector size: " ^ (string_of_int vsize)) ELSE () ENDIF in
 		  (* If the vptr is not pf type vector ptr then make it by bitcasting it into a vptr *)
 		  let vptr = get_vptr_bit_cast vptr (derefence_pointer vptr) in (vptr,vsize)
+
 		else
 		  let symbol = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
 		  (* Only the first elements, which are not being convereted into vector types *)
 		  let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
 		  let indices_converted = Array.to_list indices_converted in
+
 		  let (dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) -> 
 		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
-			(* First we need to filter out the ones, which will be converted *)
+		      (* First we need to filter out the ones, which will be converted *)
 		      let to_calc = List.mapi (fun i (DimSpecExpr x) -> 
 			if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
 		      let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
 		      (((get_llvm_primitive_type lc dtype) context)),((List.fold_right 
-									(fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1)))
+									 (fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1)))
 		    | _ -> raise (Internal_compiler_error "Not a comtpyed symbol")) in 
 		  (* Bitcast is giving a cast error!! *)
 		  let () = IFDEF DEBUG THEN print_endline "bitcasting" ELSE () ENDIF in
 		  ((build_bitcast vptr (pointer_type (vector_type dtype (tot_size+1))) 
 		      (if not !slots then "bitcast" else "") builder), tot_size) in
+
 	      (* Now build the inverse shuffle mask *)
 	      let () = IFDEF DEBUG THEN (dump_value vptr) ELSE () ENDIF in
 	      let () = IFDEF DEBUG THEN print_endline "Building the inverse mask" ELSE () ENDIF in
-	      let mask1 = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
-	      let first = mask in
-	      (* Now again shuffle with the complete length of the vector, but put rval first and then put *)
-	      let _ =
-		if Array.length mask1 <> 0 then
-		  let mask = const_vector (Array.map (codegen_simexpr !declarations) mask1) in
-		  let () = IFDEF DEBUG THEN dump_value mask ELSE () ENDIF in
-		  let vtpt = (derefence_pointer vptr) in
-		  let () = IFDEF DEBUG THEN dump_value vtpt ELSE () ENDIF in
-		  let dv = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
-		  let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) 
-		    | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
-		  let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vtpt)))) in
-		  let () = IFDEF DEBUG THEN dump_value uptl ELSE () ENDIF in
-		  let inver_s = build_shufflevector vtpt uptl mask (if not !slots then "shuff_vec" else "") builder in
-		  let () = IFDEF DEBUG THEN dump_value inver_s ELSE () ENDIF in
-		  (* Build the permutation mask for shuffling things in!! *)
-		  (* These need to be changed look at loopCollapse *)
-		  let tot = Vectorization.Convert.build_counter_mask 0 tot_size in
-		  (* Second is the shuffle mask itself, it is the inverse of inverse double negative = positive *)
-		  let second = Vectorization.Convert.build_inverse_shuffle_mask tot first lc in
-		  let mask = Vectorization.Convert.build_permute_mask tot first second lc in
-		  let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
-		  let mask = const_vector (Array.map (codegen_simexpr !declarations) mask) in
-		  let () = IFDEF DEBUG THEN dump_value mask ELSE () ENDIF in
-		  (* It is possible that the rval or the inver_s, either
-		     one of them is shorter than the other.  We want to
-		     make them of equal size and hence, we should pad
-		     the shorter one with zeros. This won't really have
-		     any affect on the result, because the shuffle mask
-		     will correctly pick up the required elements from
-		     the vectors!! *)
-		  let () = IFDEF DEBUG THEN print_endline 
-		    ((string_of_int (vector_size (type_of rval))) ^ " = "  ^ (string_of_int (vector_size (type_of inver_s)))) ELSE () ENDIF in
-		  let rval = 
-		    if (vector_size (type_of rval)) < (vector_size (type_of inver_s)) then
-		      strech rval (vector_size (type_of rval)) (vector_size (type_of inver_s)) vtyp !declarations 
-		    else 
-		      let () = IFDEF DEBUG THEN print_endline "return old rval" ELSE () ENDIF in
-		      rval in
-		  let inver_s = if (vector_size (type_of inver_s)) < (vector_size (type_of rval)) then
-		      strech inver_s (vector_size (type_of inver_s)) (vector_size (type_of rval))  vtyp !declarations else inver_s in
-		  let resptr = build_shufflevector inver_s rval mask (if not !slots then "shuff_vec" else "") builder in
-		  build_store resptr vptr builder
-		else
-		  (* Just store the whole rval in here!! *)
-		  (* FIXME: This will break in case of par i in 0:1 par j in 0:3 A[j] = 1 being vectorized*)
-		  let () = IFDEF DEBUG THEN print_endline "Storing the vector" ELSE () ENDIF in
-		  let rval_size = vector_size (type_of rval) in
-		  let tot_size = tot_size + 1 in
-		  let () = IFDEF DEBUG THEN print_endline ("TOT SIZE: " ^ (string_of_int tot_size)) ELSE () ENDIF in
-		  if tot_size < rval_size then
-		    if (rval_size mod tot_size <> 0) then
-		      raise (Error ((Reporting.get_line_and_column lc) ^ " Cannot handle this type of statment"))
-		    else 
-		      let () = IFDEF DEBUG THEN print_endline "Truncating the rval vector" ELSE () ENDIF in
-		      let uptld = undef (type_of rval)  in
-		      let to_rid = ((rval_size / tot_size) - 1)*tot_size in
-		      (* Build the bitmask *)
-		      let mask = Array.init tot_size (fun i -> codegen_simexpr !declarations (Const(DataTypes.Int32s, (string_of_int (i+to_rid)),(0,0)))) in
-		      let mask = const_vector mask in
-		      let () = IFDEF DEBUG THEN print_endline "rval before truncation "; dump_value rval ELSE () ENDIF in
-		      let rval = build_shufflevector rval uptld mask (if not !slots then "loose" else "") builder in
-		      let () = IFDEF DEBUG THEN print_endline "rval after truncation "; dump_value rval ELSE () ENDIF in
-		      build_store rval vptr builder
+	      if List.is_empty smask then
+		let mask1 = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
+		let first = mask in
+		(* Now again shuffle with the complete length of the vector, but put rval first and then put *)
+		let _ =
+		  if Array.length mask1 <> 0 then
+		    let mask = const_vector (Array.map (codegen_simexpr !declarations) mask1) in
+		    let () = IFDEF DEBUG THEN dump_value mask ELSE () ENDIF in
+		    let vtpt = (derefence_pointer vptr) in
+		    let () = IFDEF DEBUG THEN dump_value vtpt ELSE () ENDIF in
+		    let dv = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
+		    let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) 
+		      | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
+		    let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vtpt)))) in
+		    let () = IFDEF DEBUG THEN dump_value uptl ELSE () ENDIF in
+		    let inver_s = build_shufflevector vtpt uptl mask (if not !slots then "shuff_vec" else "") builder in
+		    let () = IFDEF DEBUG THEN dump_value inver_s ELSE () ENDIF in
+		    (* Build the permutation mask for shuffling things in!! *)
+		    (* These need to be changed look at loopCollapse *)
+		    let tot = Vectorization.Convert.build_counter_mask 0 tot_size in
+		    (* Second is the shuffle mask itself, it is the inverse of inverse double negative = positive *)
+		    let second = Vectorization.Convert.build_inverse_shuffle_mask tot first lc in
+		    let mask = Vectorization.Convert.build_permute_mask tot first second lc in
+		    let mask = Array.map (fun x -> Const (DataTypes.Int32, (string_of_int x),lc)) mask in
+		    let mask = const_vector (Array.map (codegen_simexpr !declarations) mask) in
+		    let () = IFDEF DEBUG THEN dump_value mask ELSE () ENDIF in
+		    (* It is possible that the rval or the inver_s, either
+		       one of them is shorter than the other.  We want to
+		       make them of equal size and hence, we should pad
+		       the shorter one with zeros. This won't really have
+		       any affect on the result, because the shuffle mask
+		       will correctly pick up the required elements from
+		       the vectors!! *)
+		    let () = IFDEF DEBUG THEN print_endline 
+		      ((string_of_int (vector_size (type_of rval))) ^ " = "  ^ (string_of_int (vector_size (type_of inver_s)))) ELSE () ENDIF in
+		    let rval =
+		      if (vector_size (type_of rval)) < (vector_size (type_of inver_s)) then
+			strech rval (vector_size (type_of rval)) (vector_size (type_of inver_s)) vtyp !declarations 
+		      else 
+			let () = IFDEF DEBUG THEN print_endline "return old rval" ELSE () ENDIF in
+			rval in
+		    let inver_s = if (vector_size (type_of inver_s)) < (vector_size (type_of rval)) then
+			strech inver_s (vector_size (type_of inver_s)) (vector_size (type_of rval))  vtyp !declarations else inver_s in
+		    let resptr = build_shufflevector inver_s rval mask (if not !slots then "shuff_vec" else "") builder in
+		    build_store resptr vptr builder
 		  else
-		    build_store rval vptr builder in ())) ll
+		    (* Just store the whole rval in here!! *)
+		    (* FIXME: This will break in case of par i in 0:1 par j in 0:3 A[j] = 1 being vectorized*)
+		    let () = IFDEF DEBUG THEN print_endline "Storing the vector" ELSE () ENDIF in
+		    let rval_size = vector_size (type_of rval) in
+		    let tot_size = tot_size + 1 in
+		    let () = IFDEF DEBUG THEN print_endline ("TOT SIZE: " ^ (string_of_int tot_size)) ELSE () ENDIF in
+		    if tot_size < rval_size then
+		      if (rval_size mod tot_size <> 0) then
+			raise (Error ((Reporting.get_line_and_column lc) ^ " Cannot handle this type of statment"))
+		      else 
+			let () = IFDEF DEBUG THEN print_endline "Truncating the rval vector" ELSE () ENDIF in
+			let uptld = undef (type_of rval)  in
+			let to_rid = ((rval_size / tot_size) - 1)*tot_size in
+			(* Build the bitmask *)
+			let mask = Array.init tot_size (fun i -> codegen_simexpr !declarations (Const(DataTypes.Int32s, (string_of_int (i+to_rid)),(0,0)))) in
+			let mask = const_vector mask in
+			let () = IFDEF DEBUG THEN print_endline "rval before truncation "; dump_value rval ELSE () ENDIF in
+			let rval = build_shufflevector rval uptld mask (if not !slots then "loose" else "") builder in
+			let () = IFDEF DEBUG THEN print_endline "rval after truncation "; dump_value rval ELSE () ENDIF in
+			build_store rval vptr builder
+		    else
+		      build_store rval vptr builder in ()
+	      else
+		(* This is the case when there are vectors in the shuffle mask itself, which were not solved*)
+		let mask = smask in
+		let cmsv = List.filter (fun x -> (match x with |Constvector _ -> true | _ -> false)) mask in
+		let nvmsv = List.filter (fun x -> (match x with |Constvector _ -> false | _ -> true)) mask in
+		let dv = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
+		let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) 
+		  | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
+		let nvec = List.map (fun x -> codegen_simexpr !declarations x) nvmsv in
+		let () = IFDEF DEBUG THEN print_endline "The multiplicand values are: " ELSE () ENDIF in
+		let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) nvec ELSE () ENDIF in
+
+		(* First build rsm, which is a constvector of zeros!! *)
+		let size = (vector_size (type_of (List.hd nvec))) in
+		(* This is the result vector of point wise additions *)
+		let rsm = ref (Constvector (None,vtyp,Array.init size (fun i -> Const(vtyp,(string_of_int 0),lc)),lc)) in
+		let () = List.iter (fun x -> rsm := Plus (x,!rsm,lc)) mask in
+		(* This is the result *)
+		let shuffle_mask = codegen_simexpr !declarations !rsm in
+		let shuffle_maskptr = build_alloca (array_type (i32_type context) size) "" builder in
+		let shuffle_mask_vec_ptr = build_bitcast shuffle_maskptr (pointer_type (array_type ((get_llvm_primitive_type lc vtyp) context) size)) "" builder in
+		let _ = build_store shuffle_mask shuffle_mask_vec_ptr builder in
+
+		(* FIXME: we currently just extract element one by one and put it into a temporary array of the required size *)
+		(* Here is the place to check if this is contiguous memory access or non-contigous memory access *)
+		(* First we alloca a temp array of the required size *)
+
+		(* This is the vector where the result will be stored *)
+		let vec = (derefence_pointer vptr) in
+		let aptr = build_bitcast vptr (pointer_type (array_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vec)))) "" builder in
+
+		let smi = Array.init size (fun i -> build_in_bounds_gep shuffle_maskptr [|(const_int (Llvm_target.intptr_type !target_data) 0)
+										   ;(const_int (i32_type context) i)|] "" builder) in
+		(* Now we have the actual values of the indices *)
+		let smi = Array.map (fun x -> derefence_pointer x) smi in
+		let vecptrs = Array.map (fun x -> build_in_bounds_gep aptr [|(const_int (Llvm_target.intptr_type !target_data) 0);
+									     x|] "" builder) smi in
+
+		(* This should be loading values from the rval!! *)
+		let temp = build_alloca (array_type ((get_llvm_primitive_type lc vtyp) context) size) "" builder in
+		(* Assumes rval = size, which it should be!! *)
+		let temp_vec = build_bitcast temp (pointer_type (array_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of rval)))) "" builder in
+		let _ = build_store rval temp_vec builder in
+		let tempptrs = Array.init size (fun x -> build_in_bounds_gep temp [|(const_int (Llvm_target.intptr_type !target_data) 0);
+										    (const_int ((get_llvm_primitive_type lc vtyp) context)x)|] "" builder) in
+		let vec = Array.map derefence_pointer tempptrs in
+
+		(* Now store these elements into the vecptrs vector and send it back *)
+		let debu = Array.map2 (fun x y -> build_store x y builder) vec vecptrs in 
+		let () = IFDEF DEBUG THEN Array.iter dump_value debu ELSE () ENDIF in ())) ll
 
       | FCall (_,e) as s ->
 	let (callee,args) = codegen_fcall stmt lc !declarations s in
@@ -1453,7 +1583,7 @@ let build_nvvm_abi_calls kname inptrs outptrs my_builder my_module my_context ex
   let poly_reg_input = List.hd poly_reg_input in
   let callee = match (lookup_function "POLY_REGISTER_INPUT" poly_reg_input) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
 
-  let () = IFDEF DEBUG THEN dump_value poly_reg_input ELSE () ENDIF in
+  let () = IFDEF DEBUG THEN dump_module poly_reg_input ELSE () ENDIF in
   let param_types = Array.map (fun x -> type_of x) (params callee) in
   let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
   let callee_attrs = (function_attr callee) in
@@ -1489,7 +1619,7 @@ let build_nvvm_abi_calls kname inptrs outptrs my_builder my_module my_context ex
   if List.length poly_reg_output <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_OUTPUT function in the user_modules (ABI)!!");
   let poly_reg_output = List.hd poly_reg_output in
   let callee = match (lookup_function "POLY_REGISTER_INPUT" poly_reg_output) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
-  let () = IFDEF DEBUG THEN dump_value poly_reg_output ELSE () ENDIF in
+  let () = IFDEF DEBUG THEN dump_module poly_reg_output ELSE () ENDIF in
   let param_types = Array.map (fun x -> type_of x) (params callee) in
   let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
   let callee_attrs = (function_attr callee) in
@@ -1521,7 +1651,7 @@ let build_nvvm_abi_calls kname inptrs outptrs my_builder my_module my_context ex
   let poly_reg_input = List.hd poly_reg_input in
   let callee = match (lookup_function "POLY_LAUNCH_KERNEL" poly_reg_input) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
 
-  let () = IFDEF DEBUG THEN dump_value poly_reg_input ELSE () ENDIF in
+  let () = IFDEF DEBUG THEN dump_module poly_reg_input ELSE () ENDIF in
   let param_types = Array.map (fun x -> type_of x) (params callee) in
   let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
   let callee_attrs = (function_attr callee) in

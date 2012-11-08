@@ -52,7 +52,19 @@ struct
   exception Internal_compiler_error of string
   exception Error of string
   exception Ignore of string
+
+  let runtime_vec = ref false
       
+  let rec filter_shm = function
+    | Plus (x,y,lc)| Minus (x,y,lc) | Times (x,y,lc) 
+    | Div (x,y,lc) | Rshift (x,y,lc) | Lshift (x,y,lc)
+    | Mod (x,y,lc) -> filter_shm x && filter_shm y
+    | Brackets (x,lc) -> filter_shm x
+    | Opposite (x,lc) -> filter_shm x
+    | Constvector _ -> true 
+    | Vector _ -> !runtime_vec (* Also account for the runtime vectors if the user asks for runtime vectorization *)
+    | _ -> false
+
   (* Calculate the shuffle mask *)
 
   let process_vectors access_sizes f1 f2 = function
@@ -64,7 +76,7 @@ struct
     | _ -> raise (Internal_compiler_error "")
 
 
-  let rec calculate_shuffle_mask runtime_vec access_sizes lc = function
+  let rec calculate_shuffle_mask access_sizes lc = function
     | Plus (x,y,lc) ->
       let l = calculate_shuffle_mask access_sizes lc x in
       let r = calculate_shuffle_mask access_sizes lc y in
@@ -120,7 +132,7 @@ struct
 
     | VarRef _ -> raise (Ignore ((Reporting.get_line_and_column lc) ^ " erroroneously got a VarRef"))
     | Vector _ -> 
-      if runtime_vec then
+      if !runtime_vec then
 	raise (Ignore ((Reporting.get_line_and_column lc) ^ " erroroneously got a Vector type index without runtime vectorization option"))
       else raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VecRef"))
     | VecRef _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a VecRef"))

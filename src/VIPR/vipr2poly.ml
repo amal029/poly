@@ -156,7 +156,7 @@ and get_vec_declare = function
 	    (match x with Language.Language.Const (_,v,_) -> (int_of_string v) | _ -> raise (Internal_compiler_error "Dimensions not of type const!!"))) x in
 	  let arl = List.map (fun x -> (Array.init (x - 1) (fun i -> Language.Language.Const (Language.DataTypes.Int32s, (string_of_int i),lc)))) cmap in 
 	  List.map (fun x -> Language.Language.Constvector (None,Language.DataTypes.Int32s,x,lc)) arl) in
-	Language.Language.AllVecSymbol ([||], (Language.Language.VecAddress (r,[],epr,lc))))
+	Language.Language.AllVecSymbol ({Language.Language.ism=[||]; Language.Language.sm=[]}, (Language.Language.VecAddress (r,[],epr,lc))))
   | _ -> raise (Internal_compiler_error "Tried to convert a non aggregate type to a vector type")
 
 (* In this function I am hoping that VIPR only contains const types!! *)

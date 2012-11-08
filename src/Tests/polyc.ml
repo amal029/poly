@@ -69,6 +69,7 @@ try
 	else fcfg in
       if !dot then
 	let () = print_endline ".....Building CFG..." in
+	Vectorization.Convert.runtime_vec := !floop_runtime_vec;
 	let cfg = VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfg in
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
@@ -77,6 +78,7 @@ try
 	      Loop_out.Kernel.process fcfg
 	   else fcfg) in
 	let () = print_endline ".....Building CFG..." in
+	Vectorization.Convert.runtime_vec := !floop_runtime_vec;
 	let cfg = VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfg in
 	let r1 = (Str.regexp "/") in
 	let slist = Str.split r1 !file_name in
@@ -165,6 +167,7 @@ try
 	     else fcfgv) in
 	  (* Now call the vectorization function on this *)
 	  let () = print_endline "....Vectorizing......" in
+	  Vectorization.Convert.runtime_vec := !floop_runtime_vec;
 	  VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfgv
 	else 
 	  (* let ast = DecompiletoAST.decompile cfgt in *)

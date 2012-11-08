@@ -63,7 +63,7 @@ let rec dot_simpleexpr = function
   | Brackets (x,_) -> dot_simpleexpr x
   | Cast (x,y,_) -> (("(" ^ DataTypes.print_datatype x) ^ ")") ^ (dot_simpleexpr y)
   | VecRef (ar,x,_) -> 
-    let sm = Array.fold_right (fun x y -> (string_of_int x) ^ y) ar " " in
+    let sm = List.fold_right (fun x y -> (dot_simpleexpr x) ^ "," ^ y) ar " " in
     sm ^ ("<" ^ get_vec_string x ^ ">")
   | Constvector (_,d,x,_) ->(("(" ^ DataTypes.print_datatype d) ^ ")") ^ "< " ^ (Array.fold_right (fun x y -> dot_simpleexpr x ^ "," ^ y) x "") ^ " >"
   | Vector (d,x,l,_) ->"<" ^ (DataTypes.print_datatype d) ^ " " ^ (dot_simpleexpr x) ^ "(" ^ (string_of_int l) ^ ")>" 
@@ -98,7 +98,8 @@ let dot_allsym = function
   | AllSymbol x -> (get_symbol x)
   | AllAddressedSymbol x -> (get_addressed_string x)
   | AllVecSymbol (ar,x) -> 
-    let sm = Array.fold_right (fun x y -> (string_of_int x) ^ y) ar " " in
+    let sm = Array.fold_right (fun x y -> (string_of_int x) ^ y) ar.ism " " in
+    let msm = List.fold_right (fun x y -> (dot_simpleexpr x) ^ "," ^ y) ar.sm " " in
     sm ^ get_vec_string x
 
 let rec dot_allsym_list = function

@@ -184,7 +184,7 @@ struct
     | AllAddressedSymbol of addressedSymbol
     | AllSymbol of symbol
     | AllTypedSymbol of typedSymbol
-    | AllVecSymbol of (simpleExpr,int) allvec_masks * vecaddresssymbol
+    | AllVecSymbol of (int,simpleExpr) allvec_masks * vecaddresssymbol
 
 
   type special =
