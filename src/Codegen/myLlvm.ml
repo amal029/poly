@@ -503,10 +503,14 @@ let rec codegen_simexpr declarations = function
       (if not !slots then "tempgep" else "") builder in
 
     (* Then we need to sign extend the thing to ptr type *)
-    let indices = List.map2 (fun x y ->
-      (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
-    	| "sext" -> build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
-    	| _ -> y)) itypes indices in
+    (* FIXME: I don't need to sign extend, do I?? *)
+    (* let indices = List.map2 (fun x y -> *)
+    (*   (match DataTypes.cmp_datatype (x,(Llvm_target.intptr_type)) with *)
+    (* 	| "sext" -> *)
+    (* 	  let () = IFDEF DEBUG THEN print_endline "performing sext" ELSE () ENDIF in *)
+    (* 	  build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder *)
+    (* 	| _ -> y)) itypes indices in *)
+
     let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
     (* We have to do this one after the other!! *)
     let () = IFDEF DEBUG THEN dump_value ret ELSE () ENDIF in
@@ -521,6 +525,7 @@ let rec codegen_simexpr declarations = function
        else
 	 (* Build the extra 0,0 address referencing *)
 	 ret := build_in_bounds_gep !ret (Array.of_list [findex;findex]) (if not !slots then "tempgep" else "") builder)) indices in 
+    let () = IFDEF DEBUG THEN print_endline "return ret" ELSE () ENDIF in
     !ret
 
   (* Generating the non constant vector *)
@@ -540,6 +545,7 @@ let rec codegen_simexpr declarations = function
     (* Now make the address symbol *)
     let vptr =
       if dll <> [] then
+	let () = IFDEF DEBUG THEN print_endline "dereferecing addrref" ELSE () ENDIF in 
 	let aptr = AddrRef (AddressedSymbol (name,[],[BracDim (List.map (fun x -> DimSpecExpr x) dll)],lc),lc) in
 	(* Now load the vector with the returned pointer *)
 	codegen_simexpr declarations aptr
@@ -1602,6 +1608,7 @@ let compile optimize myarch_gpu myarch myslots vipr modules filename cfg =
 	"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64" the_module
       in ()
    else if !march = "shave" then
+     let () = IFDEF DEBUG THEN print_endline "target is shave" ELSE () ENDIF in
      let () = set_target_triple "shave" the_module in
      let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32" the_module in ()
    else if !march = "x86_64-gnu-linux" then
