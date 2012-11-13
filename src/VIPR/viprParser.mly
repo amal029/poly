@@ -111,7 +111,7 @@ reference :
 storage : 
     | TOP Array literal typ TCP { Vipr.Array ($3,$4) }
     | TOP Variable literal groundType TCP { Vipr.Variable ($3,$4) }
-    | TOP Subarray literal typ typ index TCP                          { Vipr.Subarray ($3,$4,$5,$6) }
+    | TOP Subarray literal typ index TCP                          { Vipr.Subarray ($3,$4,$5) }
 ;
 
 index : 

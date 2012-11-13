@@ -7,7 +7,7 @@ INCLUDES +=-I.
 
 CFLAGS=-DDEBUG -O3 -S -emit-llvm -DDEBUG -I$(INCLUDES)
 
-all: print.ll nvvm.ll
+all: print.ll
 
 print.ll:
 	$(CC) $(CFLAGS) -o $@ print.c
@@ -15,6 +15,7 @@ print.ll:
 
 nvvm.ll:
 	$(CC) $(CFLAGS) -o $@ nvvm.c
+	llvm-as-3.0 nvvm.ll -o nvvm.bc
 
 clean:
 	rm -rf gmon.out *.ll *.bc

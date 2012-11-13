@@ -92,6 +92,10 @@ let func_name_counter = ref 1
 
 let enode = ref Empty
 
+let conv_pointer_size_to_type x = function
+  | 64 -> DataTypes.Int64s
+  | _ -> x
+
 type arg =
   | BLOCK
   | LOOP
@@ -520,9 +524,12 @@ let rec codegen_simexpr declarations = function
 
     (* Then we need to sign extend the thing to ptr type *)
     let indices = List.map2 (fun x y ->
-      (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
-    	| "sext" -> build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
+      (match DataTypes.cmp_datatype (x,(conv_pointer_size_to_type x ((Llvm_target.pointer_size !target_data)*8))) with
+    	| "sext" ->
+    	  let () = IFDEF DEBUG THEN print_endline "performing sext" ELSE () ENDIF in
+    	  build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
     	| _ -> y)) itypes indices in
+
     let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
     (* We have to do this one after the other!! *)
     let () = IFDEF DEBUG THEN dump_value ret ELSE () ENDIF in
@@ -850,11 +857,17 @@ let codegen_callargs defmore lc declarations = function
 	    | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
 	  let () = IFDEF DEBUG THEN dump_value alloca ELSE () ENDIF in
 	  let ret = build_in_bounds_gep alloca (Array.of_list [findex;findex]) (if not !slots then "tempgep" else "") builder in
+
 	  (* Then we need to sign extend the thing to ptr type *)
 	  let indices = List.map2 (fun x y ->
-	    (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
-    	      | "sext" -> build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
+	    (match DataTypes.cmp_datatype (x,(conv_pointer_size_to_type x ((Llvm_target.pointer_size !target_data)*8))) with
+    	      | "sext" ->
+    		let () = IFDEF DEBUG THEN print_endline "performing sext" ELSE () ENDIF in
+    		build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
     	      | _ -> y)) itypes indices in
+
+
+
 	  let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
 	  (* We have to do this one after the other!! *)
 	  let ret = ref ret in
@@ -912,12 +925,14 @@ let codegen_fcall stmt lc declarations = function
       let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in (callee,bargs)
     else 
       (* Move through all the user loaded modules and get the callee and the bargs *)
-      let callee_l = List.filter (fun x -> match lookup_function name x with | Some _ -> true | None -> false) !user_modules in
+      let callee_l = List.filter (fun x -> match lookup_function name x with | Some _ -> true | None -> false) (the_module:: !user_modules) in
       if callee_l = [] then raise (Error((Reporting.get_line_and_column lc) ^ "No function named: " ^ name ^ " found in llvm modules"))
       else if List.length callee_l <> 1 then raise (Error((Reporting.get_line_and_column lc) ^ "More than one module with same function declaration"))
       else 
 	let callee = match (lookup_function name (List.hd callee_l)) with | Some x -> x
-	  | None -> raise (Error((Reporting.get_line_and_column lc) ^ "No function named: " ^ name ^ " found in llvm modules")) in
+	  | None -> 
+	    let () = IFDEF DEBUG THEN dump_module the_module ELSE () ENDIF in
+	    raise (Error((Reporting.get_line_and_column lc) ^ "No function named: " ^ name ^ " found in llvm modules")) in
 	let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
 	(* Now declare the same named function with external linkage in this module *)
 	(* get the param types from the params *)
@@ -1223,11 +1238,19 @@ let codegen_stmt f declarations = function
 	      (* This is similar to simple-expr codegen for AddrRef*)
 	      let tempaddref = AddrRef(x,(get_addressed_symbol_lc x)) in
 	      codegen_simexpr !declarations tempaddref)) ll in
-	(* Now make the call *)
-	let () = IFDEF DEBUG THEN print_endline "Duping output arguments" ELSE () ENDIF in
+	let () = IFDEF DEBUG THEN print_endline "Dumping output arguments" ELSE () ENDIF in
 	let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) oargs ELSE () ENDIF in
-	let d =  build_call callee (Array.of_list (args@oargs)) "" builder in
-	let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ())
+	let () = 
+	  (match nvvm with
+	    (* This is the normal case *)
+	    | Some x -> (match x with | NVVM_Internal ->
+	      let d =  build_call callee (Array.of_list args) "" builder in
+	      let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in 
+	      if List.length oargs <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "more than one output for NVVM_Internal type"))
+	      else let _ = build_store d (List.hd oargs) builder in ())
+	    (* The normal case *)
+	    | None -> 
+	      let d =  build_call callee (Array.of_list (args@oargs)) "" builder in ()) in ())
   | VarDecl (x,lc) -> codegen_typedsymbol f declarations x
   | Noop -> ()
   | _ as s -> 
@@ -1515,7 +1538,8 @@ let llvm_filter_node vipr filename = function
     let the_function = llvm_topnode vipr topnode in 
     (* Add the_function to the list of kernel functions that need to be put
        into the metadata *)
-    kernel_values := the_function :: !kernel_values
+    kernel_values := the_function :: !kernel_values;
+    the_function
 
 (* This function actually writes the gpu.ll file out! *)
 let finalize filename = 
@@ -1543,6 +1567,7 @@ let init optimize myarch myslots vipr modules filename =
   march := myarch;
   myopt := optimize;
 
+  let () = IFDEF DEBUG THEN print_endline "in init" ELSE () ENDIF  in
   (* Set the target triple *)
   (if !march = "x86_64" || !march = "shave" ||  !march = "x86_64-gnu-linux" then raise (Internal_compiler_error "Reached CUDA codegen with incorrect march!!")
    else if !march = "nvvm-cuda-i32" then
@@ -1554,6 +1579,7 @@ let init optimize myarch myslots vipr modules filename =
      let () = set_data_layout "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64" the_module in ());
 
   (* Declare the always required annotations inside the module *)
+  let () = IFDEF DEBUG THEN print_endline "declaring internal nvvm functions" ELSE () ENDIF in
   let ft = function_type (i32_type context) [||] in
   let _ = declare_function "@llvm.nvvm.read.ptx.sreg.nctaid.x" ft the_module in
   let _ = declare_function "@llvm.nvvm.read.ptx.sreg.nctaid.y" ft the_module in
@@ -1573,97 +1599,3 @@ let init optimize myarch myslots vipr modules filename =
   user_modules := modules;
   the_module
 
-(* This function builds the ABI calls to the CUDA DRIVER ABI *)
-(* This function build in a different builder than the CUDA one *)
-let build_nvvm_abi_calls kname inptrs outptrs my_builder my_module my_context extra my_intptr_type = 
-
-  (* First try to get the signature of the POLY_REGISTER_INPUT *)
-  let poly_reg_input = List.filter (fun x -> match (lookup_function "POLY_REGISTER_INPUT" x) with | Some _ -> true | None -> false) !user_modules in
-  if List.length poly_reg_input <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_INPUT function in the user_modules (ABI)!!");
-  let poly_reg_input = List.hd poly_reg_input in
-  let callee = match (lookup_function "POLY_REGISTER_INPUT" poly_reg_input) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
-
-  let () = IFDEF DEBUG THEN dump_module poly_reg_input ELSE () ENDIF in
-  let param_types = Array.map (fun x -> type_of x) (params callee) in
-  let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
-  let callee_attrs = (function_attr callee) in
-
-  (* Declare the function *)
-  let eft = function_type (void_type context) param_types in
-  let reft = declare_function "POLY_REGISTER_INPUT" eft my_module in
-  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
-
-
-  (* Now we need to call the fucker in a sequence for all the inputs *)
-  let in_sizes = List.map (fun x -> 
-    (match x with
-	| SimTypedSymbol (dt,_,_) -> DataTypes.getdata_size dt 
-	| ComTypedSymbol (dt,(AddressedSymbol (_,_,(x::[]),_)),_) -> 
-	  let dims = 
-	    (match x with 
-	      | BracDim x -> List.map get_brac_dims x) in
-	  List.fold_right ( * ) (List.map int_of_string dims) (DataTypes.getdata_size dt))) extra.ins in
-
-  (* Should now turn it into the size_t type *)
-  let in_sizes = List.map (fun x -> const_int my_intptr_type x) in_sizes in
-  
-
-  (* Bitcast the input pointers to type void* *)
-  let inptrs = List.map (fun x -> build_bitcast x (pointer_type (void_type my_context)) "" my_builder) inptrs in
-
-  (* Now call the ABI function *)
-  let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" my_builder) inptrs in_sizes in
-
-  (* Now the same for output *)
-  let poly_reg_output = List.filter (fun x -> match lookup_function "POLY_REGISTER_OUTPUT" x with | Some _ -> true | None -> false) !user_modules in
-  if List.length poly_reg_output <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_OUTPUT function in the user_modules (ABI)!!");
-  let poly_reg_output = List.hd poly_reg_output in
-  let callee = match (lookup_function "POLY_REGISTER_INPUT" poly_reg_output) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
-  let () = IFDEF DEBUG THEN dump_module poly_reg_output ELSE () ENDIF in
-  let param_types = Array.map (fun x -> type_of x) (params callee) in
-  let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
-  let callee_attrs = (function_attr callee) in
-
-  (* Declare the function *)
-  let eft = function_type (void_type context) param_types in
-  let reft = declare_function "POLY_REGISTER_OUTPUT" eft my_module in
-  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
-
-  let out_sizes = List.map (fun x -> 
-    (match x with
-	| SimTypedSymbol (dt,_,_) -> DataTypes.getdata_size dt 
-	| ComTypedSymbol (dt,(AddressedSymbol (_,_,(x::[]),_)),_) -> 
-	  let dims = 
-	    (match x with 
-	      | BracDim x -> List.map get_brac_dims x) in
-	  List.fold_right ( * ) (List.map int_of_string dims) (DataTypes.getdata_size dt))) extra.outs in
-
-  let out_sizes = List.map (fun x -> const_int my_intptr_type x) out_sizes in
-  let outptrs = List.map (fun x -> build_bitcast x (pointer_type (void_type my_context)) "" my_builder) outptrs in
-
-  (* Now call the ABI function *)
-  let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" my_builder) outptrs out_sizes in
-  
-  (* Now we need to call the launch kernel function *)
-
-  let poly_reg_input = List.filter (fun x -> match (lookup_function "POLY_LAUNCH_KERNEL" x) with | Some _ -> true | None -> false) !user_modules in
-  if List.length poly_reg_input <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_INPUT function in the user_modules (ABI)!!");
-  let poly_reg_input = List.hd poly_reg_input in
-  let callee = match (lookup_function "POLY_LAUNCH_KERNEL" poly_reg_input) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
-
-  let () = IFDEF DEBUG THEN dump_module poly_reg_input ELSE () ENDIF in
-  let param_types = Array.map (fun x -> type_of x) (params callee) in
-  let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
-  let callee_attrs = (function_attr callee) in
-
-  (* Declare the function *)
-  let eft = function_type (void_type context) param_types in
-  let reft = declare_function "POLY_LAUNCH_KERNEL" eft my_module in
-  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
-
-(* Now just make the ABI launch kernel call *)
-  let limits = List.map (fun x -> const_int (Llvm_target.intptr_type !target_data) x) extra.ll in
-  let mf = !myfilename ^ ".gpu.ll" in
-  let limits = (const_string my_context mf) :: limits in
-  let limits = (const_string my_context kname) :: limits in
-  let _ = build_call reft (Array.of_list limits) "" my_builder in ()

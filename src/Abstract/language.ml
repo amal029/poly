@@ -189,6 +189,7 @@ struct
 
   type special =
     | NVVM of (int,typedSymbol) extra_data
+    | NVVM_Internal 
 
   type stmt = 
     | Assign of allsym list * expr * (line * column) * special option (*a=10*)

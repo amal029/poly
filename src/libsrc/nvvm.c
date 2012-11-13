@@ -140,7 +140,7 @@ poly_run_kernel (size_t p1, size_t p2, size_t p3, const char *filename, const ch
 
 size_t
 get_size (struct arg *p) {
-  return p->memsize;
+  return (p->memsize)/8;
 } 
 
 /* Allocates memory on the device */
@@ -169,11 +169,11 @@ assign_dev_mem () {
 
 /* THE ABI */
 
-void POLY_REGISTER_INPUT(void *d, size_t s){poly_set_param (d,s,&ins,NULL);}
-void POLY_REGISTER_OUTPUT(void *d, size_t s){poly_set_param (d,s,NULL,&outs); }
+void POLY_REGISTER_INPUT(void *d, int s){poly_set_param (d,s,&ins,NULL);}
+void POLY_REGISTER_OUTPUT(void *d, int s){poly_set_param (d,s,NULL,&outs); }
 void POLY_DEREGISTER_INPUTS (){ poly_delete_param (&ins,NULL);}
 void POLY_DEREGISTER_OUTPUTS (){poly_delete_param (NULL,&outs);}
-void POLY_LAUNCH_KERNEL (size_t p1,size_t p2, size_t p3, const char *f, const char *t){poly_run_kernel (p1,p2,p3,f,t);}
+void POLY_LAUNCH_KERNEL (const char *f, const char *t, int p1, int p2, int p3){poly_run_kernel (p1,p2,p3,f,t);}
 
 #include "cuda_kernel_launch.c"
 

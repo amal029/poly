@@ -49,7 +49,7 @@ type index =
 and storage = 
   | Array of literal * types
   | Variable of literal * Language.DataTypes.t
-  | Subarray of literal * types * types * index
+  | Subarray of literal * types * index
 
 and reference =
   | StaticArrayRef of literal * index

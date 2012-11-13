@@ -35,10 +35,10 @@ try
 		      ("-floop-transpose", Arg.Set floop_transpose, " Transpose loops for locality optimizations");
 		      ("-floop-runtime-vectorize", Arg.Set floop_runtime_vec, " Vectorize the loops at runtime (dangerous!!)");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
-		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n x86_64-gnu-linux and [default = x86_64, which is apple darwin]");
+		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n\t x86_64-gnu-linux and i386-gnu-linux [default = x86_64, which is apple darwin]");
 		      ("-march-gpu", Arg.String (fun x -> march_gpu := x), " Set the march for compilation, available: nvvm-cuda-i32 nvvm-cuda-i64, [default:Off] ");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
-		      ("-graph-part", Arg.Set graph_part, 
+		      ("-graph-part", Arg.Set graph_part,
 		       " Produce the stream graph for vectorization and partitoning on heterogeneous architecture using Zoltan" );
 		      ("-graph-tile", Arg.Set graph_tile, " Option with -graph-part, used to tile the loops");
 		      ("-gtn", Arg.Int (fun x -> gtn := x), " The size of the vector tile [default=<vector-length>/10]");
@@ -97,13 +97,13 @@ try
 	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " 
 			       ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
-	  if !march = "shave" then
+	  if !march <> "x86_64" then
 	    let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in ()
 	  else ();
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else if not !optimize then 
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
-	  if !march = "shave" then
+	  if !march <> "x86_64" then
 	    let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in ()
 	  else ();
 	  let _ = Sys.command ("rm -rf *.lle") in
@@ -168,7 +168,7 @@ try
 	      let () = print_endline ".....Performing loop interchange......" in
 	      LoopInterchange.interchange fcfgv else fcfgv in
 	  let fcfgv =
-	    (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
+	    (if (!march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32") && !outline then
 		Loop_out.Kernel.process fcfgv
 	     else fcfgv) in
 	  (* Now call the vectorization function on this *)
@@ -176,10 +176,13 @@ try
 	  Vectorization.Convert.runtime_vec := !floop_runtime_vec;
 	  VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfgv
 	else 
-	  (* let ast = DecompiletoAST.decompile cfgt in *)
-	  (* let fcfg = Fcfg.check_ast ast in *)
-	  (* Cfg.check_fcfg fcfg in  *)
-	  cfgt in
+	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
+	      let fcfgv = 
+		(if !outline then
+		    let () = print_endline ".....Performing loop outline......" in
+		    Loop_out.Kernel.process fcfgv else fcfgv) in
+	      VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfgv
+	   else cfgt) in
       if !dot then
 	let () = Dot.build_program_dot cfgt "output1/output1.dot" in ()
       else ();
@@ -197,7 +200,10 @@ try
 	else if not !optimize then 
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
-	      let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ());
+	      try 
+		let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ()
+	      with
+		| _ -> ());
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
       if !decompile_flag_stg then

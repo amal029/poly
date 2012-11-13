@@ -16,6 +16,7 @@ let slots = ref false
 let march = ref "x86_64"
 let march_gpu = ref ""
 let myopt = ref true
+let myfilename = ref ""
 
 (* let context = global_context () *)
 let context = create_context ()
@@ -105,6 +106,10 @@ let get_data_types lc = function
   | DataTypes.Int8s | DataTypes.Int16s | DataTypes.Int32s | DataTypes.Int64s -> "int"
   | DataTypes.Float8 | DataTypes.Float16 | DataTypes.Float32 | DataTypes.Float64 -> "float"
   | _ -> raise (Error ((Reporting.get_line_and_column lc) ^ " datatype not supported in LLVM IR"))
+
+let conv_pointer_size_to_type x = function
+  | 64 -> DataTypes.Int64s
+  | _ -> x
 
 let get_symbol_lc = function
   | Symbol(_,lc) -> lc
@@ -243,6 +248,102 @@ let derefence_pointer pointer =
     | TypeKind.Pointer -> 
 	build_load pointer (if not !slots then "dereference_pointer" else "") builder
     | _ -> pointer
+
+let build_nvvm_abi_calls kname inptrs outptrs extra = 
+
+  let poly_reg_output = List.filter (fun x -> match lookup_function "POLY_REGISTER_INPUT" x with | Some _ -> true | None -> false) !user_modules in
+  if List.length poly_reg_output <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_INPUT function in the user_modules (ABI)!!");
+  let poly_reg_output = List.hd poly_reg_output in
+  let callee = match (lookup_function "POLY_REGISTER_INPUT" poly_reg_output) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
+  let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
+  let param_types = Array.map (fun x -> type_of x) (params callee) in
+  let callee_attrs = (function_attr callee) in
+
+  (* Declare the function *)
+  let eft = function_type (void_type context) param_types in
+  let reft = declare_function "POLY_REGISTER_INPUT" eft the_module in
+  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+
+  let in_sizes = List.map (fun x -> 
+    (match x with
+	| SimTypedSymbol (dt,_,_) -> DataTypes.getdata_size dt 
+	| ComTypedSymbol (dt,(AddressedSymbol (_,_,(x::[]),_)),_) -> 
+	  let dims = 
+	    (match x with 
+	      | BracDim x -> List.map get_brac_dims x) in
+	  List.fold_right ( * ) (List.map int_of_string dims) (DataTypes.getdata_size dt))) extra.ins in
+
+  let in_sizes = List.map (fun x -> const_int (i32_type context) x) in_sizes in
+
+  (* Bitcast the input pointers to type void* *)
+  let inptrs = List.map (fun x -> build_bitcast x (pointer_type (i8_type context)) "" builder) inptrs in
+
+  if List.length inptrs <> List.length in_sizes then
+    raise (Internal_compiler_error "inptrs <> in_sizes");
+
+  (* Now call the ABI function *)
+  let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" builder) inptrs in_sizes in
+
+  (* Now the same for output *)
+  let poly_reg_output = List.filter (fun x -> match lookup_function "POLY_REGISTER_OUTPUT" x with | Some _ -> true | None -> false) !user_modules in
+  if List.length poly_reg_output <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_OUTPUT function in the user_modules (ABI)!!");
+  let poly_reg_output = List.hd poly_reg_output in
+  let callee = match (lookup_function "POLY_REGISTER_OUTPUT" poly_reg_output) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
+  let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
+  let param_types = Array.map (fun x -> type_of x) (params callee) in
+  let callee_attrs = (function_attr callee) in
+
+  (* Declare the function *)
+  let eft = function_type (void_type context) param_types in
+  let reft = declare_function "POLY_REGISTER_OUTPUT" eft the_module in
+  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+
+  let out_sizes = List.map (fun x -> 
+    (match x with
+	| SimTypedSymbol (dt,_,_) -> DataTypes.getdata_size dt 
+	| ComTypedSymbol (dt,(AddressedSymbol (_,_,(x::[]),_)),_) -> 
+	  let dims = 
+	    (match x with 
+	      | BracDim x -> List.map get_brac_dims x) in
+	  List.fold_right ( * ) (List.map int_of_string dims) (DataTypes.getdata_size dt))) extra.outs in
+
+  let out_sizes = List.map (fun x -> const_int (i32_type context) x) out_sizes in
+  let outptrs = List.map (fun x -> build_bitcast x (pointer_type (i8_type context)) "" builder) outptrs in
+
+  (* Now call the ABI function *)
+  let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" builder) outptrs out_sizes in
+  
+  (* Now we need to call the launch kernel function *)
+  let () = IFDEF DEBUG THEN print_endline "Now building the launch kernel call!!" ELSE () ENDIF in
+
+  let poly_reg_input = List.filter (fun x -> match (lookup_function "POLY_LAUNCH_KERNEL" x) with | Some _ -> true | None -> false) !user_modules in
+  if List.length poly_reg_input <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_INPUT function in the user_modules (ABI)!!");
+  let poly_reg_input = List.hd poly_reg_input in
+  let callee = match (lookup_function "POLY_LAUNCH_KERNEL" poly_reg_input) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
+
+  let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
+  let param_types = Array.map (fun x -> type_of x) (params callee) in
+  let () = Array.iter (fun x -> set_param_alignment x 32) (params callee) in
+  let callee_attrs = (function_attr callee) in
+
+  (* Declare the function *)
+  let eft = function_type (void_type context) param_types in
+  let reft = declare_function "POLY_LAUNCH_KERNEL" eft the_module in
+  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+
+  (* Now just make the ABI launch kernel call *)
+  let limits = List.map (fun x -> const_int (i32_type context) x) extra.ll in
+  let mf = !myfilename ^ ".gpu.ll" in
+  let mfglobal = define_global "" (const_stringz context mf) the_module in
+  let () = IFDEF DEBUG THEN dump_value mfglobal ELSE () ENDIF in
+  let kglobal = define_global "" (const_stringz context kname) the_module in
+  let () = IFDEF DEBUG THEN dump_value kglobal ELSE () ENDIF in
+  let mfptr = build_bitcast mfglobal (pointer_type (i8_type context)) "" builder in
+  let kptr = build_bitcast kglobal (pointer_type (i8_type context)) "" builder in
+  let limits =  mfptr :: ([kptr]@limits) in
+  let () = IFDEF DEBUG THEN List.iter dump_value limits ELSE () ENDIF in
+  let _ = build_call reft (Array.of_list limits) "" builder in ()
+(* Now deregister the inputs and the outputs *)
 
 let rec codegen_simexpr declarations = function
   | Plus (x,y,lc) -> 
@@ -503,13 +604,12 @@ let rec codegen_simexpr declarations = function
       (if not !slots then "tempgep" else "") builder in
 
     (* Then we need to sign extend the thing to ptr type *)
-    (* FIXME: I don't need to sign extend, do I?? *)
-    (* let indices = List.map2 (fun x y -> *)
-    (*   (match DataTypes.cmp_datatype (x,(Llvm_target.intptr_type)) with *)
-    (* 	| "sext" -> *)
-    (* 	  let () = IFDEF DEBUG THEN print_endline "performing sext" ELSE () ENDIF in *)
-    (* 	  build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder *)
-    (* 	| _ -> y)) itypes indices in *)
+    let indices = List.map2 (fun x y ->
+      (match DataTypes.cmp_datatype (x,(conv_pointer_size_to_type x ((Llvm_target.pointer_size !target_data)*8))) with
+    	| "sext" ->
+    	  let () = IFDEF DEBUG THEN print_endline "performing sext" ELSE () ENDIF in
+    	  build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
+    	| _ -> y)) itypes indices in
 
     let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
     (* We have to do this one after the other!! *)
@@ -848,7 +948,7 @@ let codegen_callargs defmore lc declarations = function
 	  let ret = build_in_bounds_gep alloca (Array.of_list [findex;findex]) (if not !slots then "tempgep" else "") builder in
 	  (* Then we need to sign extend the thing to ptr type *)
 	  let indices = List.map2 (fun x y ->
-	    (match DataTypes.cmp_datatype (x,DataTypes.Int64s) with
+	    (match DataTypes.cmp_datatype (x,(conv_pointer_size_to_type x ((Llvm_target.pointer_size !target_data)*8))) with
     	      | "sext" -> build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
     	      | _ -> y)) itypes indices in
 	  let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
@@ -1277,10 +1377,9 @@ let codegen_stmt f declarations = function
 	    (match x with 
 	      | NVVM x -> 
 		(* Now call the CUDA ABI builder *)
-		MyLlvm_cuda.build_nvvm_abi_calls (match eftt with 
-		  | Call (name,_,_) -> get_symbol name) args 
-		  oargs builder the_module context x (Llvm_target.intptr_type !target_data)
-	      | _ -> raise (Internal_compiler_error "Unrecognixed special call!!"))
+		build_nvvm_abi_calls (match eftt with 
+		  | Call (name,_,_) -> get_symbol name) args oargs x 
+	      | _ -> raise (Internal_compiler_error "Unrecognized special call!!"))
 	  | None ->
 	    let d =  build_call callee (Array.of_list (args@oargs)) "" builder in
 	    let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in ()))
@@ -1569,20 +1668,23 @@ let llvm_topnode vipr = function
 let rec llvm_filter_node vipr filename = function
   | Filternode (topnode, ll) as ff -> 
     let () = List.iter (fun x -> llvm_filter_node vipr filename x) ll in 
-    let the_function = llvm_topnode vipr topnode in
     (match topnode with Topnode(_,n,_,_,special) ->
       (* This means call the GPU generation kernel *)
-      (if (match special with | Some x -> (match x with (NVVM _) -> true | _ -> false) | None -> false) then
-	  (* This function delcaration should happen on its own, because
-	     it is an external function from this modules perspective *)
-	  MyLlvm_cuda.llvm_filter_node vipr filename ff);
+      let () = IFDEF DEBUG THEN print_endline ("Filter being built: " ^ n) ELSE () ENDIF in
+      let the_function = 
+	(if (match special with | Some x -> (match x with (NVVM _) -> true | _ -> false) | None -> false) then
+	    (* This function delcaration should happen on its own, because
+	       it is an external function from this modules perspective *)
+	    let () = IFDEF DEBUG THEN print_endline ("calling cuda builder on kernel : " ^ n) ELSE () ENDIF in
+	    MyLlvm_cuda.llvm_filter_node vipr filename ff
+	 else llvm_topnode vipr topnode) in
       if n = "main" then
 	let () = 
 	  (if !myopt then
 	      let _ = PassManager.run_module the_module the_mpm in
 	      let () = IFDEF DEBUG THEN print_endline ("Changed the module with IPO") ELSE () ENDIF in ()) in
 	(* Try writing the gpu file as well *)
-	(if (match special with | Some x -> (match x with (NVVM _) -> true | _ -> false) | None -> false) then
+	(if !march_gpu <> "" then
 	    MyLlvm_cuda.finalize filename);
     	let () = if Llvm_bitwriter.write_bitcode_file the_module (filename^".bc") then ()
     	  else raise (Error ("Could not write the llvm module to output.ll file")) in ()
@@ -1597,6 +1699,7 @@ let compile optimize myarch_gpu myarch myslots vipr modules filename cfg =
   march := myarch;
   march_gpu := myarch_gpu;
   myopt := optimize;
+  myfilename := filename;
   target_data := 
     (if !march = "x86_64" then !target_data
      else Llvm_target.DataLayout.create "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32");
@@ -1614,6 +1717,9 @@ let compile optimize myarch_gpu myarch myslots vipr modules filename cfg =
    else if !march = "x86_64-gnu-linux" then
      let () = set_target_triple "x86_64-unknown-linux-gnu" the_module in
      let () = set_data_layout "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128" the_module in ()
+   else if !march = "i386-gnu-linux" then
+     let () = set_target_triple "i386-gnu-linux" the_module in
+     let () = set_data_layout "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:32:32-n8:16:32-S128" the_module in ()
    else if (!march = "nvvm-cuda-i32") || (!march = "nvvm-cuda-i64") then raise (Error "Provided the wrong CPU archtecture!!"));
 
   let membufs = List.map (fun x -> MemoryBuffer.of_file x) modules in
@@ -1622,6 +1728,7 @@ let compile optimize myarch_gpu myarch myslots vipr modules filename cfg =
   (* Set the user supported modules *)
   user_modules := modules;
   (* Initialize the GPU *)
+  let () = IFDEF DEBUG THEN print_endline !march_gpu ELSE () ENDIF in
   if (!march_gpu <> "") then user_modules := (MyLlvm_cuda.init optimize !march_gpu myslots vipr modules filename) :: !user_modules;
   (* Now compile *)
   let () = llvm_filter_node vipr filename cfg in ()

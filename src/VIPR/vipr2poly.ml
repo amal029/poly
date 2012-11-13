@@ -76,7 +76,7 @@ let process_storage = function
   | Array (x,y) -> 
     Language.Language.ComTypedSymbol (process_gt_of_types y, Language.Language.AddressedSymbol (process_symbol x, [], [process_dims_of y], get_lc), get_lc)
   | Variable (x,gt) -> Language.Language.SimTypedSymbol(gt,process_symbol x,get_lc)
-  | Subarray (x,y,z,i) -> raise (Internal_compiler_error "Currently subarrays are not handled in poly, because poly does not know what subarrays really are?")
+  | Subarray _ -> raise (Internal_compiler_error "Currently subarrays are not handled in poly, because poly does not know what subarrays really are?")
 
 (* Needs to be fixed *)
 let parse_const_type const = 
