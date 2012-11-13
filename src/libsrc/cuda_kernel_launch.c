@@ -45,7 +45,7 @@ CUresult initCUDA(CUcontext *phContext,
                   CUmodule *phModule,
                   CUfunction *phKernel,
                   const char *ptx,
-		  const  char *kname)
+                  const  char *kname)
 {
   // Initialize 
   /* Initialization using the driver API */

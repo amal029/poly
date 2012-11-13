@@ -153,15 +153,15 @@ struct
       let sym2 = Symbol(((get_symbol x)^"ntid"^(string_of_int i)),lc) in
       let sym3 = Symbol(((get_symbol x)^"tid"^(string_of_int i)),lc) in
       let assign_l1 = AllTypedSymbol (SimTypedSymbol(DataTypes.Int32s,sym1,lc)) in
-      let fcall1 = Call (Symbol(("@llvm.nvvm.read.ptx.sreg.ctaid."^vv),lc),[],lc) in
+      let fcall1 = Call (Symbol(("llvm.nvvm.read.ptx.sreg.ctaid."^vv),lc),[],lc) in
       let assign_r = FCall (fcall1,true) in
       let st1 = Assign ([assign_l1],assign_r,lc,Some NVVM_Internal) in
       let assign_l2 = AllTypedSymbol (SimTypedSymbol(DataTypes.Int32s,sym2,lc)) in
-      let fcall2 = Call (Symbol(("@llvm.nvvm.read.ptx.sreg.ntid."^vv),lc),[],lc) in
+      let fcall2 = Call (Symbol(("llvm.nvvm.read.ptx.sreg.ntid."^vv),lc),[],lc) in
       let assign_r2 = FCall (fcall2,true) in
       let st2 = Assign ([assign_l2],assign_r2,lc,Some NVVM_Internal) in
       let assign_l3 = AllTypedSymbol (SimTypedSymbol(DataTypes.Int32s,sym3,lc)) in
-      let fcall3 = Call (Symbol(("@llvm.nvvm.read.ptx.sreg.tid."^vv),lc),[],lc) in
+      let fcall3 = Call (Symbol(("llvm.nvvm.read.ptx.sreg.tid."^vv),lc),[],lc) in
       let assign_r3 = FCall (fcall3,true) in
       let st3 = Assign ([assign_l3],assign_r3,lc,Some NVVM_Internal) in
 

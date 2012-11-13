@@ -925,6 +925,7 @@ let codegen_fcall stmt lc declarations = function
       let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in (callee,bargs)
     else 
       (* Move through all the user loaded modules and get the callee and the bargs *)
+      let () = IFDEF DEBUG THEN dump_module the_module ELSE () ENDIF in
       let callee_l = List.filter (fun x -> match lookup_function name x with | Some _ -> true | None -> false) (the_module:: !user_modules) in
       if callee_l = [] then raise (Error((Reporting.get_line_and_column lc) ^ "No function named: " ^ name ^ " found in llvm modules"))
       else if List.length callee_l <> 1 then raise (Error((Reporting.get_line_and_column lc) ^ "More than one module with same function declaration"))
@@ -1581,19 +1582,19 @@ let init optimize myarch myslots vipr modules filename =
   (* Declare the always required annotations inside the module *)
   let () = IFDEF DEBUG THEN print_endline "declaring internal nvvm functions" ELSE () ENDIF in
   let ft = function_type (i32_type context) [||] in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.nctaid.x" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.nctaid.y" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.nctaid.z" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.ctaid.x" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.ctaid.y" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.ctaid.z" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.ntid.x" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.ntid.y" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.ntid.z" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.tid.x" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.tid.y" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.tid.z" ft the_module in
-  let _ = declare_function "@llvm.nvvm.read.ptx.sreg.warpsize" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.nctaid.x" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.nctaid.y" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.nctaid.z" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.ctaid.x" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.ctaid.y" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.ctaid.z" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.ntid.x" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.ntid.y" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.ntid.z" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.tid.x" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.tid.y" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.tid.z" ft the_module in
+  let _ = declare_function "llvm.nvvm.read.ptx.sreg.warpsize" ft the_module in
 
   (* Set the user supported modules *)
   user_modules := modules;
