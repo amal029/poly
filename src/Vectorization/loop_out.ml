@@ -170,7 +170,8 @@ struct
       let mul_assign = AllTypedSymbol 
 	(SimTypedSymbol(DataTypes.Int32s,
 			Symbol(((get_symbol x)^"mul"^(string_of_int i)),lc),lc)) in
-      let mul_r = SimExpr (Times (VarRef (sym1, lc), VarRef (sym2, lc),lc)) in
+      (* let mul_r = SimExpr (Times (VarRef (sym1, lc), VarRef (sym2, lc),lc)) in *)
+      let mul_r = SimExpr (Plus ((Times (VarRef (sym1, lc), VarRef (sym2, lc),lc)),VarRef (sym3,lc),lc)) in
       let sym4 = AllTypedSymbol(SimTypedSymbol (DataTypes.Int32s,x,lc)) in
       let assign = Assign ([sym4],mul_r,lc,None) in [st1;st2;st3;assign])!pindices) in
     (* Now just get the statements without the par loops!! *)

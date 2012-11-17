@@ -61,6 +61,7 @@ extern void print_array3 (int size, int s2, int s3, int A[size][s2][s3], int *re
       for(k=0;k<s3;++k)
       fprintf(stdout,"%d\t",A[i][j][k]);
   fprintf(stdout,"\n");
+  fflush(stdout);
   *ret = (i+j+k);
 }
 

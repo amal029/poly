@@ -244,11 +244,12 @@ and evaluate_stride_expression index start = function
 and get_loop_stride index start = function
   | Language.Language.Assign (_,x,lc,_) -> 
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_expr x) ELSE () ENDIF in
-    let vconst_stride = evaluate_stride_expression index start (match x with | Language.Language.SimExpr x -> x 
+    let vconst_stride = evaluate_stride_expression index (Language.Language.Const (Language.DataTypes.Int32s, "0",lc)) (match x with | Language.Language.SimExpr x -> x 
       | _ -> raise (Internal_compiler_error "Not function calls in stride calcs")) in
-    (match vconst_stride with
+    let ret = (match vconst_stride with
       | Language.Consts.VConst (x,y) -> Language.Language.Const(x,y,lc)
-      | _ -> (match x with | Language.Language.SimExpr x -> x | _ -> raise (Internal_compiler_error "Loop expression cannot be incremented in a function type")))
+      | _ -> (match x with | Language.Language.SimExpr x -> x | _ -> raise (Internal_compiler_error "Loop expression cannot be incremented in a function type"))) in
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr ret) ELSE () ENDIF in ret
   | _ -> raise (Internal_compiler_error " Currently poly only supports assignment to loop strides")
 
 and process_stmt = function

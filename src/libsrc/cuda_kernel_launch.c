@@ -154,15 +154,8 @@ char *generatePTX(const char *ll, size_t size)
   return PTX;
 }
 
-int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv)
-{
+int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv) {
     
-  /* Changed this to use just 1 thread */
-  /* We need to determine the number of threads and blocks to use */
-  /* unsigned int nThreads = 0; */
-  /* unsigned int nBlocks  = 0; */
-  /* size_t memSize = nThreads * nBlocks * sizeof(int); */
-
   CUcontext    hContext = 0;
   CUdevice     hDevice  = 0;
   CUmodule     hModule  = 0;
@@ -179,7 +172,7 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv)
   // Use libnvvm to generte PTX
   /* This is their compiler from ll to ptx */
   char *ptx = generatePTX(ll, size);
-#ifdef DEBUG
+#ifdef PPTX
   fprintf(stdout, "PTX generated:\n");
   fprintf(stdout, "%s\n", ptx);
 #endif
@@ -191,11 +184,15 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv)
   checkCudaErrors(initCUDA(&hContext, &hDevice, &hModule, &hKernel, ptx, argv));
 
   // Allocate memory on device and also transfer data to device
+  LIST_INIT (&devs);
   assign_dev_mem();
 
   /* Now we need to make the call to the CUDA kernel */
   /* For now we assume that the blocks will result in equal sizes */
   
+  if (p1 == 0) p1 = 1;
+  if (p2 == 0) p2 = 1;
+  if (p3 == 0) p3 = 1;
   int threadsperblockX, threadsperblockY, threadsperblockZ;
 #ifdef NTPBX
   threadsperblockX = NTPBX;
@@ -231,14 +228,20 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv)
   struct device_ptrs *dev_t = NULL;
   size_t paramOffset = 0;
   size_t input_counter = 0;
-  size_t output_counter = 0;
   struct arg *p = NULL;
   LIST_FOREACH (p,&ins,enteries) ++input_counter;
   p = NULL;
-  LIST_FOREACH (p,&outs,enteries) ++output_counter;
   p = NULL;
-  void *kernelParams [input_counter+output_counter+2];
+  void *kernelParams [(input_counter-skip)+2];
   size_t c = 0;
+
+#ifdef DEBUG
+  size_t mcounter = 0;
+  LIST_FOREACH (dev_t,&devs,devices) ++mcounter;
+  fprintf(stdout,"DEV LIST SIZE: %d\n",mcounter);
+  fflush(stdout);
+#endif
+
   LIST_FOREACH (dev_t,&devs,devices) {
     kernelParams[c] = &(dev_t->d_data);
     ++c;
@@ -257,16 +260,22 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv)
   c = 0;
   /* Now we can copy from device to host */
   
-  while (c <= input_counter ) {
-    dev_t = LIST_NEXT (dev_t,devices);
-    ++c;
-  }
+  fprintf(stdout, "Copying from device to host, input_counter is: %d\n",(input_counter-skip));
 
-  LIST_FOREACH (p,&outs,enteries) {
-    dev_t = LIST_NEXT (dev_t,devices);
+  /* Need to skip here as well */
+  size_t counter = 0;
+  p = LIST_FIRST (&ins);
+  while (counter < skip) {
+    p = LIST_NEXT (p,enteries);
+    ++counter;
+  }
+  /* Now assign memory back to host */
+  do {
     checkCudaErrors(cuMemcpyDtoH((p->data), (dev_t->d_data), get_size (p)));
-  }
+    dev_t = LIST_NEXT (dev_t,devices);
+  }while((p=LIST_NEXT(p,enteries)) != NULL);
 
+  printf("finished copying from device to host\n");
     
   /* Cleanup */
   struct device_ptrs *dt = LIST_FIRST (&devs);
@@ -278,8 +287,10 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv)
     dt = dev_t;
   }
 
-  POLY_DEREGISTER_INPUTS();
-  POLY_DEREGISTER_OUTPUTS();
+  /* We need to increment skip here */
+  skip = input_counter;
+  /* POLY_DEREGISTER_INPUTS(); */
+  /* POLY_DEREGISTER_OUTPUTS(); */
 
   if (hModule) {
     checkCudaErrors(cuModuleUnload(hModule));

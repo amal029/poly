@@ -219,6 +219,7 @@ let rec get_simexpr_type declarations = function
   | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) | Lshift(x,_,_) | Rshift(x,_,_)
   | Div (x,_,_) | Times (x,_,_) | Mod (x,_,_) -> get_simexpr_type declarations x
   | Opposite (x,_) -> get_simexpr_type declarations x
+  | Abs (x,lc) -> get_simexpr_type declarations x
   | Const (x,_,lc) -> get_data_types lc x
   | Cast (x,_,lc) -> get_data_types lc x
   | Brackets (x,_) -> get_simexpr_type declarations x
@@ -233,6 +234,7 @@ let rec get_exact_simexpr_type declarations = function
   | Plus (x,_,_) | Minus (x,_,_) | Pow (x,_,_) | Lshift(x,_,_) | Rshift(x,_,_)
   | Div (x,_,_) | Times (x,_,_) | Mod (x,_,_) -> get_exact_simexpr_type declarations x
   | Opposite (x,_) -> get_exact_simexpr_type declarations x
+  | Abs (x,lc) -> get_exact_simexpr_type declarations x
   | Const (x,_,_) -> x
   | Vector (x,_,_,_) -> x
   | Cast (x,_,_) -> x
@@ -285,33 +287,33 @@ let build_nvvm_abi_calls kname inptrs outptrs extra =
   let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" builder) inptrs in_sizes in
 
   (* Now the same for output *)
-  let poly_reg_output = List.filter (fun x -> match lookup_function "POLY_REGISTER_OUTPUT" x with | Some _ -> true | None -> false) !user_modules in
-  if List.length poly_reg_output <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_OUTPUT function in the user_modules (ABI)!!");
-  let poly_reg_output = List.hd poly_reg_output in
-  let callee = match (lookup_function "POLY_REGISTER_OUTPUT" poly_reg_output) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in
-  let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
-  let param_types = Array.map (fun x -> type_of x) (params callee) in
-  let callee_attrs = (function_attr callee) in
+  (* let poly_reg_output = List.filter (fun x -> match lookup_function "POLY_REGISTER_OUTPUT" x with | Some _ -> true | None -> false) !user_modules in *)
+  (* if List.length poly_reg_output <> 1 then raise (Internal_compiler_error "Could not find the POLY_REG_OUTPUT function in the user_modules (ABI)!!"); *)
+  (* let poly_reg_output = List.hd poly_reg_output in *)
+  (* let callee = match (lookup_function "POLY_REGISTER_OUTPUT" poly_reg_output) with Some x -> x | None -> (raise (Internal_compiler_error "Something wrong!!")) in *)
+  (* let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in *)
+  (* let param_types = Array.map (fun x -> type_of x) (params callee) in *)
+  (* let callee_attrs = (function_attr callee) in *)
 
-  (* Declare the function *)
-  let eft = function_type (void_type context) param_types in
-  let reft = declare_function "POLY_REGISTER_OUTPUT" eft the_module in
-  let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in
+  (* (\* Declare the function *\) *)
+  (* let eft = function_type (void_type context) param_types in *)
+  (* let reft = declare_function "POLY_REGISTER_OUTPUT" eft the_module in *)
+  (* let () = List.iter (fun x -> add_function_attr reft x) callee_attrs in *)
 
-  let out_sizes = List.map (fun x -> 
-    (match x with
-	| SimTypedSymbol (dt,_,_) -> DataTypes.getdata_size dt 
-	| ComTypedSymbol (dt,(AddressedSymbol (_,_,(x::[]),_)),_) -> 
-	  let dims = 
-	    (match x with 
-	      | BracDim x -> List.map get_brac_dims x) in
-	  List.fold_right ( * ) (List.map int_of_string dims) (DataTypes.getdata_size dt))) extra.outs in
+  (* let out_sizes = List.map (fun x ->  *)
+  (*   (match x with *)
+  (* 	| SimTypedSymbol (dt,_,_) -> DataTypes.getdata_size dt  *)
+  (* 	| ComTypedSymbol (dt,(AddressedSymbol (_,_,(x::[]),_)),_) ->  *)
+  (* 	  let dims =  *)
+  (* 	    (match x with  *)
+  (* 	      | BracDim x -> List.map get_brac_dims x) in *)
+  (* 	  List.fold_right ( * ) (List.map int_of_string dims) (DataTypes.getdata_size dt))) extra.outs in *)
 
-  let out_sizes = List.map (fun x -> const_int (i32_type context) x) out_sizes in
-  let outptrs = List.map (fun x -> build_bitcast x (pointer_type (i8_type context)) "" builder) outptrs in
+  (* let out_sizes = List.map (fun x -> const_int (i32_type context) x) out_sizes in *)
+  (* let outptrs = List.map (fun x -> build_bitcast x (pointer_type (i8_type context)) "" builder) outptrs in *)
 
-  (* Now call the ABI function *)
-  let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" builder) outptrs out_sizes in
+  (* (\* Now call the ABI function *\) *)
+  (* let _ = List.map2 (fun x -> fun y -> build_call reft [|x;y|] "" builder) outptrs out_sizes in *)
   
   (* Now we need to call the launch kernel function *)
   let () = IFDEF DEBUG THEN print_endline "Now building the launch kernel call!!" ELSE () ENDIF in
@@ -333,6 +335,13 @@ let build_nvvm_abi_calls kname inptrs outptrs extra =
 
   (* Now just make the ABI launch kernel call *)
   let limits = List.map (fun x -> const_int (i32_type context) x) extra.ll in
+  (* If there are not enough dimensions then make 0's *)
+  let limits = 
+    if List.length limits  = 1 then
+      limits @ [(const_int (i32_type context) 0);(const_int (i32_type context) 0)] 
+    else if List.length limits = 2 then
+      limits @ [(const_int (i32_type context) 0)]
+    else limits in
   let mf = !myfilename ^ ".gpu.ll" in
   let mfglobal = define_global "" (const_stringz context mf) the_module in
   let () = IFDEF DEBUG THEN dump_value mfglobal ELSE () ENDIF in
@@ -405,14 +414,22 @@ let rec codegen_simexpr declarations = function
       | _ -> None) in
     (match get_simexpr_type declarations x with
       | "int" -> 
-	(match xvsize with
-	  | None ->
-	    let cond = build_icmp Icmp.Sle xarg (const_int ((get_llvm_primitive_type lc (get_exact_simexpr_type declarations x)) context) 0) 
-	      (if not !slots then "abs_cond" else "") builder in
-	    let sub = build_sub (const_int ((get_llvm_primitive_type lc (get_exact_simexpr_type declarations x)) context) (-0)) xarg 
-	      (if not !slots then "abs_sub" else "") builder in
-	    build_select cond sub xarg (if not !slots then "abs_select" else "") builder
-	  | Some _ -> raise (Internal_compiler_error "LLVM codegen still does not support icmp on vector types!! :-("))
+	let reft = (match get_llvm_primitive_type lc (get_exact_simexpr_type declarations x) with
+	  | i32_type ->
+	    (match xvsize with
+	      | None ->
+		let eft = function_type (i32_type context) [|(i32_type context)|] in
+		declare_function "abs" eft the_module
+	      (* let cond = build_icmp Icmp.Sle xarg (const_int ((get_llvm_primitive_type lc (get_exact_simexpr_type declarations x)) context) 0)  *)
+	      (*   (if not !slots then "abs_cond" else "") builder in *)
+	      (* let sub = build_sub (const_int ((get_llvm_primitive_type lc (get_exact_simexpr_type declarations x)) context) (-0)) xarg  *)
+	      (*   (if not !slots then "abs_sub" else "") builder in *)
+	      (* build_select cond sub xarg (if not !slots then "abs_select" else "") builder *)
+	      | Some x -> 
+		let eft = function_type x [|x|] in
+		declare_function "abs" eft the_module)
+	  | _ -> raise (Internal_compiler_error "LLVM codegen still does not support icmp on vector types!! :-(")) in
+	build_call reft [|xarg|] (if not !slots then "iabs" else "") builder
       | "float" -> 
 	let reft = (match get_llvm_primitive_type lc (get_exact_simexpr_type declarations x) with
 	  | double_type -> 

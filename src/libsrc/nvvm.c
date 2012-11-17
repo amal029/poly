@@ -63,27 +63,24 @@ LIST_HEAD (dev_list, device_ptrs) devs =
 LIST_HEAD (in_list, arg) ins =
   LIST_HEAD_INITIALIZER(ins);
 
-LIST_HEAD (out_list, arg) outs =
-  LIST_HEAD_INITIALIZER(outs);
-
 #define checkCudaErrors(err)  __checkCudaErrors (err, __FILE__, __LINE__)
 int launch (size_t, size_t, size_t, const char *, const char*);
 void __checkCudaErrors( CUresult err, const char *file, const int line );
 
+static size_t skip = 0;
+
 /* First initialize the linked list */
 void
 POLY_INIT(){
-  static unsigned char done = 0;
-  if (!done) {
     LIST_INIT (&ins);
-    LIST_INIT (&outs);
-    LIST_INIT (&devs);
-    done = 1;
-  }
 }
 
 void
-poly_set_param (void *data, size_t memsize, struct in_list *i, struct out_list *o) {
+poly_set_param (void *data, size_t memsize, struct in_list *i) {
+#ifdef DEBUG
+  fprintf(stdout,"skip is: %d\n",skip);
+  fflush(stdout);
+#endif
   struct arg* n = malloc (sizeof (struct arg));
   n->data = data;
   n->memsize = memsize;
@@ -94,19 +91,8 @@ poly_set_param (void *data, size_t memsize, struct in_list *i, struct out_list *
       LIST_INSERT_HEAD(i, n, enteries);
     }
     else {
-      while ((p=LIST_NEXT(p,enteries)) != NULL) ;
-      /* Now we have the pointer in hand */
-      LIST_INSERT_AFTER (p,n,enteries);
-    }
-  }
-  else if (o!=NULL) {
-    if ((p = LIST_FIRST(o)) == NULL ) {
-      POLY_INIT ();
-      LIST_INSERT_HEAD(i, n, enteries);
-    }
-    else {
-      while ((p = LIST_NEXT(p,enteries)) != NULL) ;
-      /* Now we have the pointer in hand */
+      while (LIST_NEXT(p,enteries) != NULL)
+	p = LIST_NEXT (p,enteries);
       LIST_INSERT_AFTER (p,n,enteries);
     }
   }
@@ -115,7 +101,7 @@ poly_set_param (void *data, size_t memsize, struct in_list *i, struct out_list *
 }
 
 void
-poly_delete_param (struct in_list *i, struct out_list *o) {
+poly_delete_param (struct in_list *i) {
   struct arg* p = NULL;
   if (i != NULL) {
     if (!LIST_EMPTY (i)) {
@@ -123,11 +109,6 @@ poly_delete_param (struct in_list *i, struct out_list *o) {
       LIST_REMOVE (p,enteries);
       free (p);
     }
-  }
-  else if (o != NULL) {
-    p = LIST_FIRST (o);
-    LIST_REMOVE (p,enteries);
-    free (p);
   }
 }
 
@@ -140,7 +121,7 @@ poly_run_kernel (size_t p1, size_t p2, size_t p3, const char *filename, const ch
 
 size_t
 get_size (struct arg *p) {
-  return (p->memsize)/8;
+  return (p->memsize);
 } 
 
 /* Allocates memory on the device */
@@ -148,31 +129,48 @@ void
 assign_dev_mem () {
   /* First we put the device memory online */
   struct arg *p= NULL;
-  LIST_FOREACH (p,&ins,enteries) {
+  size_t counter = 0;
+  /* Skip the first few elements according to skip */
+  p = LIST_FIRST (&ins);
+  /* There should always be more elements in ins then skip size */
+  while (counter < skip){
+    p = LIST_NEXT (p,enteries);
+    ++counter;
+  }
+  /* Now allocate the size of the ins to device memory*/
+  counter = 0;
+  do {
     size_t memsize = get_size (p);
     struct device_ptrs *dev_t = malloc (sizeof (struct device_ptrs));
     dev_t->d_data = 0;
-    LIST_INSERT_HEAD (&devs,dev_t,devices);
+    if (!counter)
+      LIST_INSERT_HEAD (&devs,dev_t,devices);
+    else {
+      /* Insert at the end */
+      struct device_ptrs *temp_dev = LIST_FIRST (&devs);
+      while (LIST_NEXT (temp_dev, devices) != NULL)
+	temp_dev = LIST_NEXT (temp_dev,devices);
+      LIST_INSERT_AFTER (temp_dev,dev_t,devices);
+    }
     checkCudaErrors (cuMemAlloc (&(dev_t->d_data),memsize));
     checkCudaErrors (cuMemcpyHtoD(dev_t->d_data,p->data,memsize));
-  }
-  p = NULL;
-  LIST_FOREACH (p,&outs,enteries) {
-    size_t memsize = get_size (p);
-    struct device_ptrs *dev_t = malloc (sizeof (struct device_ptrs));
-    dev_t->d_data = 0;
-    LIST_INSERT_HEAD (&devs,dev_t,devices);
-    checkCudaErrors (cuMemAlloc (&(dev_t->d_data),memsize));
-    checkCudaErrors (cuMemcpyHtoD(dev_t->d_data,p->data,memsize));
-  }
+    ++counter;
+#ifdef DEBUG
+      /* Now we have the pointer in hand */
+      for (int it=0;it<((p->memsize)/(sizeof (int)));++it)
+	fprintf(stdout,"Data copied: %d\n",((int*)(p->data))[it]);
+      fflush(stdout);
+#endif
+  }while((p=LIST_NEXT(p,enteries)) != NULL);
+  
 }
 
 /* THE ABI */
 
-void POLY_REGISTER_INPUT(void *d, int s){poly_set_param (d,s,&ins,NULL);}
-void POLY_REGISTER_OUTPUT(void *d, int s){poly_set_param (d,s,NULL,&outs); }
-void POLY_DEREGISTER_INPUTS (){ poly_delete_param (&ins,NULL);}
-void POLY_DEREGISTER_OUTPUTS (){poly_delete_param (NULL,&outs);}
+/* We have divide by 8, because llvm produces number of bits and here we
+   need bytes!! */
+void POLY_REGISTER_INPUT(void *d, int s){poly_set_param (d,(s/8),&ins);}
+void POLY_DEREGISTER_INPUTS (){ poly_delete_param (&ins);}
 void POLY_LAUNCH_KERNEL (const char *f, const char *t, int p1, int p2, int p3){poly_run_kernel (p1,p2,p3,f,t);}
 
 #include "cuda_kernel_launch.c"

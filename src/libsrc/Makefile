@@ -13,7 +13,7 @@ endif
 INCLUDES +=-I$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/NVIDIA_NVVM/LibNVVM/lib/universal_Darwin_release/
 INCLUDES +=-I.
 
-CFLAGS=-DDEBUG -O3 -S -emit-llvm -DDEBUG -I$(INCLUDES)
+CFLAGS=-g -O0 -S -emit-llvm -I$(INCLUDES)
 
 all: print.ll nvvm.ll
 

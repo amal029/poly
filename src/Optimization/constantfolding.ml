@@ -309,6 +309,7 @@ struct
     | [] -> ()
 
 (* this needs to be put back into the nodes hashtbl *)
+  (* FIXME: There is a bug in here! *)
   let rec rep consts = function
     |  h::t -> 
       (try

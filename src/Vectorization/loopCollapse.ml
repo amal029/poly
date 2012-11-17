@@ -178,6 +178,7 @@ let rec build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_i
       | _ -> raise (Internal_compiler_error "Cannot cast non const vector types yet!! "))
 
   | Opposite (x,lc) -> Opposite (build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x, lc)
+  | Abs (x,lc) -> Abs (build_collaped_vec_simexpr_1 index_arg indices limits symbol_table for_indices lc x, lc)
 
   | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
 

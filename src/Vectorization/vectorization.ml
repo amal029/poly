@@ -61,6 +61,7 @@ struct
     | Mod (x,y,lc) -> filter_shm x && filter_shm y
     | Brackets (x,lc) -> filter_shm x
     | Opposite (x,lc) -> filter_shm x
+    | Abs (x,lc) -> filter_shm x
     | Constvector _ -> true 
     | Vector _ -> !runtime_vec (* Also account for the runtime vectors if the user asks for runtime vectorization *)
     | _ -> false
@@ -123,6 +124,7 @@ struct
     | Cast _ -> raise (Internal_compiler_error "Cannot cast non const vector types yet!! ")
 
     | Opposite _ -> raise (Internal_compiler_error "Cannot do opposite vectors yet!! ")
+    | Abs _ -> raise (Internal_compiler_error "Cannot do opposite vectors yet!! ")
 
     | ColonExpr _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " erroroneously got a ColonExpr"))
 
