@@ -199,7 +199,8 @@ struct
 	     if vstride <> 1 then raise (Internal_compiler_error "Currently we do not support CUDAing non stride 1 kernels!!");
 	     (* Should I call convert instead?? GPUs are too different
 		from CPUs to be sure of this *)
-	     let _ = LoopCollapse.internal_convert !symbol_table s in 
+	     (* Enable it again. Also the strides need to be accounted for correctly!! *)
+	     (* let _ = LoopCollapse.internal_convert !symbol_table s in *)
 	     (* Build the CUDA kernel *)
 	     let (vstart,vend,vstride) = Convert.get_par_bounds y in
 	     let () = IFDEF DEBUG THEN print_endline ("par bounds: (start:) " ^ (string_of_int vstart)
@@ -220,9 +221,14 @@ struct
 	     (* Add it to the nfilters list *)
 	     nfilters := !nfilters @ [FCFG.Node (ret,kernel,None,[])];
 	     (* Return an intrinsic function call *)
-	     ret else s)
+	     ret else 
+	     let () = IFDEF DEBUG THEN print_endline ((Dot.dot_stmt s) ^ " not safe to convert") ELSE () ENDIF in
+	     s)
 	  with
-	    | _ -> s)
+	    | Internal_compiler_error ex -> 
+	      let () = IFDEF DEBUG THEN print_endline (ex ^ " exception occured") ELSE () ENDIF in s
+	    | _ ->
+	      let () = IFDEF DEBUG THEN print_endline ((Dot.dot_stmt s) ^ " not safe to convert") ELSE () ENDIF in s)
     | For (x,y,z,lc) -> For (x,y,(process_filter_stmts symbol_table z),lc)
     | Block (x,lc) -> Block ((List.map (process_filter_stmts symbol_table) x),lc)
     | VarDecl (x,_) as s -> symbol_table := !symbol_table@[x]; s

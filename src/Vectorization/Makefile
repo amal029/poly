@@ -18,13 +18,13 @@ veclang.cmxa: check
 	$(CC) $(OCMLOPTS) vectorization.cmx loopCollapse.cmx loopInterchange.cmx loop_out.cmx vecCFG.cmx -o $@
 
 check:
-	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
+	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
 	-I $(LANGDIR) -I $(DOTDIR) -I $(ERRORDIR) -I $(OPTDIR) $(OPTIMIZATIONS) $(ERRORLIB) $(LANGLIB) $(DOTLIB) -c vectorization.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
 	-I $(LANGDIR) -I $(DOTDIR) -I $(ERRORDIR) -I $(OPTDIR) $(OPTIMIZATIONS) $(ERRORLIB) $(LANGLIB) $(DOTLIB) -c loopCollapse.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
 	-I $(LANGDIR) -I $(DOTDIR) -I $(ERRORDIR) -I $(OPTDIR) $(OPTIMIZATIONS) $(ERRORLIB) $(LANGLIB) $(DOTLIB) -c loopInterchange.ml
-	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
+	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
 	-I $(LANGDIR) -I $(DOTDIR) -I $(ERRORDIR) -I $(OPTDIR) $(OPTIMIZATIONS) $(ERRORLIB) $(LANGLIB) $(DOTLIB) -c loop_out.ml
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(BATTERIES) $(BATLIBBOPT) \
 	-I $(LANGDIR) -I $(DOTDIR) -I $(ERRORDIR) $(ERRORLIB) $(LANGLIB) $(DOTLIB) -c vecCFG.ml

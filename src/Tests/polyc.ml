@@ -2,6 +2,7 @@ open Batteries;;
 
 exception Error of string;;
 
+
 let usage_msg = "Usage: polyc [options] <filename>\nsee -help for more options" in
 try
   let compile = ref true in
@@ -10,6 +11,7 @@ try
   let decompile_flag_vipr = ref false in
   let version = ref false in
   let dot = ref false in
+  let ooo = ref false in
   let llvm = ref false in
   let graph_part = ref false in
   let graph_tile = ref false in
@@ -26,14 +28,23 @@ try
   let output = ref "" in
   let march = ref "x86_64" in
   let march_gpu = ref "" in
+  let die = ref false in
+  let dce = ref false in
+  let internalize = ref false in
+  let bb = ref false in
+  let globaldce = ref false in
+  let loop_unroll = ref false in
+  let global_opt = ref false in
+  let inline = ref false in
+  let mem_opt = ref false in
+  let loop_reduce = ref false in
+  let loop_idiom = ref false in
+  let loop_rotate = ref false in
+  let o2 = ref false in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag_stg, " Decompile to stg-lang");
 		      ("-vipr-lang", Arg.Set decompile_flag_vipr, " Decompile to vipr-lang");
-		      ("-floop-vectorize", Arg.Set vectorize, " Loop Vectorize");
-		      ("-floop-outline", Arg.Set outline, " Loop outline");
 		      ("-O0", Arg.Clear optimize, " Do not perform any optimizations");
-		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations");
-		      ("-floop-transpose", Arg.Set floop_transpose, " Transpose loops for locality optimizations");
-		      ("-floop-runtime-vectorize", Arg.Set floop_runtime_vec, " Vectorize the loops at runtime (dangerous!!)");
+		      ("-O2", Arg.Set o2, " Enable all except others optimizations from below");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
 		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n\t x86_64-gnu-linux and i386-gnu-linux [default = x86_64, which is apple darwin]");
 		      ("-march-gpu", Arg.String (fun x -> march_gpu := x), " Set the march for compilation, available: nvvm-cuda-i32 nvvm-cuda-i64, [default:Off] ");
@@ -44,8 +55,26 @@ try
 		      ("-gtn", Arg.Int (fun x -> gtn := x), " The size of the vector tile [default=<vector-length>/10]");
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
 		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file <file>.ll");
-		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files (>= llvm-3.2)");
+		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files");
 		      ("-o", Arg.Set_string output, " The name of the output file");
+		      ("-die", Arg.Set die, " Dead instruction elimination [default: Off]");
+		      ("-internalize", Arg.Set internalize, "  Internalize global symbols [default: Off]");
+		      ("-dce", Arg.Set dce, "  Dead code elimination [default: Off]");
+		      ("-globaldce", Arg.Set globaldce, "  Global Dead code elimination [default: Off]");
+		      ("-globalopt", Arg.Set global_opt, " Global opt [default: Off]");
+		      ("-memopt", Arg.Set mem_opt, " Memory opt [default: Off]");
+		      ("-inline", Arg.Set inline, " Inline [default: Off]");
+		      ("-floop-unroll", Arg.Set loop_unroll, " Loop Unroll [default: Off]");
+		      ("-bb", Arg.Set bb, " BB vectorize [default: Off]");
+		      ("-floop-vectorize", Arg.Set vectorize, " Loop Vectorize [default: Off]");
+		      ("-floop-outline", Arg.Set outline, " Loop outline [default: Off]");
+		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations [default: Off]");
+		      ("-floop-transpose", Arg.Set floop_transpose, " Transpose loops for locality optimizations [default: Off]");
+		      ("-floop-reduce", Arg.Set loop_reduce, " Loop strength reduction [default: off]");
+		      ("-floop-idiom", Arg.Set loop_idiom, " Loop idioms [default: Off]");
+		      ("-floop-rotate", Arg.Set loop_rotate, " Rotate loops for locality optimizations [default: Off]");
+		      ("-floop-runtime-vectorize", Arg.Set floop_runtime_vec, " Vectorize the loops at runtime (dangerous!!)");
+		      ("-others", Arg.Set ooo, " Other optimizations [Default: Off]");
 		      ("-v", Arg.Set version, "  Get the compiler version")] (fun x -> file_name := x) usage_msg in
 
   if !version then begin print_endline "Poly compiler version alpha"; compile := false end
@@ -94,11 +123,21 @@ try
 	(* Make some system calls to complete the process *)
 	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
 	  (* We can make some sys calls *)
-      let cmd = "opt -internalize -loop-unroll -memcpyopt -globalopt -inline " in
-      let cmd = (if !march <> "shave" then
-          cmd ^ "-vectorize -bb-vectorize-req-chain-depth=2 "  else cmd) in
-      let cmd = cmd ^ "-die -globaldce -strip -adce -O3 " in
-      let _ = Sys.command (cmd ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
+	  let cmd = ref "opt " in
+	  let () =
+	    if !die || !o2 then cmd := !cmd ^ " -die";
+	    if !internalize || !o2 then cmd := !cmd ^ " -internalize";
+	    if !dce || !o2 then cmd := !cmd ^ " -adce";
+	    if !globaldce || !o2 then cmd := !cmd ^ " -globaldce";
+	    if !global_opt || !o2 then cmd := !cmd ^ " -globalopt";
+	    if !mem_opt || !o2 then cmd := !cmd ^ " -memcpyopt";
+	    if !inline || !o2 then cmd := !cmd ^ " -inline";
+	    if !loop_unroll || !o2 then cmd := !cmd ^ " -loop-unroll";
+	    if !bb || !o2 && !march <> "shave" then cmd := !cmd ^ " -vectorize -bb-vectorize-req-chain-depth=2";
+	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
+	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
+	    if !ooo then cmd := !cmd ^ " -O3 -strip " in
+	  let _ = Sys.command (!cmd ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  if !march <> "x86_64" then
 	    let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in ()
@@ -181,11 +220,16 @@ try
 	  Vectorization.Convert.runtime_vec := !floop_runtime_vec;
 	  VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfgv
 	else 
+	  let fcfgv = 
+	    if !floop_interchange then
+	      let () = print_endline ".....Performing loop interchange......" in
+	      LoopInterchange.interchange fcfgv else fcfgv in
 	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
 	      let fcfgv = 
 		(if !outline then
 		    let () = print_endline ".....Performing loop outline......" in
 		    Loop_out.Kernel.process fcfgv else fcfgv) in
+	      let () = print_endline "....Vectorizing......" in
 	      VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfgv
 	   else cfgt) in
       if !dot then
@@ -197,10 +241,29 @@ try
 	(* let () = MyLlvm.compile !optimize !march !slots !vipr !load_modules llvm_file cfgt in *)
 	(* Make some system calls to complete the process *)
 	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
+	  let cmd = ref "opt " in
+	  let () = 
+	    if !die || !o2 then cmd := !cmd ^ " -die";
+	    if !internalize || !o2 then cmd := !cmd ^ " -internalize";
+	    if !dce || !o2 then cmd := !cmd ^ " -adce";
+	    if !globaldce || !o2 then cmd := !cmd ^ " -globaldce";
+	    if !global_opt || !o2 then cmd := !cmd ^ " -globalopt";
+	    if !mem_opt || !o2 then cmd := !cmd ^ " -memcpyopt";
+	    if !inline || !o2 then cmd := !cmd ^ " -inline";
+	    if !loop_unroll || !o2 then cmd := !cmd ^ " -loop-unroll";
+	    if !bb || !o2 && !march <> "shave" then cmd := !cmd ^ " -vectorize -bb-vectorize-req-chain-depth=2";
+	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
+	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
+	    if !ooo then cmd := !cmd ^ " -O3 -strip " in
 	  (* We can make some sys calls *)
-	  let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " 
-				  ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
+	  let _ = Sys.command (!cmd ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
+	  (* let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in *)
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
+	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
+	      try 
+		let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ()
+	      with
+		| _ as s -> raise s);
 	  let _ = Sys.command ("rm -rf *.lle") in ()
 	else if not !optimize then 
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
@@ -208,7 +271,7 @@ try
 	      try 
 		let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ()
 	      with
-		| _ -> ());
+		| _ as s -> raise s);
 	else raise (Error "Currently the compiler is only supported on Unix platforms or Cygwin")
       else ();
       if !decompile_flag_stg then

@@ -183,9 +183,6 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv) {
      pointer to the kernel function) */
   checkCudaErrors(initCUDA(&hContext, &hDevice, &hModule, &hKernel, ptx, argv));
 
-  // Allocate memory on device and also transfer data to device
-  LIST_INIT (&devs);
-  assign_dev_mem();
 
   /* Now we need to make the call to the CUDA kernel */
   /* For now we assume that the blocks will result in equal sizes */
@@ -235,6 +232,10 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv) {
   void *kernelParams [(input_counter-skip)+2];
   size_t c = 0;
 
+  // Allocate memory on device and also transfer data to device
+  LIST_INIT (&devs);
+  assign_dev_mem();
+
 #ifdef DEBUG
   size_t mcounter = 0;
   LIST_FOREACH (dev_t,&devs,devices) ++mcounter;
@@ -247,20 +248,46 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv) {
     ++c;
   }
 
+#ifdef MYDEBUG
+  printf("b/GX:%d\t b/GY:%d\t b/GZ: %d\nt/BX:%d\t t/BY:%d\t t/BZ:%d\n", 
+	 blockspergridX, blockspergridY, blockspergridZ, threadsperblockX,
+	 threadsperblockY, threadsperblockZ);
+#endif
 
+#ifdef TIME
+  CUevent event1 = 0;
+  CUevent event2 = 0;
+  checkCudaErrors(cuEventCreate (&event1, CU_EVENT_DEFAULT|CU_EVENT_BLOCKING_SYNC));
+  checkCudaErrors(cuEventCreate (&event2, CU_EVENT_DEFAULT|CU_EVENT_BLOCKING_SYNC));
   /* // Launch the kernel */
+  checkCudaErrors(cuEventRecord(event1,0)); /* Start the start timer */
+#endif
+
+
   checkCudaErrors(cuLaunchKernel(hKernel,blockspergridX,blockspergridY,blockspergridZ,
 				 threadsperblockX, threadsperblockY, threadsperblockZ,
 				 0,0,kernelParams,0));
-  fprintf(stdout, "CUDA kernel launched\n");
+#ifdef TIME
+  checkCudaErrors(cuEventRecord(event2,0));
+  /* Synchronize on both events */
+  checkCudaErrors(cuEventSynchronize(event1));
+  checkCudaErrors(cuEventSynchronize(event2));
+  float time_taken = 0.0f;
+  checkCudaErrors (cuEventElapsedTime(&time_taken,event1,event2));
+  checkCudaErrors (cuEventDestroy(event1));
+  checkCudaErrors (cuEventDestroy(event2));
+  fprintf(stdout,"Total time taken for computation: %0.3f (msec)\n",time_taken);
+  fflush(stdout);
+#endif
+
+#ifdef DEBUG
+  printf("CUDA kernel launched\n");
+#endif
     
   // Copy the result back to the host
   /* First get the device pointer to point to the output parts */
   dev_t = LIST_FIRST(&devs);
   c = 0;
-  /* Now we can copy from device to host */
-  
-  fprintf(stdout, "Copying from device to host, input_counter is: %d\n",(input_counter-skip));
 
   /* Need to skip here as well */
   size_t counter = 0;
@@ -275,8 +302,7 @@ int launch (size_t p1, size_t p2, size_t p3, const char* fn, const char *argv) {
     dev_t = LIST_NEXT (dev_t,devices);
   }while((p=LIST_NEXT(p,enteries)) != NULL);
 
-  printf("finished copying from device to host\n");
-    
+  /* Start the end timer */
   /* Cleanup */
   struct device_ptrs *dt = LIST_FIRST (&devs);
   while (dt != NULL ) {
