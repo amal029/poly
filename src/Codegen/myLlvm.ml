@@ -355,21 +355,24 @@ let build_nvvm_abi_calls kname inptrs outptrs extra =
 (* Now deregister the inputs and the outputs *)
 
 let rec codegen_simexpr declarations = function
-  | Plus (x,y,lc) -> 
+  | Plus (x,y,lc) as s -> 
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     (match get_simexpr_type declarations x with
       | "int" -> build_add (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
 	(if not !slots then "addtemp" else "") builder
       | "float" -> build_fadd (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
 	(if not !slots then "addftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
-  | Minus (x,y,lc) -> 
+  | Minus (x,y,lc) as s -> 
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     (match get_simexpr_type declarations x with
       | "int" -> build_sub (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
 	(if not !slots then "subtemp" else "") builder
       | "float" -> build_fsub (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
 	(if not !slots then "subftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
-  | Times (x,y,lc) -> 
+  | Times (x,y,lc) as s -> 
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     (match get_simexpr_type declarations x with
       | "int" -> build_mul (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
 	(if not !slots then "timestemp" else "") builder
@@ -377,20 +380,23 @@ let rec codegen_simexpr declarations = function
 	(if not !slots then "timesftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Lshift (x,y,lc) -> 
+  | Lshift (x,y,lc) as s -> 
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     (match get_simexpr_type declarations x with
       | "int" -> build_shl (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
 	(if not !slots then "shltemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Rshift (x,y,lc) -> 
+  | Rshift (x,y,lc) as s -> 
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     (match get_simexpr_type declarations x with
       | "int" -> build_lshr (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
 	(if not !slots then "templshr" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
   (* We need the exact type for building the division instruction *)
-  | Div (x,y,lc) ->
+  | Div (x,y,lc) as s ->
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     (match get_simexpr_type declarations x with
       | "int" ->
 	let ret = build_sdiv (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) 
@@ -407,7 +413,8 @@ let rec codegen_simexpr declarations = function
 	(if not !slots then "divftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Abs (x,lc) ->
+  | Abs (x,lc) as s ->
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     let xarg = (derefence_pointer(codegen_simexpr declarations x)) in
     let xvsize = (match classify_type (type_of xarg) with
       | TypeKind.Vector -> Some (type_of xarg)
@@ -451,9 +458,10 @@ let rec codegen_simexpr declarations = function
 	  | _ -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support anything but int/float abs internally :-("))) in
 	build_call reft [|xarg|] (if not !slots then "fabs" else "") builder)
 
-  | Pow (x,y,lc) -> 
+  | Pow (x,y,lc) as s -> 
     (* If y is a vector or a const vector then just get the first element of the vector to raise it appropriately!! *)
     (* Now call this function with the required arguments *)
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     let xarg = (derefence_pointer(codegen_simexpr declarations x)) in
     let yarg = (derefence_pointer(codegen_simexpr declarations y)) in
     let () = (match classify_type (type_of yarg) with 
@@ -510,7 +518,8 @@ let rec codegen_simexpr declarations = function
 	      | _ -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^non float32 internally :-("))) in
 	    build_call reft [|xarg; yarg|] (if not !slots then "pow" else "") builder))
     
-  | Mod (x,y,lc) -> 
+  | Mod (x,y,lc) as s -> 
+    let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     (match get_simexpr_type declarations x with
       | "int" -> build_srem (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) 
 	(if not !slots then "remtemp" else "") builder 
@@ -518,7 +527,7 @@ let rec codegen_simexpr declarations = function
 	(if not !slots then "remftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Opposite (x,lc) -> 
+  | Opposite (x,lc) as s-> 
     (match get_simexpr_type declarations x with
       | "int" -> build_neg (derefence_pointer(codegen_simexpr declarations x)) 
 	(if not !slots then "negtemp" else "") builder
@@ -528,7 +537,7 @@ let rec codegen_simexpr declarations = function
   | Const (x,v,lc) -> 
     (match get_data_types lc x with
       | "int" -> 
-	let () = IFDEF DEBUG THEN print_endline ("trying to get value from Const int: " ^ v) ELSE () ENDIF in
+	(* let () = IFDEF DEBUG THEN print_endline ("trying to get value from Const int: " ^ v) ELSE () ENDIF in *)
 	const_int ((get_llvm_primitive_type lc x) context) (int_of_string v)
       | "float" -> const_float ((get_llvm_primitive_type lc x) context) (float_of_string v)
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
@@ -730,11 +739,12 @@ let rec codegen_simexpr declarations = function
       (* First build rsm, which is a constvector of zeros!! *)
       let size = (vector_size (type_of (List.hd nvec))) in
       (* This is the result vector of point wise additions *)
-      let rsm = ref (Constvector (None,vtyp,Array.init size (fun i -> Const(vtyp,(string_of_int 0),lc)),lc)) in
+      let rsm = ref (Constvector (None,(DataTypes.Int32s),Array.init size (fun i -> Const((DataTypes.Int32s),(string_of_int 0),lc)),lc)) in
       let () = List.iter (fun x -> rsm := Plus (x,!rsm,lc)) mask in
       (* This is the result *)
       let () = IFDEF DEBUG THEN print_endline "trying to solve the mask inside llvm" ELSE () ENDIF in
       let shuffle_mask = codegen_simexpr declarations !rsm in
+      let () = IFDEF DEBUG THEN print_endline "printing the shuffle mask" ELSE () ENDIF in
       let () = IFDEF DEBUG THEN dump_value shuffle_mask ELSE () ENDIF in
       (* Now start getting the elements out one by one and put them into a
 	 temporary array!! *)
@@ -748,7 +758,7 @@ let rec codegen_simexpr declarations = function
       let aptr = build_bitcast vptr (pointer_type (array_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vec)))) "" builder in
       let vec = derefence_pointer aptr in
       let shuffle_maskptr = build_alloca (array_type (i32_type context) size) "" builder in
-      let shuffle_mask_vec_ptr = build_bitcast shuffle_maskptr (pointer_type (vector_type ((get_llvm_primitive_type lc vtyp) context) size)) "" builder in
+      let shuffle_mask_vec_ptr = build_bitcast shuffle_maskptr (pointer_type (vector_type (i32_type context) size)) "" builder in
       let _ = build_store shuffle_mask shuffle_mask_vec_ptr builder in
 
       let smi = Array.init size (fun i -> build_in_bounds_gep shuffle_maskptr [|(const_int (Llvm_target.intptr_type !target_data) 0)
@@ -764,7 +774,9 @@ let rec codegen_simexpr declarations = function
       let debu = Array.map2 (fun x y -> build_store x y builder) vec tempptrs in 
       let () = IFDEF DEBUG THEN Array.iter dump_value debu ELSE () ENDIF in
       (* Finally bitcast the temp into a vector type and send it back *)
-      build_bitcast temp (vector_type ((get_llvm_primitive_type lc vtyp) context) size) "" builder
+      let () = IFDEF DEBUG THEN print_endline "doing the bitcast" ELSE () ENDIF in
+      let rr = build_bitcast temp (pointer_type (vector_type ((get_llvm_primitive_type lc vtyp) context) size)) "" builder in
+      derefence_pointer rr
 
 
   (* Generating the const vector *)
@@ -774,7 +786,8 @@ let rec codegen_simexpr declarations = function
       (match x with 
 	| Const (x,y,lc) as s -> codegen_simexpr declarations (Const (dt,y,lc))
 	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got a const vector with non constants in them")))) sa in
-    const_vector ca
+    let ret = const_vector ca in
+    let () = IFDEF DEBUG THEN dump_value ret ELSE () ENDIF in ret
 
   | Vector (dt,sa,size,lc) as s -> 
     let () = IFDEF DEBUG THEN print_endline "Building the Vector instruction" ELSE () ENDIF in
@@ -1267,11 +1280,18 @@ let codegen_stmt f declarations = function
 		    let inver_s = if (vector_size (type_of inver_s)) < (vector_size (type_of rval)) then
 			strech inver_s (vector_size (type_of inver_s)) (vector_size (type_of rval))  vtyp !declarations else inver_s in
 		    let resptr = build_shufflevector inver_s rval mask (if not !slots then "shuff_vec" else "") builder in
-		    build_store resptr vptr builder
+		    (* FIXME: For now I am bitcasting the vector to raw bits and the pointer to raw bit* and then storing them *)
+		    let resvbcast = build_bitcast resptr (integer_type context ((vector_size (type_of resptr))*(DataTypes.getdata_size vtyp))) "" builder in
+		    let vptrcast = build_bitcast vptr (pointer_type (integer_type context ((vector_size (type_of resptr))*(DataTypes.getdata_size vtyp)))) "" builder in
+		    (* build_store resptr vptr builder *)
+		    build_store resvbcast vptrcast builder
 		  else
 		    (* Just store the whole rval in here!! *)
 		    (* FIXME: This will break in case of par i in 0:1 par j in 0:3 A[j] = 1 being vectorized*)
 		    let () = IFDEF DEBUG THEN print_endline "Storing the vector" ELSE () ENDIF in
+		    let dv = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
+		    let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) 
+		      | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
 		    let rval_size = vector_size (type_of rval) in
 		    let tot_size = tot_size + 1 in
 		    let () = IFDEF DEBUG THEN print_endline ("TOT SIZE: " ^ (string_of_int tot_size)) ELSE () ENDIF in
@@ -1288,9 +1308,17 @@ let codegen_stmt f declarations = function
 			let () = IFDEF DEBUG THEN print_endline "rval before truncation "; dump_value rval ELSE () ENDIF in
 			let rval = build_shufflevector rval uptld mask (if not !slots then "loose" else "") builder in
 			let () = IFDEF DEBUG THEN print_endline "rval after truncation "; dump_value rval ELSE () ENDIF in
-			build_store rval vptr builder
+			(* FIXME: For now I am bitcasting the vector to raw bits and the pointer to raw bit* and then storing them *)
+			let resvbcast = build_bitcast rval (integer_type context ((vector_size (type_of rval))*(DataTypes.getdata_size vtyp))) "" builder in
+			let vptrcast = build_bitcast vptr (pointer_type (integer_type context ((vector_size (type_of rval))*(DataTypes.getdata_size vtyp)))) "" builder in
+			(* build_store rval vptr builder *)
+			build_store resvbcast vptrcast builder
 		    else
-		      build_store rval vptr builder in ()
+		      (* FIXME: For now I am bitcasting the vector to raw bits and the pointer to raw bit* and then storing them *)
+		      let resvbcast = build_bitcast rval (integer_type context ((vector_size (type_of rval))*(DataTypes.getdata_size vtyp))) "" builder in
+		      let vptrcast = build_bitcast vptr (pointer_type (integer_type context ((vector_size (type_of rval))*(DataTypes.getdata_size vtyp)))) "" builder in
+		      (* build_store rval vptr builder *)
+		      build_store resvbcast vptrcast builder in ()
 	      else
 		(* This is the case when there are vectors in the shuffle mask itself, which were not solved*)
 		let mask = smask in
@@ -1306,7 +1334,8 @@ let codegen_stmt f declarations = function
 		(* First build rsm, which is a constvector of zeros!! *)
 		let size = (vector_size (type_of (List.hd nvec))) in
 		(* This is the result vector of point wise additions *)
-		let rsm = ref (Constvector (None,vtyp,Array.init size (fun i -> Const(vtyp,(string_of_int 0),lc)),lc)) in
+		(* FIXME: rsm should always be of type Int32s? Correct?? *)
+		let rsm = ref (Constvector (None,(DataTypes.Int32s),Array.init size (fun i -> Const((DataTypes.Int32s),(string_of_int 0),lc)),lc)) in
 		let () = List.iter (fun x -> rsm := Plus (x,!rsm,lc)) mask in
 		(* This is the result *)
 		let () = IFDEF DEBUG THEN print_endline "trying to solve the mask in llvm" ELSE () ENDIF in
@@ -1316,7 +1345,7 @@ let codegen_stmt f declarations = function
 
 		let shuffle_maskptr = build_alloca (array_type (i32_type context) size) "" builder in
 		let () = IFDEF DEBUG THEN dump_value shuffle_maskptr ELSE () ENDIF in
-		let shuffle_mask_vec_ptr = build_bitcast shuffle_maskptr (pointer_type (vector_type ((get_llvm_primitive_type lc vtyp) context) size)) "" builder in
+		let shuffle_mask_vec_ptr = build_bitcast shuffle_maskptr (pointer_type (vector_type (i32_type context) size)) "" builder in
 		let () = IFDEF DEBUG THEN dump_value shuffle_mask_vec_ptr ELSE () ENDIF in
 		let dtutu = build_store shuffle_mask shuffle_mask_vec_ptr builder in
 		let () = IFDEF DEBUG THEN dump_value dtutu ELSE () ENDIF in

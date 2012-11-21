@@ -24,7 +24,7 @@ check:
 	$(CC) -c viprParser.mli
 	$(CC) -c viprLexer.ml
 	$(CC) -c viprParser.ml
-	$(CC) -pp "camlp4o pa_macro.cmo -DDEBUG" -I $(DOTDIR) -I $(BATTERIES) -I $(LANGDIR) -I $(ERRORDIR) -c vipr2poly.ml
+	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(DOTDIR) -I $(BATTERIES) -I $(LANGDIR) -I $(ERRORDIR) -c vipr2poly.ml
 
 
 clean:
