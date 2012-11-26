@@ -15,7 +15,7 @@ matmul in first[M,N], second[M,N] out int32s result[M,N]
 
 main
 {
-    var size = 1024
+    var size = 16
     int ret = extern start_timer ()
     var a[size,size] = ones()
     var result2[size,size] = zeros()

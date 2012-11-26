@@ -70,13 +70,15 @@ let process_dims_of = function
   | Ground _ -> raise (Internal_compiler_error ("A ground type does not have any dims"))
   | Aggregate (il,dt) -> Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const (dt, (string_of_int x), get_lc))) il)
   (* This is wrong : FIXME *)
-  | Tile (il,dt,yl) -> Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const (dt, (string_of_int x), get_lc))) (il@yl))
+  | Tile (il,dt,yl) -> 
+    Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const (dt, (string_of_int x), get_lc))) (il@yl))
 
 let process_storage = function
   | Array (x,y) -> 
     Language.Language.ComTypedSymbol (process_gt_of_types y, Language.Language.AddressedSymbol (process_symbol x, [], [process_dims_of y], get_lc), get_lc)
   | Variable (x,gt) -> Language.Language.SimTypedSymbol(gt,process_symbol x,get_lc)
-  | Subarray _ -> raise (Internal_compiler_error "Currently subarrays are not handled in poly, because poly does not know what subarrays really are?")
+  | Subarray (aref,typ,index) -> 
+    raise (Internal_compiler_error "Currently subarrays are not handled in poly, because poly does not know what subarrays really are?")
 
 (* Needs to be fixed *)
 let parse_const_type const = 
