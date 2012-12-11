@@ -121,7 +121,7 @@ try
 	let () = print_endline ".....Generating LLVM IR..." in
 	let () = MyLlvm.compile !optimize !march_gpu !march !slots !vipr !load_modules llvm_file cfg in
 	(* Make some system calls to complete the process *)
-	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
+	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin" || Sys.os_type = "Win32") then
 	  (* We can make some sys calls *)
 	  let cmd = ref "opt " in
 	  let () =
@@ -133,10 +133,10 @@ try
 	    if !mem_opt || !o2 then cmd := !cmd ^ " -memcpyopt";
 	    if !inline || !o2 then cmd := !cmd ^ " -inline";
 	    if !loop_unroll || !o2 then cmd := !cmd ^ " -loop-unroll";
-	    if !bb || !o2 && !march <> "shave" then cmd := !cmd ^ " -vectorize -bb-vectorize-req-chain-depth=2";
+	    if !bb || !ooo && !march <> "shave" then cmd := !cmd ^ " -vectorize";
 	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
 	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
-	    if !ooo then cmd := !cmd ^ " -O3 -strip " in
+	    if !o2 then cmd := !cmd ^ " -O3 -strip " in
 	  let _ = Sys.command (!cmd ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  if !march <> "x86_64" then
@@ -240,7 +240,7 @@ try
 	let () = MyLlvm.compile !optimize !march_gpu !march !slots !vipr !load_modules llvm_file cfgt in
 	(* let () = MyLlvm.compile !optimize !march !slots !vipr !load_modules llvm_file cfgt in *)
 	(* Make some system calls to complete the process *)
-	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin") then
+	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin" || Sys.os_type = "Win32") then
 	  let cmd = ref "opt " in
 	  let () = 
 	    if !die || !o2 then cmd := !cmd ^ " -die";
@@ -251,10 +251,10 @@ try
 	    if !mem_opt || !o2 then cmd := !cmd ^ " -memcpyopt";
 	    if !inline || !o2 then cmd := !cmd ^ " -inline";
 	    if !loop_unroll || !o2 then cmd := !cmd ^ " -loop-unroll";
-	    if !bb || !o2 && !march <> "shave" then cmd := !cmd ^ " -vectorize -bb-vectorize-req-chain-depth=2";
+	    if !bb || !ooo && !march <> "shave" then cmd := !cmd ^ " -vectorize ";
 	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
 	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
-	    if !ooo then cmd := !cmd ^ " -O3 -strip " in
+	    if !o2 then cmd := !cmd ^ " -O3 -strip " in
 	  (* We can make some sys calls *)
 	  let _ = Sys.command (!cmd ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  (* let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in *)
