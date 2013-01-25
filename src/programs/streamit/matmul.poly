@@ -21,7 +21,7 @@ intel_loop_test in B[M][N] out int32s A[M][N] {
 
 main
 {
-    var size = 128
+    var size = 24
     int ret = extern start_timer ()
     var a[size,size] = ones()
     var result2[size,size] = zeros()

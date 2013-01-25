@@ -68,6 +68,7 @@ struct
 
   (* Calculate the shuffle mask *)
 
+  (* This should go in C *)
   let process_vectors access_sizes f1 f2 = function
     | (Constvector (_,_,x,_) , Constvector (_,d,y,lc)) ->
       let ar = (Array.map2 (fun (Const(d,x,_)) (Const(t,y,_)) -> 
@@ -200,6 +201,7 @@ struct
 
   let get_access_size s e st = abs (((e - s)/st)) + 1
 
+  (* This should go in C *)
   let build_shuffle_mask s e st lc = 
     let shuffle_mask = 
       (try 
@@ -210,8 +212,10 @@ struct
     let counter = ref s in
     Array.map (fun x -> let ret = !counter in counter := !counter + st; ret) shuffle_mask
 
+  (* This should go in C *)
   let build_counter_mask s e =  Array.init (e-s+1) (fun i -> i)
 
+  (* This should go in C *)
   (* This is for the store side *)
   let build_inverse_shuffle_mask cmask sm lc = 
     let tot = ref cmask in
@@ -224,6 +228,7 @@ struct
     let () = IFDEF DEBUG THEN Array.iter (fun x -> print_endline ((string_of_int x) ^ ",")) !tot ELSE () ENDIF in
     !tot
       
+  (* Should go in C *)
   let build_permute_mask tot first second lc = 
     let c1 = 0 in
     let c2 = Array.length first in
