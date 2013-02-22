@@ -40,6 +40,9 @@ try
   let loop_reduce = ref false in
   let loop_idiom = ref false in
   let loop_rotate = ref false in
+  let vec_length = ref 4 in
+  let vec_unroll_depth = ref 10 in
+  let loop_block = ref false in
   let o2 = ref false in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag_stg, " Decompile to stg-lang");
 		      ("-vipr-lang", Arg.Set decompile_flag_vipr, " Decompile to vipr-lang");
@@ -56,6 +59,8 @@ try
 		      ("-g", Arg.Set dot, "  Produce Dot files in directory output and output1 for debugging");
 		      ("-llvm", Arg.Set llvm, " Produce llvm bitcode in file <file>.ll");
 		      ("-l", Arg.String (fun x -> load_modules := x::!load_modules), " Load the explicitly full named .bc files");
+		      ("-vec-length", Arg.Int (fun x -> vec_length := x), " The hardware SIMD vector length (default: 4 ints, i.e., 128 bits, give interms of int types for now!)");
+		      ("-vec-unroll-depth", Arg.Int (fun x -> vec_unroll_depth := x), " The total unroll depth of vector type (default: 10)");
 		      ("-o", Arg.Set_string output, " The name of the output file");
 		      ("-die", Arg.Set die, " Dead instruction elimination [default: Off]");
 		      ("-internalize", Arg.Set internalize, "  Internalize global symbols [default: Off]");
@@ -67,6 +72,7 @@ try
 		      ("-floop-unroll", Arg.Set loop_unroll, " Loop Unroll [default: Off]");
 		      ("-bb", Arg.Set bb, " BB vectorize [default: Off]");
 		      ("-floop-vectorize", Arg.Set vectorize, " Loop Vectorize [default: Off]");
+		      ("-floop-block", Arg.Set loop_block, " Loop Blocking [default: Off]");
 		      ("-floop-outline", Arg.Set outline, " Loop outline [default: Off]");
 		      ("-floop-interchange", Arg.Set floop_interchange, " Interchange loops for locality optimizations [default: Off]");
 		      ("-floop-transpose", Arg.Set floop_transpose, " Transpose loops for locality optimizations [default: Off]");

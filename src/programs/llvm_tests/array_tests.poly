@@ -29,40 +29,43 @@ rso2 in I[M] out O[M] par i in 0:M-1 O[i] = I[i]
 
 main
 {
-  var size = 4
+  int ret = extern start_timer()
+  var size = 1024
   /* var s2 = (size+1) */
   var Array[size];
   int8 t1 var t2 var t3
-  var array[size][size];
-  array = heroes2()
-  par i in 0:size-1 par j in 0:size-1 (t1,t2,t3) = gray(array[i][j])
+  var array[size];
+  array = var_index()
+  /* par i in 0:size-1 par j in 0:size-1 (t1,t2,t3) = gray(array[i][j]) */
   /* for i in 0:size-1 (test,t2) = call_primitive_type_test () */
   /* array = ones () */
-  Array = zeros ()
+  /* Array = zeros () */
   Array = var_index ()
-  var s2 = size/2
-  var trray[s2] = cast_test()
+  /* var s2 = size/2 */
+  /* var trray[s2] = cast_test() */
   /* print the array */
   /* print the ret value */
   /* ret = extern p1 (ret) */
   /* int ret = extern print_array (s2,trray) */
-  int ret = extern print_array (size,Array)
-  ret = extern print_array2 (size,size,array)
-  /* Array = read_set(array) */
+  /* ret = extern print_array2 (size,size,array) */
+  Array = read_set(array)
+  ret = extern print_array (size,Array)
+  ret = extern print_array (size,array)
+  ret = extern print_time()
   /* /\* print the array *\/ */
   /* ret = extern print_array (size,Array) */
   /* print the ret value */
   /* ret = extern p1 (ret) */
 
-  var Varray[size][size] = heroes2()
+  /* var Varray[size][size] = heroes2() */
 
   /* /\* print a 2D array *\/ */
   /* /\* print the ret value *\/ */
   /* /\* ret = extern p1 (ret) *\/ */
 
-  var Vrray2[size][size] = heroes()
-  Varray = read_set2(Vrray2)
-  ret = extern print_array2 (size,size,Varray)
+  /* var Vrray2[size][size] = heroes() */
+  /* Varray = read_set2(Vrray2) */
+  /* ret = extern print_array2 (size,size,Varray) */
   /* Vrray2 = non1stride(Varray) */
 
   /* /\* print a 2D array *\/ */
