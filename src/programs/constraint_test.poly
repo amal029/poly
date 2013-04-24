@@ -4,7 +4,8 @@ clamp in fin[h] out iout[h], iout2[t]
    iout[i] = fin[h]
  
   for j in 0:t-1
-   iout2[j/2] = fin[i]
+   iout2[j/2] = fin[j]
+
 } where (h/2==t && h%2==0)
 
 zeros out O[N] par i in 0:N-1 O[i] = 0

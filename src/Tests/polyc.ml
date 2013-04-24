@@ -143,7 +143,7 @@ try
 	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
 	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
 	    if !o2 then cmd := !cmd ^ " -O3 -strip " in
-	  let _ = Sys.command (!cmd ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
+	  let _ = Sys.command (!cmd ^" " ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  if !march <> "x86_64" then
 	    let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in ()
@@ -262,7 +262,7 @@ try
 	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
 	    if !o2 then cmd := !cmd ^ " -O3 -strip " in
 	  (* We can make some sys calls *)
-	  let _ = Sys.command (!cmd ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
+	  let _ = Sys.command (!cmd ^ " " ^ llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  (* let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in *)
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then

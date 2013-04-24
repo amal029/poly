@@ -229,6 +229,7 @@ struct
     !tot
       
   (* Should go in C *)
+  (* First: scatter, second: gather, tot: total mask *)
   let build_permute_mask tot first second lc = 
     let c1 = 0 in
     let c2 = Array.length first in
@@ -240,7 +241,8 @@ struct
 	   (try 
 	      Array.findi ((=)x) second + c2
 	    with
-	      | Not_found -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " all hell broke loose when finding the permutation mask"))))) tot
+	      | Not_found -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) 
+							     ^ " all hell broke loose when finding the permutation mask"))))) tot
 
   let get_par_bounds = function
     | ColonExpr (start,e,stride,lc) -> 
