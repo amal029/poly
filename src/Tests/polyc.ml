@@ -132,14 +132,14 @@ try
 	  let cmd = ref "opt " in
 	  let () =
 	    if !die || !o2 then cmd := !cmd ^ " -die";
-	    if !internalize || !o2 then cmd := !cmd ^ " -internalize";
+	    (* if !internalize || !o2 then cmd := !cmd ^ " -internalize"; *)
 	    if !dce || !o2 then cmd := !cmd ^ " -adce";
 	    if !globaldce || !o2 then cmd := !cmd ^ " -globaldce";
 	    if !global_opt || !o2 then cmd := !cmd ^ " -globalopt";
 	    if !mem_opt || !o2 then cmd := !cmd ^ " -memcpyopt";
 	    if !inline || !o2 then cmd := !cmd ^ " -inline";
 	    if !loop_unroll || !o2 then cmd := !cmd ^ " -loop-unroll";
-	    if !bb || !ooo && !march <> "shave" then cmd := !cmd ^ " -vectorize";
+	    if !bb || !ooo && !march <> "shave" then cmd := !cmd ^ " -vectorize-slp -vectorize-loops -vectorize-slp-aggressive";
 	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
 	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
 	    if !o2 then cmd := !cmd ^ " -O3 -strip " in
@@ -257,7 +257,7 @@ try
 	    if !mem_opt || !o2 then cmd := !cmd ^ " -memcpyopt";
 	    if !inline || !o2 then cmd := !cmd ^ " -inline";
 	    if !loop_unroll || !o2 then cmd := !cmd ^ " -loop-unroll";
-	    if !bb || !ooo && !march <> "shave" then cmd := !cmd ^ " -vectorize ";
+	    if !bb || !ooo && !march <> "shave" then cmd := !cmd ^ " -vectorize-slp -vectorize-loops -vectorize-slp-aggressive";
 	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
 	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
 	    if !o2 then cmd := !cmd ^ " -O3 -strip " in

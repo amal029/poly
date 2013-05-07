@@ -178,3 +178,14 @@ extern void color (int r, int g, int b, int *ret){
   fputc((char)b,stdout);
   *ret = 0;
 }
+
+extern inline void my_asinf (float f, float *ret){
+  *ret = asinf(f);
+}
+extern inline void my_cosf (float f, float *ret){
+  *ret =  cosf(f);
+}
+
+extern inline void my_sqrt (float f, float *ret) {
+  *ret =  sqrtf(f);
+}
