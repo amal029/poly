@@ -1,5 +1,4 @@
-Change the paths in the Makefiles throughout the project and then:
-
+Change the paths in the Makefile in the src directory and then:
 
 
 make clean && make inside the src directory

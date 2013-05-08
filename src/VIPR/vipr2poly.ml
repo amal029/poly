@@ -26,35 +26,35 @@ let get_data_type lvalue rvalue = lvalue
 
 let get_data_type_float lvalue rvalue = lvalue
 
-let process lvalue rvalue func_int func_float = 
+let process lvalue rvalue func_int func_float =
   let ttype = (match lvalue with | Language.Consts.VConst(x,_) -> x | Language.Consts.Top x -> x) in
   if ((match lvalue with | Language.Consts.VConst (_,_) -> true | _ -> false)  && (match rvalue with | Language.Consts.VConst (_,_) -> true | _ -> false)) then
     if((match lvalue with | Language.Consts.VConst (x,_) -> is_int_type x
-      | _ -> false)  && 
+      | _ -> false)  &&
 	  (match rvalue with | Language.Consts.VConst (x,_) ->  is_int_type x
 	    | _ -> false)) then
-      try 
+      try
 	let value = (func_int (int_of_string (get_value lvalue)) (int_of_string (get_value rvalue))) in
-	let dt = get_data_type (match lvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure "")) 
+	let dt = get_data_type (match lvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure ""))
 	  (match rvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure "")) in
 	Language.Consts.VConst (dt, (string_of_int value))
       with
-	| Failure _ -> raise (Internal_compiler_error 
+	| Failure _ -> raise (Internal_compiler_error
 				(("Value " ^ ((get_value lvalue) ^" or ")) ^ (get_value rvalue ^ "undefined or not supported by the native architecure ")))
     else
       try
-	let dt = get_data_type_float (match lvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure "")) 
+	let dt = get_data_type_float (match lvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure ""))
 	  (match rvalue with | Language.Consts.VConst (x,_) -> x | _ -> raise (Failure "")) in
 	let value = (func_float (float_of_string (get_value lvalue)) (float_of_string (get_value rvalue))) in
 	Language.Consts.VConst (dt,(string_of_float value))
       with
-	| Failure _ -> raise (Internal_compiler_error 
+	| Failure _ -> raise (Internal_compiler_error
 				(("Value " ^ ((get_value lvalue) ^" or ")) ^ (get_value rvalue ^ "undefined or not supported by the native architecure ")))
   else Language.Consts.Top ttype
 
 let counter = ref 1
 
-let get_lc = 
+let get_lc =
   counter := !counter + 1; (!counter, !counter)
 
 let process_symbol x = Language.Language.Symbol (x,get_lc)
@@ -70,30 +70,30 @@ let process_dims_of = function
   | Ground _ -> raise (Internal_compiler_error ("A ground type does not have any dims"))
   | Aggregate (il,dt) -> Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const (dt, (string_of_int x), get_lc))) il)
   (* This is wrong : FIXME *)
-  | Tile (il,dt,yl) -> 
+  | Tile (il,dt,yl) ->
     Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const (dt, (string_of_int x), get_lc))) (il@yl))
 
 let process_storage = function
-  | Array (x,y) -> 
+  | Array (x,y) ->
     Language.Language.ComTypedSymbol (process_gt_of_types y, Language.Language.AddressedSymbol (process_symbol x, [], [process_dims_of y], get_lc), get_lc)
   | Variable (x,gt) -> Language.Language.SimTypedSymbol(gt,process_symbol x,get_lc)
-  | Subarray (aref,typ,index) -> 
+  | Subarray (aref,typ,index) ->
     raise (Internal_compiler_error "Currently subarrays are not handled in poly, because poly does not know what subarrays really are?")
 
 (* Needs to be fixed *)
-let parse_const_type const = 
-  try  
-    let _ = int_of_string const in 
+let parse_const_type const =
+  try
+    let _ = int_of_string const in
     let () = IFDEF DEBUG THEN print_endline ("got int type: " ^ const) ELSE () ENDIF in
     Language.DataTypes.Int32s
   with
-    | _ -> let _ = float_of_string const in 
+    | _ -> let _ = float_of_string const in
 	   let () = IFDEF DEBUG THEN print_endline ("got float type: " ^ const) ELSE () ENDIF in
-	   Language.DataTypes.Float32 
+	   Language.DataTypes.Float32
 
 let rec process_index = function
   | StaticIndex il ->
-    Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const 
+    Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (Language.Language.Const
 										   (Language.DataTypes.Int32s, (string_of_int x), get_lc))) il)
   | DynamicIndex x -> Language.Language.BracDim (List.map (fun x -> Language.Language.DimSpecExpr (process_simexpr x)) x)
 
@@ -136,7 +136,7 @@ let r_process_op s1 s2 = function
   | _ -> raise (Internal_compiler_error ("VIPR made a boo-boo, A rel-xpr without a rel-operator detected"))
 
 let rec process_rexpr = function
-  | LitTrue | LitFalse -> 
+  | LitTrue | LitFalse ->
     Language.Language.EqualTo (Language.Language.Const (Language.DataTypes.Int32, "1", get_lc),
 			     Language.Language.Const (Language.DataTypes.Int32, "1", get_lc), get_lc)
   | RBinop (op,s1,s2) -> r_process_op s1 s2 op
@@ -149,14 +149,14 @@ let rec process_procedure = function
   | Procedure (x,y,z,s) -> Language.Language.Filter (process_symbol x, List.map process_storage y, List.map process_storage z, List.hd (process_stmt s),None)
 
 and get_vec_declare = function
-  | Language.Language.ComTypedSymbol (_,x,_) -> (match x with 
-      | Language.Language.AddressedSymbol (r,_,h::[],lc) -> 
+  | Language.Language.ComTypedSymbol (_,x,_) -> (match x with
+      | Language.Language.AddressedSymbol (r,_,h::[],lc) ->
 	let () = IFDEF DEBUG THEN print_endline ("The symbol is: " ^ (get_symbol r)) ELSE () ENDIF in
-	let epr = (match h with Language.Language.BracDim x -> 
+	let epr = (match h with Language.Language.BracDim x ->
 	  (* This can be a list of constants only!! *)
-	  let cmap = List.map (fun (Language.Language.DimSpecExpr x) -> 
+	  let cmap = List.map (fun (Language.Language.DimSpecExpr x) ->
 	    (match x with Language.Language.Const (_,v,_) -> (int_of_string v) | _ -> raise (Internal_compiler_error "Dimensions not of type const!!"))) x in
-	  let arl = List.map (fun x -> (Array.init (x - 1) (fun i -> Language.Language.Const (Language.DataTypes.Int32s, (string_of_int i),lc)))) cmap in 
+	  let arl = List.map (fun x -> (Array.init (x - 1) (fun i -> Language.Language.Const (Language.DataTypes.Int32s, (string_of_int i),lc)))) cmap in
 	  List.map (fun x -> Language.Language.Constvector (None,Language.DataTypes.Int32s,x,lc)) arl) in
 	Language.Language.AllVecSymbol ({Language.Language.ism=[||]; Language.Language.sm=[]}, (Language.Language.VecAddress (r,[],epr,lc))))
   | _ -> raise (Internal_compiler_error "Tried to convert a non aggregate type to a vector type")
@@ -168,7 +168,7 @@ and get_const_vector lt =
   Language.Language.Constvector (None,ctyp,Array.of_list (List.map (fun x -> Language.Language.Const (ctyp,x,get_lc)) lt),get_lc)
 
 and get_loop_index = function
-  | Language.Language.SimTypedSymbol (_,x,_) -> x 
+  | Language.Language.SimTypedSymbol (_,x,_) -> x
   | _ -> raise (Internal_compiler_error "For index not of simple variable type")
 
 and get_loop_end = function
@@ -177,51 +177,51 @@ and get_loop_end = function
   | Language.Language.LessThanEqual (_,x,_) -> x
   | Language.Language.GreaterThan (_,x,_) -> x
   | Language.Language.GreaterThanEqual (_,x,_) -> x
-  | Language.Language.And (x,_,_) | Language.Language.Or (x,_,_) 
+  | Language.Language.And (x,_,_) | Language.Language.Or (x,_,_)
   | Language.Language.Rackets (x,_) -> get_loop_end x
 
 (*FIXME: This evaluate_stride_expression assumes a lot of different
   things, especially that everything is a constant *)
 and evaluate_stride_expression index start = function
 
-  | Language.Language.Plus (x,y,_) -> 
+  | Language.Language.Plus (x,y,_) ->
     let l = evaluate_stride_expression index start x in
     let r = evaluate_stride_expression index start y in
     process l r Int.add Float.add
 
-  | Language.Language.Minus (x,y,_) -> 
+  | Language.Language.Minus (x,y,_) ->
     let l = evaluate_stride_expression index start x in
     let r = evaluate_stride_expression index start y in
     process l r Int.sub Float.sub
 
-  | Language.Language.Times (x,y,_) -> 
+  | Language.Language.Times (x,y,_) ->
     let l = evaluate_stride_expression index start x in
     let r = evaluate_stride_expression index start y in
     process l r Int.mul Float.mul
 
-  | Language.Language.Div (x,y,lc) -> 
+  | Language.Language.Div (x,y,lc) ->
     let l = evaluate_stride_expression index start x in
     let r = evaluate_stride_expression index start y in
     process l r Int.div Float.div
 
-  | Language.Language.Pow (x,y,lc) -> 
+  | Language.Language.Pow (x,y,lc) ->
     let l = evaluate_stride_expression index start x in
     let r = evaluate_stride_expression index start y in
     process l r Int.pow Float.pow
 
-  | Language.Language.Lshift (x,y,lc) -> 
+  | Language.Language.Lshift (x,y,lc) ->
     let l = evaluate_stride_expression index start x in
     let r = evaluate_stride_expression index start y in
     let () = IFDEF DEBUG THEN print_endline "Carrying out LSHIFT" ELSE () ENDIF in
     process l r (lsl) (lsd)
 
-  | Language.Language.Rshift (x,y,lc) -> 
+  | Language.Language.Rshift (x,y,lc) ->
     let l = evaluate_stride_expression index start x in
     let r = evaluate_stride_expression index start y in
     let () = IFDEF DEBUG THEN print_endline "Carrying out RSHIFT" ELSE () ENDIF in
     process l r (lsr) (lsd)
 
-  | Language.Language.Mod (x,y,lc) -> 
+  | Language.Language.Mod (x,y,lc) ->
     let l = evaluate_stride_expression index start x in
     let r = evaluate_stride_expression index start y in
     process l r Int.rem Float.modulo
@@ -230,23 +230,23 @@ and evaluate_stride_expression index start = function
 
   | Language.Language.Const (d,x,_) -> Language.Consts.VConst(d,x)
 
-  | Language.Language.Cast (d,x,_) -> 
+  | Language.Language.Cast (d,x,_) ->
     let x = evaluate_stride_expression index start x in
-    (match x with 
+    (match x with
       | Language.Consts.VConst (_,x) -> Language.Consts.VConst (d,x)
       | _ -> raise (Internal_compiler_error "Cannot cast a non const type"))
-      
-  | Language.Language.VarRef (x,_) -> if (get_symbol x) = (get_symbol index) then 
+
+  | Language.Language.VarRef (x,_) -> if (get_symbol x) = (get_symbol index) then
       (match start with Language.Language.Const (d,x,_) -> Language.Consts.VConst (d,x)
-	| _ -> raise (Internal_compiler_error "Loop start type not a constant")) 
+	| _ -> raise (Internal_compiler_error "Loop start type not a constant"))
     else raise (Internal_compiler_error "Currently all free variables in loop strides need to be loop induction variable only")
 
   | _ -> raise (Internal_compiler_error "POLY DOES NOT SUPPORT ANYTHING ELSE")
 
 and get_loop_stride index start = function
-  | Language.Language.Assign (_,x,lc,_) -> 
+  | Language.Language.Assign (_,x,lc,_) ->
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_expr x) ELSE () ENDIF in
-    let vconst_stride = evaluate_stride_expression index (Language.Language.Const (Language.DataTypes.Int32s, "0",lc)) (match x with | Language.Language.SimExpr x -> x 
+    let vconst_stride = evaluate_stride_expression index (Language.Language.Const (Language.DataTypes.Int32s, "0",lc)) (match x with | Language.Language.SimExpr x -> x
       | _ -> raise (Internal_compiler_error "Not function calls in stride calcs")) in
     let ret = (match vconst_stride with
       | Language.Consts.VConst (x,y) -> Language.Language.Const(x,y,lc)
@@ -255,16 +255,16 @@ and get_loop_stride index start = function
   | _ -> raise (Internal_compiler_error " Currently poly only supports assignment to loop strides")
 
 and process_stmt = function
-  | If (x,y,z) -> 
+  | If (x,y,z) ->
     let clause = Language.Language.Clause (process_rexpr x, List.hd (process_stmt y), get_lc) in
     let otherwise = Language.Language.Otherwise (List.hd (process_stmt z), get_lc) in
     let case = Language.Language.Case ([clause],otherwise,get_lc) in
     [Language.Language.CaseDef (case,get_lc)]
   | Declare x -> [Language.Language.VarDecl (process_storage x, get_lc)]
-  | Assign (x,expr) -> 
+  | Assign (x,expr) ->
     let re = process_reference x in
-    let re = (match re with | Language.Language.AddrRef (x,_) -> 
-      Language.Language.AllAddressedSymbol x | Language.Language.VarRef (x,_) -> Language.Language.AllSymbol x 
+    let re = (match re with | Language.Language.AddrRef (x,_) ->
+      Language.Language.AllAddressedSymbol x | Language.Language.VarRef (x,_) -> Language.Language.AllSymbol x
       | _ -> raise (Internal_compiler_error "Cannot assign to const")) in
     let se = process_simexpr expr in
     [Language.Language.Assign ([re],Language.Language.SimExpr se,get_lc,None)]
@@ -272,7 +272,7 @@ and process_stmt = function
     let re = process_storage storage in
     let ex = process_simexpr expression in
     [Language.Language.Assign ([Language.Language.AllTypedSymbol re], Language.Language.SimExpr ex,get_lc,None)]
-  | DeclareArrayConst (storage,expression) -> 
+  | DeclareArrayConst (storage,expression) ->
     (* Make this into a vector type *)
     (* 1.) We send a block back with a.) A comtyped symbol declaration
        b.) A vector assignment to this declaration *)
@@ -284,7 +284,7 @@ and process_stmt = function
     (* Language.Language.Assign([Language.Language.AllTypedSymbol re],Language.Language.SimExpr sev,get_lc) *)
   | Block x -> [Language.Language.Block (List.flatten (List.map process_stmt x), get_lc)]
   | Noop -> [Language.Language.Noop]
-  | For (x,y,z,s1,s2) -> 
+  | For (x,y,z,s1,s2) ->
     let index = process_storage x in
     let index = get_loop_index index in
     let start = process_simexpr y in
@@ -304,22 +304,22 @@ and process_stmt = function
     let str = get_loop_stride index start str in
     let body = List.hd (process_stmt s2) in
     [Language.Language.Par (index,Language.Language.ColonExpr (start,e,str,get_lc), body,get_lc)]
-  | CallFun (id,inputs,outputs) -> 
+  | CallFun (id,inputs,outputs) ->
     let id = process_symbol id in
     (* Just check that none of them are things that I cannot consume *)
-    let () = List.iter (fun x -> (match x with | Constant _ -> 
-      raise (Internal_compiler_error " Cannot handle constants in poly fcalls") 
+    let () = List.iter (fun x -> (match x with | Constant _ ->
+      raise (Internal_compiler_error " Cannot handle constants in poly fcalls")
       | _ -> ())) inputs in
-    let () = List.iter (fun x -> (match x with | Constant _ -> 
-      raise (Internal_compiler_error " Cannot handle constants in poly fcalls") 
+    let () = List.iter (fun x -> (match x with | Constant _ ->
+      raise (Internal_compiler_error " Cannot handle constants in poly fcalls")
       | _ -> ())) outputs in
     let inputs = List.map process_reference inputs in
-    let inputs = List.map (fun x -> (match x with | Language.Language.AddrRef (x,_) -> Language.Language.CallAddrressedArgument x 
+    let inputs = List.map (fun x -> (match x with | Language.Language.AddrRef (x,_) -> Language.Language.CallAddrressedArgument x
       | Language.Language.VarRef (x,_) -> Language.Language.CallSymbolArgument x
       | _ -> raise (Internal_compiler_error " No other type but AddrRef and VarRef can be allocated in assign"))) inputs in
     let outputs = List.map process_reference outputs in
-    let outputs = List.map (fun x -> (match x with | Language.Language.AddrRef (x,_) -> Language.Language.AllAddressedSymbol x 
-      | Language.Language.VarRef (x,_) -> Language.Language.AllSymbol x 
+    let outputs = List.map (fun x -> (match x with | Language.Language.AddrRef (x,_) -> Language.Language.AllAddressedSymbol x
+      | Language.Language.VarRef (x,_) -> Language.Language.AllSymbol x
       | _ -> raise (Internal_compiler_error " No other type but AddrRef and VarRef can be allocated in assign"))) outputs in
     let fc = Language.Language.Call (id,inputs,get_lc) in
     [Language.Language.Assign (outputs,Language.Language.FCall (fc,false), get_lc,None)]
@@ -328,14 +328,14 @@ and process_stmt = function
 let process = function
   | Program x ->
     let f = List.filter (fun x -> (match x with DeclareEntry _ | DeclareFun _ -> true | _ -> false)) x in
-    let fs = List.map (fun x -> (match x with 
-      | DeclareEntry x -> 
+    let fs = List.map (fun x -> (match x with
+      | DeclareEntry x ->
 	let proc = process_procedure x in
-	let proc = (match proc with Language.Language.Filter(x,y,z,t,sp) -> 
+	let proc = (match proc with Language.Language.Filter(x,y,z,t,sp) ->
 	  Language.Language.Filter (Language.Language.Symbol ("main",get_lc),y,z,t,sp)) in
-	Language.Language.DefMain (proc, None, get_lc) 
+	Language.Language.DefMain (proc, None, get_lc)
       | DeclareFun x -> Language.Language.Def (process_procedure x, None, get_lc)
       | _ -> raise (Internal_compiler_error "Could not filter procedures out!!"))) f in
     let s = List.filter (fun x -> (match x with DeclareEntry _ | DeclareFun _ -> false | _ -> true)) x in
-    if s <> [] then raise (Internal_compiler_error " Statements not inside procedure!!") else 
+    if s <> [] then raise (Internal_compiler_error " Statements not inside procedure!!") else
       Language.Language.Program fs

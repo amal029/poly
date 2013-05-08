@@ -1,0 +1,15 @@
+*.o
+*.a
+*.cmxa
+*.cmi
+*.cmx
+TAGS
+Test/*
+*.mli
+Parsing/parser.ml
+Parsing/lexer.ml
+VIPR/viprLexer.ml
+VIPR/viprParser.ml
+VIPR/viprParser.mli
+VIPR/viprParser.output
+Tests/polyc

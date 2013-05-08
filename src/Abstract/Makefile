@@ -1,4 +1,3 @@
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
 XMLLIB=xml-light.cmxa
 OCMLOPTS=-a
 OCMALDEBUG=-g

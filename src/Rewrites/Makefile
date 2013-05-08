@@ -1,11 +1,8 @@
-COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
+COMP_HOME=$(ROOTDIR)
+LANGDIR=$(ROOTDIR)/Abstract
 VIPRDIR=$(COMP_HOME)/VIPR
-BATTERIES=$(HOME)/batteries-included/_build/src
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
-METISDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/lib-metis/lib
+ERRORDIR=$(ROOTDIR)/Error
+DOTDIR=$(ROOTDIR)/backend
 DOTLIB=codegen.cmxa
 ERRORLIB=error.cmxa
 CC=ocamlopt
@@ -17,9 +14,9 @@ BATLIBB=batteries.cmxa
 all: fcfg decompile
 
 
-fcfg: 
+fcfg:
 	$(CC) -a *.cmx -o rewrites.cmxa
-fcheck: 
+fcheck:
 	$(CC) -I $(LANGDIR) -I $(ERRORDIR) -c fcfg.ml
 	$(CC) -I $(LANGDIR) -I $(ERRORDIR) -c cfg.ml
 

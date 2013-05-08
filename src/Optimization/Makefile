@@ -1,11 +1,7 @@
 # BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
-DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-BATTERIES=$(HOME)/batteries-included/_build/src
-CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
-BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
+LANGDIR=$(ROOTDIR)/Abstract
+ERRORDIR=$(ROOTDIR)/Error
+DOTDIR=$(ROOTDIR)/backend
 FIND=ocamlfind
 CC=ocamlopt
 DOTLIB=codegen.cmxa
@@ -27,7 +23,7 @@ all: optimization
 optimization: fcheck
 	$(CC) -a constantfolding.cmx -o optimizations.cmxa
 
-fcheck: 
+fcheck:
 	$(CC) -pp "camlp4o pa_macro.cmo -UDEBUG" -I $(ERRORDIR) -I	\
 	$(LANGDIR) $(LANGLIB) -I $(BATTERIES) -I $(DOTDIR) $(ERRORLIB)	\
 	$(DOTLIB) -c constantfolding.ml

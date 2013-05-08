@@ -10,7 +10,7 @@ else
 AS=llvm-as-3.0
 endif
 
-INCLUDES +=-I$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/NVIDIA_NVVM/LibNVVM/lib/universal_Darwin_release/
+INCLUDES +=-I$(ROOTDIR)/NVIDIA_NVVM/LibNVVM/lib/universal_Darwin_release/
 INCLUDES +=-I.
 
 CFLAGS=-g -DPPTX -DMYDEBUG -DTIME -O0 -S -emit-llvm -I$(INCLUDES)

@@ -1,11 +1,11 @@
-type types = 
+type types =
   | Ground of Language.DataTypes.t
   | Aggregate of int list * Language.DataTypes.t
   | Tile of int list * Language.DataTypes.t * int list
 
 type literal = string
 
-type op = 
+type op =
   | POW
   | PLUS
   | MINUS
@@ -46,7 +46,7 @@ type index =
   | StaticIndex of int list
   | DynamicIndex of expression list
 
-and storage = 
+and storage =
   | Array of literal * types
   | Variable of literal * Language.DataTypes.t
   | Subarray of literal * types * index
@@ -57,7 +57,7 @@ and reference =
   | VariableRef of literal
   | Constant of literal
 
-and expression = 
+and expression =
   | Ref of reference
   | Binop of op * expression * expression
   | Unop of op * expression
@@ -65,7 +65,7 @@ and expression =
   | RefL of literal list
   | Cast of Language.DataTypes.t * expression
 
-and rExpression = 
+and rExpression =
   | LitTrue
   | LitFalse
   | RBinop of op * expression * expression
@@ -74,7 +74,7 @@ and rExpression =
   | Or of rExpression * rExpression
   | Not of rExpression
 
-and statement = 
+and statement =
   | If of rExpression * statement * statement
   | For of storage * expression * rExpression * statement * statement
   | Par of storage * expression * rExpression * statement * statement
@@ -93,4 +93,4 @@ and procedure =
   | Procedure of literal * storage list * storage list * statement
 
 type ast =
-  | Program of statement list 
+  | Program of statement list
