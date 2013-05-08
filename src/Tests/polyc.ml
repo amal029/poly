@@ -85,7 +85,7 @@ try
 
   if !version then begin print_endline "Poly compiler version alpha"; compile := false end
 
-  else 
+  else
 
     if (!vipr) then
       let in_chan = open_in !file_name in
@@ -97,10 +97,10 @@ try
       let ast = Vipr2poly.process vast in
       let () = print_endline "....Building the call graph..." in
       let fcfg = Fcfg.check_ast ast in
-      let fcfg = 
+      let fcfg =
 	if !floop_interchange then
 	  let () = print_endline ".....Performing loop interchange......" in
-	  LoopInterchange.interchange fcfg 
+	  LoopInterchange.interchange fcfg
 	else fcfg in
       if !dot then
 	let () = print_endline ".....Building CFG..." in
@@ -108,7 +108,7 @@ try
 	let cfg = VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfg in
 	Dot.build_program_dot cfg "output/output.dot" else ();
       if !llvm then
-	let fcfg = 
+	let fcfg =
 	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
 	      Loop_out.Kernel.process fcfg
 	   else fcfg) in
@@ -148,10 +148,10 @@ try
 	  if !march <> "x86_64" then
 	    let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in ()
 	  else ();
-	  let _ = Sys.command ("rm -rf *.lle") in 
+	  let _ = Sys.command ("rm -rf *.lle") in
 	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
 	      let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ())
-	else if not !optimize then 
+	else if not !optimize then
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  if !march <> "x86_64" then
 	    let _ = Sys.command ("sed -ie 's/@main/@MAIN/' " ^ llvm_file ^".ll") in ()
@@ -213,7 +213,7 @@ try
       (* By default do not always produce llvm IR *)
       let cfgt =
 	if !optimize && !vectorize then
-	  let fcfgv = 
+	  let fcfgv =
 	    if !floop_interchange then
 	      let () = print_endline ".....Performing loop interchange......" in
 	      LoopInterchange.interchange fcfgv else fcfgv in
@@ -225,13 +225,13 @@ try
 	  let () = print_endline "....Vectorizing......" in
 	  Vectorization.Convert.runtime_vec := !floop_runtime_vec;
 	  VecCFG.check_fcfg !floop_runtime_vec !floop_transpose !vectorize fcfgv
-	else 
-	  let fcfgv = 
+	else
+	  let fcfgv =
 	    if !floop_interchange then
 	      let () = print_endline ".....Performing loop interchange......" in
 	      LoopInterchange.interchange fcfgv else fcfgv in
 	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
-	      let fcfgv = 
+	      let fcfgv =
 		(if !outline then
 		    let () = print_endline ".....Performing loop outline......" in
 		    Loop_out.Kernel.process fcfgv else fcfgv) in
@@ -248,7 +248,7 @@ try
 	(* Make some system calls to complete the process *)
 	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin" || Sys.os_type = "Win32") then
 	  let cmd = ref "opt " in
-	  let () = 
+	  let () =
 	    if !die || !o2 then cmd := !cmd ^ " -die";
 	    if !internalize || !o2 then cmd := !cmd ^ " -internalize";
 	    if !dce || !o2 then cmd := !cmd ^ " -adce";
@@ -266,15 +266,15 @@ try
 	  (* let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in *)
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
-	      try 
+	      try
 		let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ()
 	      with
 		| _ as s -> raise s);
 	  let _ = Sys.command ("rm -rf *.lle") in ()
-	else if not !optimize then 
+	else if not !optimize then
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  (if !march_gpu = "nvvm-cuda-i64" || !march_gpu = "nvvm-cuda-i32" then
-	      try 
+	      try
 		let _ = Sys.command ("llvm-dis " ^ llvm_file ^".gpu.bc -o " ^ llvm_file ^".gpu.ll") in ()
 	      with
 		| _ as s -> raise s);
@@ -297,7 +297,7 @@ try
 	if !output = "" then
 	  let () = MetisDriver.generate_metis_file "2" "011" (llvm_file ^ ".our.grf") og in
 	  let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in ()
-	else 
+	else
 	  let () = MetisDriver.generate_metis_file "2" "011" (!output) og in
 	  let () = Stream_dot.build_program_dot (llvm_file ^ ".dot") stream_graph in ()
       else ()

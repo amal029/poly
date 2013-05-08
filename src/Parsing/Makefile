@@ -1,5 +1,4 @@
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
+ERRORDIR=$(ROOTDIR)/Error
 OCMLOPTS=-a
 OCMXALDEBUG=-g
 XMLLIB=xml-light.cmxa

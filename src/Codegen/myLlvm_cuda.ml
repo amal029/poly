@@ -1,5 +1,5 @@
 (* This file is called by the main llvm file to create the gpu code in a
-   separate module 
+   separate module
 
    Author: Avinash Malik
    Date: Sun Oct 28 12:47:55 GMT 2012
@@ -84,7 +84,7 @@ let () = add_ipc_propagation the_mpm
 let _ =  PassManager.initialize the_fpm
 
 (* Default target data layout *)
-let target_data = ref (Llvm_target.DataLayout.create 
+let target_data = ref (Llvm_target.DataLayout.create
 			 "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
 
 let fcall_names = Hashtbl.create 10
@@ -104,7 +104,7 @@ type arg =
 (* The user specified modules *)
 let user_modules = ref []
 
-let get_vptr_bit_cast vptr dvptr = 
+let get_vptr_bit_cast vptr dvptr =
   (match classify_type (type_of dvptr) with
     | TypeKind.Vector -> vptr
     | TypeKind.Array -> build_bitcast vptr (pointer_type (vector_type (element_type (type_of dvptr)) (array_length (type_of dvptr)))) "" builder
@@ -121,7 +121,7 @@ let get_typed_symbol = function
   | ComTypedSymbol (_,x,_) -> get_addressed_symbol x
 
 let get_data_types lc = function
-  | DataTypes.Int8 | DataTypes.Int16 | DataTypes.Int32 | DataTypes.Int64 
+  | DataTypes.Int8 | DataTypes.Int16 | DataTypes.Int32 | DataTypes.Int64
   | DataTypes.Int8s | DataTypes.Int16s | DataTypes.Int32s | DataTypes.Int64s -> "int"
   | DataTypes.Float8 | DataTypes.Float16 | DataTypes.Float32 | DataTypes.Float64 -> "float"
   | _ -> raise (Error ((Reporting.get_line_and_column lc) ^ " datatype not supported in LLVM IR"))
@@ -133,25 +133,25 @@ let get_addressed_symbol_lc = function
 let get_typed_symbol_lc = function
   | SimTypedSymbol (_,_,lc) -> lc
   | ComTypedSymbol (_,_,lc) -> lc
-    
+
 let get_typed_type = function
-  | SimTypedSymbol (x,_,lc) 
+  | SimTypedSymbol (x,_,lc)
   | ComTypedSymbol (x,_,lc) -> get_data_types lc x
 
 let get_exact_typed_type = function
-  | SimTypedSymbol (x,_,lc) 
+  | SimTypedSymbol (x,_,lc)
   | ComTypedSymbol (x,_,lc) -> x
 
-let create_entry_block_alloca f vn t = 
+let create_entry_block_alloca f vn t =
   let builder = builder_at context (instr_begin (entry_block f)) in
   build_alloca t vn builder
 
-let create_entry_block_alloca_array f vn t size = 
+let create_entry_block_alloca_array f vn t size =
   let builder = builder_at context (instr_begin (entry_block f)) in
   let ret = build_alloca t vn builder in
   let amd = mdstring context "align 128" in
   (* let () = set_metadata ret 0 amd in *) ret
-  
+
 let drop_dimspec_expr counter_list counter = function
   | DimSpecExpr x ->
     (match x with
@@ -166,7 +166,7 @@ let to_drop_bracdim counter_list counter = function
   | BracDim x -> drop_dimspec_expr_list counter_list counter x
 
 let rec to_drop_dims counter_list counter = function
-  | h::t -> 
+  | h::t ->
     let () = to_drop_bracdim counter_list counter h in
     let () = IFDEF DEBUG THEN print_string "To drop" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN List.iter (fun x -> print_endline ("," ^ (string_of_int x))) !counter_list ELSE () ENDIF in
@@ -195,7 +195,7 @@ let get_first_order_type = function
     (* Remember we have gotten rid of all the angledim <> lists, so that
        we only have [] and [,,,][] expressions with drop semantics
        left *)
-  | ComTypedSymbol (x,y,_) -> 
+  | ComTypedSymbol (x,y,_) ->
       (* let () = IFDEF DEBUG THEN print_endline "get_first_order_type: got complex typed symbol" ELSE () ENDIF in *)
     (x, List.flatten (List.map get_dims (match y with AddressedSymbol (_,_,y,_) -> y)))
 
@@ -203,17 +203,17 @@ let rec drop todrop counter dims = function
   | h::t -> if not (List.exists (fun x -> x = counter) todrop) then dims := h :: !dims; drop todrop (counter+1) dims t
   | [] -> ()
 
-let get declarations s = 
+let get declarations s =
   try
     List.find (fun x -> (match x with (x,y) -> (get_typed_symbol x) = s)) declarations
   with
     | Not_found -> raise (Internal_compiler_error ("Variable: " ^ s ^ " could not be found"))
 
-let exists declarations s = 
+let exists declarations s =
   List.exists (fun x -> (match x with (x,y) -> (get_typed_symbol x)) = s) declarations
 
-let add_to_declarations s alloca declarations = 
-  if (exists !declarations (get_typed_symbol s)) then 
+let add_to_declarations s alloca declarations =
+  if (exists !declarations (get_typed_symbol s)) then
     (* let () = print_curr_line_num !curr_lnum in *)
     raise (Error (((Reporting.get_line_and_column (get_typed_symbol_lc s)) ^ "Symbol "^ (get_typed_symbol s)) ^ " multiply defined" ))
   else declarations := (s,alloca) :: !declarations
@@ -224,8 +224,8 @@ let get_llvm_primitive_type lc = function
   | DataTypes.Int16 | DataTypes.Int16s -> i16_type
   | DataTypes.Int32 | DataTypes.Int32s -> i32_type
   | DataTypes.Int64 | DataTypes.Int64s -> i64_type
-  | DataTypes.Float8 
-  | DataTypes.Float16 
+  | DataTypes.Float8
+  | DataTypes.Float16
   | DataTypes.Float32 -> float_type
   | DataTypes.Float64 -> double_type
   | _ as s -> raise (Error ((Reporting.get_line_and_column lc) ^(DataTypes.print_datatype s) ^ " DataType cannot be supported in llvm IR"))
@@ -260,42 +260,42 @@ let rec get_exact_simexpr_type declarations = function
 
 let derefence_pointer pointer =
   match classify_type (type_of pointer) with
-    | TypeKind.Pointer -> 
+    | TypeKind.Pointer ->
 	build_load pointer (if not !slots then "dereference_pointer" else "") builder
     | _ -> pointer
 
 let rec codegen_simexpr declarations = function
-  | Plus (x,y,lc) -> 
+  | Plus (x,y,lc) ->
     (match get_simexpr_type declarations x with
-      | "int" -> build_add (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
+      | "int" -> build_add (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y))
 	(if not !slots then "addtemp" else "") builder
-      | "float" -> build_fadd (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
+      | "float" -> build_fadd (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y))
 	(if not !slots then "addftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
-  | Minus (x,y,lc) -> 
+  | Minus (x,y,lc) ->
     (match get_simexpr_type declarations x with
-      | "int" -> build_sub (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
+      | "int" -> build_sub (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y))
 	(if not !slots then "subtemp" else "") builder
-      | "float" -> build_fsub (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
+      | "float" -> build_fsub (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y))
 	(if not !slots then "subftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
-  | Times (x,y,lc) -> 
+  | Times (x,y,lc) ->
     (match get_simexpr_type declarations x with
-      | "int" -> build_mul (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
+      | "int" -> build_mul (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y))
 	(if not !slots then "timestemp" else "") builder
-      | "float" -> build_fmul (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) 
+      | "float" -> build_fmul (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y))
 	(if not !slots then "timesftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Lshift (x,y,lc) -> 
+  | Lshift (x,y,lc) ->
     (match get_simexpr_type declarations x with
-      | "int" -> build_shl (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
+      | "int" -> build_shl (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y))
 	(if not !slots then "shltemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Rshift (x,y,lc) -> 
+  | Rshift (x,y,lc) ->
     (match get_simexpr_type declarations x with
-      | "int" -> build_lshr (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y)) 
+      | "int" -> build_lshr (derefence_pointer (codegen_simexpr declarations x)) (derefence_pointer (codegen_simexpr declarations y))
 	(if not !slots then "templshr" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
@@ -303,7 +303,7 @@ let rec codegen_simexpr declarations = function
   | Div (x,y,lc) ->
     (match get_simexpr_type declarations x with
       | "int" ->
-	let ret = build_sdiv (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) 
+	let ret = build_sdiv (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y))
 	  (if not !slots then "divtemp" else "") builder in
 	let () = IFDEF DEBUG THEN dump_value ret ELSE () ENDIF in
 	(* Debugging --> get the type of the value *)
@@ -313,7 +313,7 @@ let rec codegen_simexpr declarations = function
 	    | TypeKind.Integer -> print_endline "Type is int"
 	    | TypeKind.Double -> print_endline "Type is double"
 	    | _ -> print_endline "unknown type") ELSE () ENDIF in ret
-      | "float" -> build_fdiv (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) 
+      | "float" -> build_fdiv (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y))
 	(if not !slots then "divftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
@@ -323,175 +323,175 @@ let rec codegen_simexpr declarations = function
       | TypeKind.Vector -> Some (type_of xarg)
       | _ -> None) in
     (match get_simexpr_type declarations x with
-      | "int" -> 
+      | "int" ->
 	(match xvsize with
 	  | None ->
-	    let cond = build_icmp Icmp.Sle xarg (const_int ((get_llvm_primitive_type lc (get_exact_simexpr_type declarations x)) context) 0) 
+	    let cond = build_icmp Icmp.Sle xarg (const_int ((get_llvm_primitive_type lc (get_exact_simexpr_type declarations x)) context) 0)
 	      (if not !slots then "abs_cond" else "") builder in
-	    let sub = build_sub (const_int ((get_llvm_primitive_type lc (get_exact_simexpr_type declarations x)) context) (-0)) xarg 
+	    let sub = build_sub (const_int ((get_llvm_primitive_type lc (get_exact_simexpr_type declarations x)) context) (-0)) xarg
 	      (if not !slots then "abs_sub" else "") builder in
 	    build_select cond sub xarg (if not !slots then "abs_select" else "") builder
 	  | Some _ -> raise (Internal_compiler_error "LLVM codegen still does not support icmp on vector types!! :-("))
-      | "float" -> 
+      | "float" ->
 	let reft = (match get_llvm_primitive_type lc (get_exact_simexpr_type declarations x) with
-	  | double_type -> 
+	  | double_type ->
 	    (match xvsize with
-	      | Some x -> 
+	      | Some x ->
 		let eft = function_type x [|x|] in
 		declare_function "@llvm.fabs.f64" eft the_module
-	      | None -> 
+	      | None ->
 		let eft = function_type (double_type context) [|(double_type context)|] in
 		declare_function "@llvm.fabs.f64" eft the_module)
-	  | float_type -> 
+	  | float_type ->
 	    (match xvsize with
-	      | Some x -> 
+	      | Some x ->
 		let eft = function_type x [|x|] in
 		declare_function "@llvm.fabs.f32" eft the_module
-	      | None -> 
+	      | None ->
 		let eft = function_type (float_type context) [|(float_type context)|] in
 		declare_function "@llvm.fabs.f32" eft the_module)
 	  | _ -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support anything but int/float abs internally :-("))) in
 	build_call reft [|xarg|] (if not !slots then "fabs" else "") builder)
 
-  | Pow (x,y,lc) -> 
+  | Pow (x,y,lc) ->
     (* If y is a vector or a const vector then just get the first element of the vector to raise it appropriately!! *)
     (* Now call this function with the required arguments *)
     let xarg = (derefence_pointer(codegen_simexpr declarations x)) in
     let yarg = (derefence_pointer(codegen_simexpr declarations y)) in
-    let () = (match classify_type (type_of yarg) with 
+    let () = (match classify_type (type_of yarg) with
       | TypeKind.Vector -> raise (Error ((Reporting.get_line_and_column lc) ^ " Cannot raise by a vector type!!"))
       | _ -> ()) in
     let xvsize = (match classify_type (type_of xarg) with
       | TypeKind.Vector -> Some (type_of xarg)
       | _ -> None) in
     (match get_simexpr_type declarations y with
-      | "int" -> 
+      | "int" ->
 	(match get_simexpr_type declarations x with
 	  | "int" -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^int internally :-("))
-	  | "float" -> 
+	  | "float" ->
 	    let reft = (match get_llvm_primitive_type lc (get_exact_simexpr_type declarations x) with
-	      | double_type -> 
+	      | double_type ->
 		(match xvsize with
-		  | Some x -> 
+		  | Some x ->
 		    let eft = function_type x [|x;(i32_type context)|] in
 		    declare_function "@llvm.powi.f64" eft the_module
-		  | None -> 
+		  | None ->
 		    let eft = function_type (double_type context) [|(double_type context);(i32_type context)|] in
 		    declare_function "@llvm.powi.f64" eft the_module)
-	      | float_type -> 
+	      | float_type ->
 		(match xvsize with
-		  | Some x -> 
+		  | Some x ->
 		    let eft = function_type x [|x;(i32_type context)|] in
 		    declare_function "@llvm.powi.f32" eft the_module
-		  | None -> 
+		  | None ->
 		    let eft = function_type (float_type context) [|(float_type context);(i32_type context)|] in
 		    declare_function "@llvm.powi.f32" eft the_module)
 	      | _ -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^non float32 internally :-("))) in
 	    build_call reft [|xarg; yarg|] (if not !slots then "powi" else "") builder)
-      | "float" -> 
+      | "float" ->
 	(match get_simexpr_type declarations x with
 	  | "int" ->  raise(Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^float internally :-("))
 	  | "float" ->
 	    let reft = (match get_llvm_primitive_type lc (get_exact_simexpr_type declarations x) with
-	      | double_type -> 
+	      | double_type ->
 		(match xvsize with
-		  | Some x -> 
+		  | Some x ->
 		    let eft = function_type x [|x;(double_type context)|] in
 		    declare_function "@llvm.pow.f64" eft the_module
-		  | None -> 
+		  | None ->
 		    let eft = function_type (double_type context) [|(double_type context);(double_type context)|] in
 		    declare_function "@llvm.pow.f64" eft the_module)
 	      | float_type ->
 		(match xvsize with
-		  | Some x -> 
+		  | Some x ->
 		    let eft = function_type x [|x;(float_type context)|] in
 		    declare_function "@llvm.pow.f32" eft the_module
-		  | None -> 
+		  | None ->
 		    let eft = function_type (float_type context) [|(float_type context);(float_type context)|] in
 		    declare_function "@llvm.pow.f32" eft the_module)
 	      | _ -> raise (Error((Reporting.get_line_and_column lc) ^ " LLVM does not support raising int^non float32 internally :-("))) in
 	    build_call reft [|xarg; yarg|] (if not !slots then "pow" else "") builder))
-    
-  | Mod (x,y,lc) -> 
+
+  | Mod (x,y,lc) ->
     (match get_simexpr_type declarations x with
-      | "int" -> build_srem (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) 
-	(if not !slots then "remtemp" else "") builder 
-      | "float" ->build_frem (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y)) 
+      | "int" -> build_srem (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y))
+	(if not !slots then "remtemp" else "") builder
+      | "float" ->build_frem (derefence_pointer(codegen_simexpr declarations x)) (derefence_pointer(codegen_simexpr declarations y))
 	(if not !slots then "remftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Opposite (x,lc) -> 
+  | Opposite (x,lc) ->
     (match get_simexpr_type declarations x with
-      | "int" -> build_neg (derefence_pointer(codegen_simexpr declarations x)) 
+      | "int" -> build_neg (derefence_pointer(codegen_simexpr declarations x))
 	(if not !slots then "negtemp" else "") builder
       | "float" -> build_fneg (derefence_pointer(codegen_simexpr declarations x)) (if not !slots then "negftemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Const (x,v,lc) -> 
+  | Const (x,v,lc) ->
     (match get_data_types lc x with
-      | "int" -> 
+      | "int" ->
 	let () = IFDEF DEBUG THEN print_endline ("trying to get value from Const int: " ^ v) ELSE () ENDIF in
 	const_int ((get_llvm_primitive_type lc x) context) (int_of_string v)
       | "float" -> const_float ((get_llvm_primitive_type lc x) context) (float_of_string v)
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " wrong type!!")))
 
-  | Cast (ctype,y,lc) -> 
+  | Cast (ctype,y,lc) ->
     (* We need to use one of the many cast operators in llvm *)
     let () = IFDEF DEBUG THEN print_endline "Trying to cast" ELSE () ENDIF in
     let vtype = get_exact_simexpr_type declarations y in
     (* Now compare them *)
     (match DataTypes.cmp_datatype (vtype,ctype) with
-      | "sext" -> 
+      | "sext" ->
 	let () = IFDEF DEBUG THEN print_endline "casting sext" ELSE () ENDIF in
-	build_sext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_sext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "sexttemp" else "") builder
-      | "trunc" -> 
+      | "trunc" ->
 	let () = IFDEF DEBUG THEN print_endline "casting trunc" ELSE () ENDIF in
-	build_trunc (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_trunc (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "trunctemp" else "") builder
-      | "fpext" -> 
+      | "fpext" ->
 	let () = IFDEF DEBUG THEN print_endline "casting fpext" ELSE () ENDIF in
-	build_fpext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_fpext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "fpexttemp" else "") builder
-      | "fptrunc" -> 
+      | "fptrunc" ->
 	let () = IFDEF DEBUG THEN print_endline "casting fptrunc" ELSE () ENDIF in
-	build_fptrunc (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_fptrunc (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "fptrunctemp" else "") builder
-      | "sitofp" -> 
+      | "sitofp" ->
 	let () = IFDEF DEBUG THEN print_endline "casting sitofp" ELSE () ENDIF in
-	build_sitofp (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_sitofp (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "sitofptemp" else "") builder
-      | "uitofp" -> 
+      | "uitofp" ->
 	let () = IFDEF DEBUG THEN print_endline "casting uitofp" ELSE () ENDIF in
-	build_uitofp (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_uitofp (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "uitofptemp" else "") builder
-      | "fptosi" -> 
+      | "fptosi" ->
 	let () = IFDEF DEBUG THEN print_endline "casting fptosi" ELSE () ENDIF in
-	build_fptosi (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_fptosi (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "fptositemp" else "") builder
-      | "fptoui" -> 
+      | "fptoui" ->
 	let () = IFDEF DEBUG THEN print_endline "casting fptoui" ELSE () ENDIF in
-	build_fptoui (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_fptoui (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "fptouitemp" else "") builder
-      | "zext" -> 
+      | "zext" ->
 	let () = IFDEF DEBUG THEN print_endline "casting zext" ELSE () ENDIF in
-	build_zext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_zext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "zext" else "") builder
-      | "=" -> 
+      | "=" ->
 	let () = IFDEF DEBUG THEN print_endline "casting zext" ELSE () ENDIF in
-	build_zext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context) 
+	build_zext (derefence_pointer(codegen_simexpr declarations y)) ((get_llvm_primitive_type lc ctype) context)
 	  (if not !slots then "zext" else "") builder
       | _ as s -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc)^ " got a wrong type!! " ^ s)))
   | Brackets (x,_) -> codegen_simexpr declarations x
 
-  | VarRef (x,lc) -> 
+  | VarRef (x,lc) ->
     (* Now this can also be an array type, in which case the pointer
        needs to be sent back, not the value!! *)
-    (match (match (get declarations (get_symbol x)) with | (x,_) -> x) with 
+    (match (match (get declarations (get_symbol x)) with | (x,_) -> x) with
       | ComTypedSymbol _ ->
 	(* In this case we need to send back the pointer to the array!! *)
 	let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
-	build_in_bounds_gep (match get declarations (get_symbol x) with | (_,x)->x) [|findex;findex|] 
+	build_in_bounds_gep (match get declarations (get_symbol x) with | (_,x)->x) [|findex;findex|]
 	  (if not !slots then "tempgep" else "") builder
       | _ -> build_load (match get declarations (get_symbol x) with | (_,x) -> x) (get_symbol x) builder)
 
@@ -510,16 +510,16 @@ let rec codegen_simexpr declarations = function
     (* Now we need to get the codegen for the index variables *)
     (* We should just use the indices that we need to drop and use them instead of this one!!*)
     (* let indices = get_to_drop x in *)
-    let indices = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in 
+    let indices = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in
 								     List.map (fun x -> (derefence_pointer(codegen_simexpr declarations x))) x
       | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
     let () = IFDEF DEBUG THEN print_endline "dumping dereferenced indices" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
-    let itypes = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in 
+    let itypes = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in
 								     List.map (fun x -> get_exact_simexpr_type declarations x) x
       | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
     let () = IFDEF DEBUG THEN dump_value array_llvaue ELSE () ENDIF in
-    let ret = build_in_bounds_gep array_llvaue (Array.of_list [findex;findex]) 
+    let ret = build_in_bounds_gep array_llvaue (Array.of_list [findex;findex])
       (if not !slots then "tempgep" else "") builder in
 
     (* Then we need to sign extend the thing to ptr type *)
@@ -535,7 +535,7 @@ let rec codegen_simexpr declarations = function
     let () = IFDEF DEBUG THEN dump_value ret ELSE () ENDIF in
     let ret = ref ret in
     let counter = ref (List.length indices) in
-    let () = List.iter (fun x -> 
+    let () = List.iter (fun x ->
       (ret := build_in_bounds_gep !ret [|x|] (if not !slots then "tempgep" else "") builder;
        let () = IFDEF DEBUG THEN dump_value !ret ELSE () ENDIF in
        counter := !counter - 1 ;
@@ -543,7 +543,7 @@ let rec codegen_simexpr declarations = function
        if !counter = 0 then ()
        else
 	 (* Build the extra 0,0 address referencing *)
-	 ret := build_in_bounds_gep !ret (Array.of_list [findex;findex]) (if not !slots then "tempgep" else "") builder)) indices in 
+	 ret := build_in_bounds_gep !ret (Array.of_list [findex;findex]) (if not !slots then "tempgep" else "") builder)) indices in
     !ret
 
   (* Generating the non constant vector *)
@@ -552,7 +552,7 @@ let rec codegen_simexpr declarations = function
     (* ll --> is the yexpr *)
     let (name,access_sizes,ll) = (match x with VecAddress (x,a,ll,_) -> (x,a,ll)) in
     (* This might be a complex expression, in which case we want try calculating the shuffle mask *)
-    let shuffle_mask = List.mapi (fun i x -> try (i,(Vectorization.Convert.calculate_shuffle_mask access_sizes lc x)) with 
+    let shuffle_mask = List.mapi (fun i x -> try (i,(Vectorization.Convert.calculate_shuffle_mask access_sizes lc x)) with
       | Vectorization.Convert.Ignore _ -> (i,x)
       | _ -> raise (Internal_compiler_error "")) ll in
     let ce = List.filter (fun (_,x) -> Vectorization.Convert.filter_shm x) shuffle_mask in
@@ -575,9 +575,9 @@ let rec codegen_simexpr declarations = function
 
       (* This is the case when there is just a single vector in the yexpr! *)
       (* This will only happen when -floop-runtime-vectorize is not given *)
-      if (List.length ce) = 1 && (List.is_empty vce) then 
+      if (List.length ce) = 1 && (List.is_empty vce) then
 	let symbol = match get declarations (get_vec_symbol x) with | (x,_) -> x in
-	let dtype = (match symbol with ComTypedSymbol (dtype,_,_) -> dtype) in 
+	let dtype = (match symbol with ComTypedSymbol (dtype,_,_) -> dtype) in
 	(* If the vptr is not of type ptr then make it by bitcasting it into a vptr *)
 	let vptr = get_vptr_bit_cast vptr (derefence_pointer vptr) in (vptr,dtype)
 
@@ -588,33 +588,33 @@ let rec codegen_simexpr declarations = function
 	let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
 	let indices_converted = Array.to_list indices_converted in
 
-	let (ddtype, dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) -> 
-	  (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
+	let (ddtype, dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) ->
+	  (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x ->
 	    (* First we need to filter out the ones, which will be converted *)
 	    let to_calc = List.mapi (fun i (DimSpecExpr x) -> if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
 	    let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
 	    (dtype, (((get_llvm_primitive_type lc dtype) context)),
 	     ((List.fold_right (fun (Const (_,x,_)) y -> ((int_of_string x))* y) to_calc 1)-1))))
-	  | _ -> raise (Internal_compiler_error "Not a comptyed symbol")) in 
+	  | _ -> raise (Internal_compiler_error "Not a comptyed symbol")) in
 
 	let () = IFDEF DEBUG THEN print_endline "bitcasting" ELSE () ENDIF in
-	(build_bitcast vptr (pointer_type (vector_type dtype (tot_size+1))) 
+	(build_bitcast vptr (pointer_type (vector_type dtype (tot_size+1)))
 	   (if not !slots then "bitcast" else "") builder, ddtype) in
 
     (* Now we have access to the vptr and vtype bitcasted *)
     (* This will only work if we have no vectors in the indices *)
     let cmsv = List.filter (fun x -> (match x with |Constvector _ -> true | _ -> false)) mask in
     let nvmsv = List.filter (fun x -> (match x with |Constvector _ -> false | _ -> true)) mask in
-    
+
     (* This is the case when you only have a constvector mask *)
     if List.is_empty nvmsv then
-      let mask = 
+      let mask =
 	if (List.length cmsv = 1) then
 	  List.hd (List.map (fun (Constvector (_,_,x,_)) -> Array.map (fun (Const(_,x,_)) -> (int_of_string x)) x) mask)
 	else raise (Internal_compiler_error "Got more than one const vector in the mask!!") in
       let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of (derefence_pointer vptr))))) in
-      build_shufflevector (derefence_pointer vptr) uptl 
-	(const_vector (Array.map (fun x -> const_int (i32_type context) x) mask)) 
+      build_shufflevector (derefence_pointer vptr) uptl
+	(const_vector (Array.map (fun x -> const_int (i32_type context) x) mask))
 	(if not !slots then "shuff_vec" else "") builder
     (* This is the case where runtime vector indices are solved *)
     else
@@ -659,21 +659,21 @@ let rec codegen_simexpr declarations = function
       (* Now store these elements into the temp vector and send it back *)
       let tempptrs = Array.init size (fun x -> build_in_bounds_gep temp [|(const_int (Llvm_target.intptr_type !target_data) 0);
 									  (const_int ((get_llvm_primitive_type lc vtyp) context) x)|] "" builder) in
-      let debu = Array.map2 (fun x y -> build_store x y builder) vec tempptrs in 
+      let debu = Array.map2 (fun x y -> build_store x y builder) vec tempptrs in
       let () = IFDEF DEBUG THEN Array.iter dump_value debu ELSE () ENDIF in
       (* Finally bitcast the temp into a vector type and send it back *)
       build_bitcast temp (vector_type ((get_llvm_primitive_type lc vtyp) context) size) "" builder
 
   (* Generating the const vector *)
-  | Constvector (t, dt, sa, lc) -> 
+  | Constvector (t, dt, sa, lc) ->
     let () = IFDEF DEBUG THEN print_endline ("Constvector Vector size: " ^ (string_of_int (Array.length sa))) ELSE () ENDIF in
-    let ca = Array.map (fun x -> 
-      (match x with 
+    let ca = Array.map (fun x ->
+      (match x with
 	| Const (x,y,lc) as s -> codegen_simexpr declarations (Const (dt,y,lc))
 	| _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " got a const vector with non constants in them")))) sa in
     const_vector ca
 
-  | Vector (dt,sa,size,lc) as s -> 
+  | Vector (dt,sa,size,lc) as s ->
     let () = IFDEF DEBUG THEN print_endline "Building the Vector instruction" ELSE () ENDIF in
     let () = IFDEF DEBUG THEN print_endline (Dot.dot_simpleexpr s) ELSE () ENDIF in
     let x = (match sa with VarRef (x,_) -> x | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Vector does not contain VarRef types!!"))) in
@@ -709,27 +709,27 @@ let rec codegen_simexpr declarations = function
 
 (* TODO: Make the very first type always a vector type instead of an array type !! *)
 let get_exact_addressed_symbol_llvm_type ptype = function
-  | AddressedSymbol (name,_,[BracDim x],lc) -> 
+  | AddressedSymbol (name,_,[BracDim x],lc) ->
     (* We only have dimspecexpr list*)
     (* We know that all dimspecexpr are just const types *)
     (* We need to reverse the list and keep on building the array_type recursively*)
     let x = List.map (fun (DimSpecExpr x) -> x) x in
     let atype = ref ptype in
     let slist = List.rev x in
-    let () = List.iteri (fun i x -> 
-      (match x with | Const (_,value,_) -> 
+    let () = List.iteri (fun i x ->
+      (match x with | Const (_,value,_) ->
 	(if i = 0 then
 	    (* atype := vector_type !atype (int_of_string value) *)
 	    atype := array_type !atype (int_of_string value)
 	 else
 	    atype := array_type !atype (int_of_string value))
-	| _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist 
+	| _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist
     in !atype
   | _ -> raise (Internal_compiler_error "get_addressed_symbol_llvm_type went wrong")
 
 
 let get_addressed_symbol_llvm_type ptype = function
-  | AddressedSymbol (name,_,[BracDim x],lc) -> 
+  | AddressedSymbol (name,_,[BracDim x],lc) ->
     (* We only have dimspecexpr list*)
     (* We know that all dimspecexpr are just const types *)
     (* We need to reverse the list and keep on building the array_type recursively*)
@@ -737,20 +737,20 @@ let get_addressed_symbol_llvm_type ptype = function
     let atype = ref ptype in
     let slist = List.rev (List.tl x) in
     let () = List.iter (fun x -> (match x with | Const (_,value,_) -> atype := array_type !atype (int_of_string value)
-      | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist 
+      | _ -> raise (Internal_compiler_error((Reporting.get_line_and_column lc)^ " array length not of type const")))) slist
     in (!atype, List.hd x)
   | _ -> raise (Internal_compiler_error "get_addressed_symbol_llvm_type went wrong")
 
 let codegen_typedsymbol f declarations = function
-  | SimTypedSymbol (x,y,lc) as s -> 
+  | SimTypedSymbol (x,y,lc) as s ->
     let datatype = get_llvm_primitive_type lc x in
     let alloca = create_entry_block_alloca f (get_symbol y) (datatype context) in
     (* Add the var decl to the declarations list *)
     add_to_declarations s alloca declarations
-  (* Sun Aug 26 16:23:30 IST 2012 : 
-  
+  (* Sun Aug 26 16:23:30 IST 2012 :
+
      TODO:
-     
+
      Change to have the most internal ones as vector types, always!!
   *)
   | ComTypedSymbol (x,y,lc) as s -> (* raise (Error ((Reporting.get_line_and_column lc) ^ "complex types currently not supported")) *)
@@ -763,15 +763,15 @@ let codegen_typedsymbol f declarations = function
     let datatype = get_exact_addressed_symbol_llvm_type (datatype context) y in
     (* Data type may be a primitmive type if it is a vector type *)
     (* Now alloca the array on the stack *)
-    let size = (match size with Const _ -> codegen_simexpr !declarations size 
+    let size = (match size with Const _ -> codegen_simexpr !declarations size
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "Arrays first dim not of type const"))) in
     let alloca = create_entry_block_alloca_array f (get_addressed_symbol y) datatype size in
     add_to_declarations s alloca declarations
-    
+
 (* We need to know the exact type of every expression *)
 let rec codegen_relexpr declarations = function
 
-  | LessThan (x,y,lc) -> 
+  | LessThan (x,y,lc) ->
     let lhs = derefence_pointer(codegen_simexpr declarations x) in
     let rhs = derefence_pointer(codegen_simexpr declarations y) in
     (* Get the type *)
@@ -780,7 +780,7 @@ let rec codegen_relexpr declarations = function
       | "float" -> build_fcmp Fcmp.Olt lhs rhs (if not !slots then "Olttemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "unknown type")))
 
-  | LessThanEqual (x,y,lc) -> 
+  | LessThanEqual (x,y,lc) ->
     let lhs = derefence_pointer(codegen_simexpr declarations x) in
     let rhs = derefence_pointer(codegen_simexpr declarations y) in
     (* Get the type *)
@@ -789,7 +789,7 @@ let rec codegen_relexpr declarations = function
       | "float" -> build_fcmp Fcmp.Ole lhs rhs (if not !slots then "Oletemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "unknown type")))
 
-  | GreaterThan (x,y,lc) -> 
+  | GreaterThan (x,y,lc) ->
     let lhs = derefence_pointer(codegen_simexpr declarations x) in
     let rhs = derefence_pointer(codegen_simexpr declarations y) in
     (* Get the type *)
@@ -798,7 +798,7 @@ let rec codegen_relexpr declarations = function
       | "float" -> build_fcmp Fcmp.Ogt lhs rhs (if not !slots then "Ogttemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "unknown type")))
 
-  | GreaterThanEqual (x,y,lc) -> 
+  | GreaterThanEqual (x,y,lc) ->
     let lhs = derefence_pointer(codegen_simexpr declarations x) in
     let rhs = derefence_pointer(codegen_simexpr declarations y) in
     (* Get the type *)
@@ -807,7 +807,7 @@ let rec codegen_relexpr declarations = function
       | "float" -> build_fcmp Fcmp.Oge lhs rhs (if not !slots then "Ogetemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "unknown type")))
 
-  | EqualTo (x,y,lc) -> 
+  | EqualTo (x,y,lc) ->
     let lhs = derefence_pointer(codegen_simexpr declarations x) in
     let rhs = derefence_pointer(codegen_simexpr declarations y) in
     (* Get the type *)
@@ -816,12 +816,12 @@ let rec codegen_relexpr declarations = function
       | "float" -> build_fcmp Fcmp.Oeq lhs rhs (if not !slots then "Oeqtemp" else "") builder
       | _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "unknown type")))
 
-  | And (x,y,lc) -> 
+  | And (x,y,lc) ->
     let lhs = codegen_relexpr declarations x in
     let rhs = codegen_relexpr declarations y in
     build_and lhs rhs (if not !slots then "andtemp" else "") builder
 
-  | Or (x,y,lc) -> 
+  | Or (x,y,lc) ->
     let lhs = codegen_relexpr declarations x in
     let rhs = codegen_relexpr declarations y in
     build_or lhs rhs (if not !slots then "ortemp" else "") builder
@@ -833,9 +833,9 @@ let get_num_indices = function
 
 let codegen_callargs defmore lc declarations = function
   | CallSymbolArgument x ->
-    let alloca = (match get declarations (get_symbol x) with | (_,x) -> x) in 
+    let alloca = (match get declarations (get_symbol x) with | (_,x) -> x) in
     (match (match get declarations (get_symbol x) with | (x,_) -> x) with
-      | ComTypedSymbol (x,y,lc) as s -> 
+      | ComTypedSymbol (x,y,lc) as s ->
 	(* In this case we need to send back the pointer to the array!! *)
 	(* let findex = const_int ((get_llvm_primitive_type lc x) context) 0 in *)
 	let findex = const_int (i32_type context) 0 in
@@ -848,11 +848,11 @@ let codegen_callargs defmore lc declarations = function
 	  build_in_bounds_gep alloca indices (if not !slots then "tempgep" else "") builder
 	else
 	  let x = y in
-	  let indices = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in 
+	  let indices = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in
 									      List.map (fun x -> codegen_simexpr declarations (Const (DataTypes.Int32s,"0",lc))) x
 	    | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
 	  let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
-	  let itypes = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in 
+	  let itypes = (match x with AddressedSymbol (_,_,[BracDim x],lc) -> let x = List.map (fun (DimSpecExpr x)->x) x in
 									     List.map (fun x -> get_exact_simexpr_type declarations x) x
 	    | _ -> raise (Internal_compiler_error "Wrong addressed symbol type")) in
 	  let () = IFDEF DEBUG THEN dump_value alloca ELSE () ENDIF in
@@ -872,18 +872,18 @@ let codegen_callargs defmore lc declarations = function
 	  (* We have to do this one after the other!! *)
 	  let ret = ref ret in
 	  let counter = ref (List.length indices) in
-	  let () = List.iter (fun x -> 
+	  let () = List.iter (fun x ->
 	    (ret := build_in_bounds_gep !ret [|x|] (if not !slots then "tempgep" else "") builder;
 	     counter := !counter - 1 ;
 	     (* If we have more than one index then you need a 0,0 ret as well*)
 	     if !counter = 0 then ()
 	     else
 	       (* Build the extra 0,0 address referencing *)
-	       ret := build_in_bounds_gep !ret (Array.of_list [findex;findex]) 
-		 (if not !slots then "tempgep" else "") builder)) indices in 
+	       ret := build_in_bounds_gep !ret (Array.of_list [findex;findex])
+		 (if not !slots then "tempgep" else "") builder)) indices in
 	  !ret
       | _ -> build_load alloca (get_symbol x) builder)
-  | CallAddrressedArgument x -> 
+  | CallAddrressedArgument x ->
     (* If we are dropping all the elements then we need to send a load
        rather than the pointer itself, because that is what the function
        expects!*)
@@ -904,34 +904,34 @@ let codegen_fcall stmt lc declarations = function
     let (name,args,lc) =
       if not e then
 	(match x with
-	  | Call (name,y,lc) -> 
+	  | Call (name,y,lc) ->
 	    (* lookup name in fcall_names Hashtbl *)
 	    try
 	      (* ((Hashtbl.find fcall_names (get_symbol name)),y,lc) *)
 	      ((Hashtbl.find fcall_names stmt),y,lc)
-	    with 
+	    with
 	      | Not_found -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ get_symbol name ^ " not found in hashtbl for fcall names")))
-      else 
-	(match x with 
+      else
+	(match x with
 	  | Call (name,y,lc) -> (get_symbol name, y, lc)) in
     (* Now start building the llvm build_call *)
     let () = IFDEF DEBUG THEN print_endline ("Found function: " ^ name) ELSE () ENDIF in
     if not e then
       let callee = (match lookup_function name the_module with
-	| Some callee -> 
+	| Some callee ->
 	  let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
 	  callee
 	| None -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ name ^ " function not in llvm module"))) in
       let bargs = List.map (fun x -> codegen_callargs e lc declarations x) args in (callee,bargs)
-    else 
+    else
       (* Move through all the user loaded modules and get the callee and the bargs *)
       let () = IFDEF DEBUG THEN dump_module the_module ELSE () ENDIF in
       let callee_l = List.filter (fun x -> match lookup_function name x with | Some _ -> true | None -> false) (the_module:: !user_modules) in
       if callee_l = [] then raise (Error((Reporting.get_line_and_column lc) ^ "No function named: " ^ name ^ " found in llvm modules"))
       else if List.length callee_l <> 1 then raise (Error((Reporting.get_line_and_column lc) ^ "More than one module with same function declaration"))
-      else 
+      else
 	let callee = match (lookup_function name (List.hd callee_l)) with | Some x -> x
-	  | None -> 
+	  | None ->
 	    let () = IFDEF DEBUG THEN dump_module the_module ELSE () ENDIF in
 	    raise (Error((Reporting.get_line_and_column lc) ^ "No function named: " ^ name ^ " found in llvm modules")) in
 	let () = IFDEF DEBUG THEN dump_value callee ELSE () ENDIF in
@@ -944,7 +944,7 @@ let codegen_fcall stmt lc declarations = function
 	let callee_attrs = (function_attr callee) in
 	let callee = (match lookup_function name the_module with
 	  | Some x -> x
-	  | None -> 
+	  | None ->
 	    let () = IFDEF DEBUG THEN print_endline ("building extern " ^ name ^ " declaration") ELSE () ENDIF in
 	    let eft = function_type (void_type context) param_types in
 	    let reft = declare_function name eft the_module in
@@ -966,11 +966,11 @@ let codegen_asssimexpr lc declarations = function
     let () = IFDEF DEBUG THEN dump_value r ELSE () ENDIF in r
   | FCall _ -> raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ " ended up with FCall when it shouldn't"))
 
-let rec strech v s1 to_inc vtyp declaration = 
+let rec strech v s1 to_inc vtyp declaration =
   let () = IFDEF DEBUG THEN print_endline ("Streching by : " ^ (string_of_int to_inc)) ELSE () ENDIF in
   if (to_inc < 0) then raise (Internal_compiler_error "Cannot make the result vector shorter than the current length!!")
   else if s1 = to_inc then v
-  else 
+  else
     (* Now first build a 0 sized vector *)
     let to_inca = const_vector (Array.init s1 (fun i -> codegen_simexpr declaration (Const(vtyp, "0", (0,0))))) in
     let () = IFDEF DEBUG THEN dump_value to_inca ELSE () ENDIF in
@@ -984,7 +984,7 @@ let rec strech v s1 to_inc vtyp declaration =
     strech v (vector_size (type_of v)) to_inc vtyp declaration
 
 let codegen_stmt f declarations = function
-  | Assign (ll, expr, lc, nvvm) as stmt -> 
+  | Assign (ll, expr, lc, nvvm) as stmt ->
     (* codegen the rhs *)
     let () = IFDEF DEBUG THEN print_endline "assigning" ELSE () ENDIF in
     (* add the declaration to the *)
@@ -1003,7 +1003,7 @@ let codegen_stmt f declarations = function
 	      let () = codegen_typedsymbol f declarations x in
 	      let (_,alloca) = get !declarations (get_typed_symbol x) in
 	      let _ = build_store rval alloca builder in ()
-	    | AllSymbol x -> 
+	    | AllSymbol x ->
 	      (* lookup that the symbol is in the declarations list and get it *)
 	      let (x,alloca) = get !declarations (get_symbol x) in
 	      (match x with
@@ -1011,7 +1011,7 @@ let codegen_stmt f declarations = function
 		  raise (Error((Reporting.get_line_and_column (get_typed_symbol_lc x))^ " direct assignment to arrays currently not supported :-("))
 		| _ -> let _ = build_store rval alloca builder in ())
 
-	    | AllAddressedSymbol x -> 
+	    | AllAddressedSymbol x ->
 	      (* This is similar to simple-expr codegen for AddrRef*)
 	      let () = IFDEF DEBUG THEN print_endline "codegen for lvalue of type addrref" ELSE () ENDIF in
 	      let tempaddref = AddrRef(x,(get_addressed_symbol_lc x)) in
@@ -1027,7 +1027,7 @@ let codegen_stmt f declarations = function
 	      (* FIXME: Make this go away later on!! *)
 	      let (name,access_sizes,ll) = (match x with VecAddress (x,a,ll,_) -> (x,a,ll)) in
 	      (* This might be a complex expression, in which case we want try calculating the shuffle mask *)
-	      let shuffle_mask = List.mapi (fun i x -> try (i,(Vectorization.Convert.calculate_shuffle_mask access_sizes lc x)) with 
+	      let shuffle_mask = List.mapi (fun i x -> try (i,(Vectorization.Convert.calculate_shuffle_mask access_sizes lc x)) with
 		| Vectorization.Convert.Ignore _ -> (i,x)
 		| _ -> raise (Internal_compiler_error "")) ll in
 	      let ce = List.filter (fun (_,x) -> Vectorization.Convert.filter_shm x) shuffle_mask in
@@ -1053,10 +1053,10 @@ let codegen_stmt f declarations = function
 		  let symbol = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
 		  let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
 		  let indices_converted = Array.to_list indices_converted in
-		  let vsize = (match symbol with ComTypedSymbol (dtype,x,_) -> 
-		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
+		  let vsize = (match symbol with ComTypedSymbol (dtype,x,_) ->
+		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x ->
 		      (* First we need to filter out the ones, which will be converted *)
-		      let to_calc = List.mapi (fun i (DimSpecExpr x) -> 
+		      let to_calc = List.mapi (fun i (DimSpecExpr x) ->
 			if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
 		      let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
 		      (List.fold_right (fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1))
@@ -1071,18 +1071,18 @@ let codegen_stmt f declarations = function
 		  let indices_converted = Array.init (List.length ll - (List.length dll)) (fun i -> (i+List.length dll)) in
 		  let indices_converted = Array.to_list indices_converted in
 
-		  let (dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) -> 
-		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x -> 
+		  let (dtype,tot_size) = (match symbol with ComTypedSymbol (dtype,x,_) ->
+		    (match x with | AddressedSymbol (_,_,x,_) -> (match (List.hd x) with | BracDim x ->
 		      (* First we need to filter out the ones, which will be converted *)
-		      let to_calc = List.mapi (fun i (DimSpecExpr x) -> 
+		      let to_calc = List.mapi (fun i (DimSpecExpr x) ->
 			if (List.exists (fun x -> x= i) indices_converted) then x else TStar) x in
 		      let to_calc = List.filter (fun x -> (match x with TStar -> false | _ -> true)) to_calc in
-		      (((get_llvm_primitive_type lc dtype) context)),((List.fold_right 
+		      (((get_llvm_primitive_type lc dtype) context)),((List.fold_right
 									 (fun (Const (_,x,_)) y -> ((int_of_string x)) * y) to_calc 1)-1)))
-		    | _ -> raise (Internal_compiler_error "Not a comtpyed symbol")) in 
+		    | _ -> raise (Internal_compiler_error "Not a comtpyed symbol")) in
 		  (* Bitcast is giving a cast error!! *)
 		  let () = IFDEF DEBUG THEN print_endline "bitcasting" ELSE () ENDIF in
-		  ((build_bitcast vptr (pointer_type (vector_type dtype (tot_size+1))) 
+		  ((build_bitcast vptr (pointer_type (vector_type dtype (tot_size+1)))
 		      (if not !slots then "bitcast" else "") builder), tot_size) in
 
 	      (* Now build the inverse shuffle mask *)
@@ -1099,7 +1099,7 @@ let codegen_stmt f declarations = function
 		    let vtpt = (derefence_pointer vptr) in
 		    let () = IFDEF DEBUG THEN dump_value vtpt ELSE () ENDIF in
 		    let dv = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
-		    let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) 
+		    let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc)
 		      | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
 		    let uptl = (undef (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vtpt)))) in
 		    let () = IFDEF DEBUG THEN dump_value uptl ELSE () ENDIF in
@@ -1121,12 +1121,12 @@ let codegen_stmt f declarations = function
 		       any affect on the result, because the shuffle mask
 		       will correctly pick up the required elements from
 		       the vectors!! *)
-		    let () = IFDEF DEBUG THEN print_endline 
+		    let () = IFDEF DEBUG THEN print_endline
 		      ((string_of_int (vector_size (type_of rval))) ^ " = "  ^ (string_of_int (vector_size (type_of inver_s)))) ELSE () ENDIF in
 		    let rval =
 		      if (vector_size (type_of rval)) < (vector_size (type_of inver_s)) then
-			strech rval (vector_size (type_of rval)) (vector_size (type_of inver_s)) vtyp !declarations 
-		      else 
+			strech rval (vector_size (type_of rval)) (vector_size (type_of inver_s)) vtyp !declarations
+		      else
 			let () = IFDEF DEBUG THEN print_endline "return old rval" ELSE () ENDIF in
 			rval in
 		    let inver_s = if (vector_size (type_of inver_s)) < (vector_size (type_of rval)) then
@@ -1143,7 +1143,7 @@ let codegen_stmt f declarations = function
 		    if tot_size < rval_size then
 		      if (rval_size mod tot_size <> 0) then
 			raise (Error ((Reporting.get_line_and_column lc) ^ " Cannot handle this type of statment"))
-		      else 
+		      else
 			let () = IFDEF DEBUG THEN print_endline "Truncating the rval vector" ELSE () ENDIF in
 			let uptld = undef (type_of rval)  in
 			let to_rid = ((rval_size / tot_size) - 1)*tot_size in
@@ -1162,7 +1162,7 @@ let codegen_stmt f declarations = function
 		let cmsv = List.filter (fun x -> (match x with |Constvector _ -> true | _ -> false)) mask in
 		let nvmsv = List.filter (fun x -> (match x with |Constvector _ -> false | _ -> true)) mask in
 		let dv = match get !declarations (get_vec_symbol x) with | (x,_) -> x in
-		let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc) 
+		let (vtyp,lc) = (match dv with | ComTypedSymbol (x,_,lc) -> (x,lc)
 		  | _ -> raise (Internal_compiler_error " Vector not of correct type")) in
 		let nvec = List.map (fun x -> codegen_simexpr !declarations x) nvmsv in
 		let () = IFDEF DEBUG THEN print_endline "The multiplicand values are: " ELSE () ENDIF in
@@ -1204,7 +1204,7 @@ let codegen_stmt f declarations = function
 		let vec = Array.map derefence_pointer tempptrs in
 
 		(* Now store these elements into the vecptrs vector and send it back *)
-		let debu = Array.map2 (fun x y -> build_store x y builder) vec vecptrs in 
+		let debu = Array.map2 (fun x y -> build_store x y builder) vec vecptrs in
 		let () = IFDEF DEBUG THEN Array.iter dump_value debu ELSE () ENDIF in ())) ll
 
       | FCall (_,e) as s ->
@@ -1214,9 +1214,9 @@ let codegen_stmt f declarations = function
 	(* The assignments types are all alloca types just get the actual alloca *)
 	let oargs = List.map (fun x ->
 	  (match x with
-	    | AllTypedSymbol x -> 
+	    | AllTypedSymbol x ->
 	      let () = codegen_typedsymbol f declarations x in
-	      let (r,alloca) = get !declarations (get_typed_symbol x) in 
+	      let (r,alloca) = get !declarations (get_typed_symbol x) in
 	      (* We need to pass in the very first element of the pointer *)
 	      (match r with
 		| SimTypedSymbol _ -> alloca
@@ -1224,12 +1224,12 @@ let codegen_stmt f declarations = function
 		  let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
 		  (* let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in *)
 		  build_in_bounds_gep alloca (Array.of_list [findex]) (if not !slots then "otempgep" else "") builder)
-	    | AllSymbol x -> 
+	    | AllSymbol x ->
 	      (* lookup that the symbol is in the declarations list and get it *)
 	      let (r,alloca) = get !declarations (get_symbol x) in
 	      (match r with
 		| SimTypedSymbol _ ->  alloca
-		| ComTypedSymbol(x,y,lc) -> 
+		| ComTypedSymbol(x,y,lc) ->
 		  (* let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in *)
 		  let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
 		  build_in_bounds_gep alloca (Array.of_list [findex]) (if not !slots then "otempgep" else "") builder)
@@ -1241,20 +1241,20 @@ let codegen_stmt f declarations = function
 	      codegen_simexpr !declarations tempaddref)) ll in
 	let () = IFDEF DEBUG THEN print_endline "Dumping output arguments" ELSE () ENDIF in
 	let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) oargs ELSE () ENDIF in
-	let () = 
+	let () =
 	  (match nvvm with
 	    (* This is the normal case *)
 	    | Some x -> (match x with | NVVM_Internal ->
 	      let d =  build_call callee (Array.of_list args) "" builder in
-	      let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in 
+	      let () = IFDEF DEBUG THEN dump_value d ELSE () ENDIF in
 	      if List.length oargs <> 1 then raise (Internal_compiler_error ((Reporting.get_line_and_column lc) ^ "more than one output for NVVM_Internal type"))
 	      else let _ = build_store d (List.hd oargs) builder in ())
 	    (* The normal case *)
-	    | None -> 
+	    | None ->
 	      let d =  build_call callee (Array.of_list (args@oargs)) "" builder in ()) in ())
   | VarDecl (x,lc) -> codegen_typedsymbol f declarations x
   | Noop -> ()
-  | _ as s -> 
+  | _ as s ->
     let () = IFDEF DEBUG THEN (print_endline (Dot.dot_stmt s)) ELSE () ENDIF in
     raise (Internal_compiler_error "Hit a bogus stmt while compiling to llvm")
 
@@ -1266,35 +1266,35 @@ let get_vars = function
 
 let rec get_dvars = function
   | Block (x,_) -> List.flatten (List.map (fun x -> get_vars x) x)
-  | For (x,y,z,lc) | Par (x,y,z,lc) -> 
+  | For (x,y,z,lc) | Par (x,y,z,lc) ->
     let sym = (SimTypedSymbol (DataTypes.Int32s, x,lc)) in
     sym :: (get_vars z)
-  | CaseDef (case,_) -> 
+  | CaseDef (case,_) ->
     let (clause_list,other) = (match case with Case (x,y,_) -> (x,y)) in
     let clause_stmt_list = List.map (fun x -> (match x with Clause (_,x,_) -> x)) clause_list in
     let other_stmt = (match other with Otherwise (x,_) -> x) in
     (List.flatten (List.map (fun x -> get_vars x) clause_stmt_list)) @ (get_vars other_stmt)
   | _ -> []
-    
-let rec remove_from_declarations declarations dvars = 
+
+let rec remove_from_declarations declarations dvars =
   List.iter (fun r -> declarations := List.filter (fun (x,_) -> x <> r) !declarations) dvars
 
 (* Generate the body of the function block *)
 let rec codegen_cfg arg f declarations = function
   | Empty -> let () = IFDEF DEBUG THEN print_endline "hit an empty node" ELSE () ENDIF in ()
-  | Startnode (stmt,x) -> 
+  | Startnode (stmt,x) ->
     (match stmt with
-      | CaseDef _ -> 
+      | CaseDef _ ->
 	let () = IFDEF DEBUG THEN print_endline ("Hit a case startnode") ELSE () ENDIF in
 	let () = codegen_cfg CASE f declarations x in
 	(* Now we need to continue with the enode!!*)
 	codegen_cfg arg f declarations !enode
-      | For _ | Par _ -> 
+      | For _ | Par _ ->
 	let () = IFDEF DEBUG THEN print_endline ("Hit a loop startnode") ELSE () ENDIF in
 	let () = codegen_cfg LOOP f declarations x in
 	(* Now we need to continue with the enode!!*)
 	codegen_cfg arg f declarations !enode
-      | _ -> 
+      | _ ->
 	let () = IFDEF DEBUG THEN print_endline ("Hit a block startnode") ELSE () ENDIF in
 	codegen_cfg arg f declarations x)
 
@@ -1303,10 +1303,10 @@ let rec codegen_cfg arg f declarations = function
     let () = codegen_stmt f declarations stmt in
     codegen_cfg arg f declarations x
 
-  | Endnode (stmt,x,_) as s -> 
+  | Endnode (stmt,x,_) as s ->
     (match stmt with
       | CaseDef _ | For _ | Par _ -> enode := s (* Set yourself up !! *)
-      | _ -> 
+      | _ ->
 	let () = IFDEF DEBUG THEN print_endline ("Hit a endnode") ELSE () ENDIF in
 	(* Remove the dvars from the declarations *)
 	let dvars = get_dvars stmt in
@@ -1315,7 +1315,7 @@ let rec codegen_cfg arg f declarations = function
   | Backnode x -> () (* We don't need to do anything here at all!! *)
   | Conditionalnode (relexpr,tbranch,fbranch) ->
     (match arg with
-	| CASE -> 
+	| CASE ->
 	  (* First insert the conditional *)
 	  let cond_val = codegen_relexpr !declarations relexpr in
 	  (* First get the current basic block and the parent function *)
@@ -1348,7 +1348,7 @@ let rec codegen_cfg arg f declarations = function
 	      let cont_bb = append_block context "cond_cont" the_function in
 	      (* Now we need to add all the branch statements *)
 	      (* Adding the top most branch statment at start_bb *)
-	      let () = position_at_end start_bb builder in 
+	      let () = position_at_end start_bb builder in
 	      let _ = build_cond_br cond_val then_bb else_bb builder in
 	      (* Now build the unconditional jump from then branch to cont*)
 	      let () = position_at_end ptr_then_bb builder in
@@ -1365,7 +1365,7 @@ let rec codegen_cfg arg f declarations = function
 	      let () = remove_from_declarations declarations dvars in
 	      enode := en
 	    | _ -> raise (Internal_compiler_error "If stmt does not return its endnode "))
-	| LOOP -> 
+	| LOOP ->
 	  (* First get the current basic block and the parent function *)
 	  let start_bb = insertion_block builder in
 	  (* This might be some other basic block*)
@@ -1392,12 +1392,12 @@ let rec codegen_cfg arg f declarations = function
 	      let () = position_at_end ptr_loop_body builder in
 	      let _ = build_cond_br cond_val loop loopend builder in
 	      (* Now attach the branch instruction after start_bb*)
-	      let () = position_at_end start_bb builder in 
+	      let () = position_at_end start_bb builder in
 	      let _ = build_br loop builder in
 	      (* Now position the pointer so that stuff can be inserted
 		 into loopend blocks *)
 	      let () = position_at_end loopend builder in
-	      let _ = insertion_block builder in 
+	      let _ = insertion_block builder in
 	      (* Remove the declared vars from the endnode *)
 	      let dvars = get_dvars stmt in
 	      let () = remove_from_declarations declarations dvars in
@@ -1406,8 +1406,8 @@ let rec codegen_cfg arg f declarations = function
 	| BLOCK -> raise (Internal_compiler_error ("Conditional node with BLOCK type")))
 
 let rec decompile_filter_params = function
-  | Squarenode (stmt,cfg) -> 
-    (match stmt with 
+  | Squarenode (stmt,cfg) ->
+    (match stmt with
       | VarDecl (x,lc) -> x
       | _ -> raise (Internal_compiler_error ("Inputs/Outputs not of type VarDecl!!"))) :: decompile_filter_params cfg
   | Empty -> []
@@ -1418,9 +1418,9 @@ let codegen_prototype name ins outs =
   (* First we need to get the type of the inputs *)
   (* IMP: Inputs are always by copy and hence, can never be ptr type, except in case of arrays being passed in as inputs!! *)
   (* First check if this is a complex type *)
-  let intypes = List.map (fun x -> 
-    (match x with 
-      | ComTypedSymbol (x,y,lc) as s -> 
+  let intypes = List.map (fun x ->
+    (match x with
+      | ComTypedSymbol (x,y,lc) as s ->
 	(* This is a special case, it needs to be a pointer type!! *)
 	(* Just do as you did for comtypedsymbol*)
 	let datatype = get_llvm_primitive_type lc x in
@@ -1432,9 +1432,9 @@ let codegen_prototype name ins outs =
 	(* pointer_type (get_llvm_primitive_type (get_typed_symbol_lc s) (get_exact_typed_type s) context) *)
       | SimTypedSymbol _ -> (get_llvm_primitive_type (get_typed_symbol_lc x) (get_exact_typed_type x) context))) ins in
   (* IMP: The outputs are always by alloca, and hence are always of ptr type*)
-  let outtypes = List.map (fun x -> 
+  let outtypes = List.map (fun x ->
     match x with
-      | ComTypedSymbol (x,y,lc) as s -> 
+      | ComTypedSymbol (x,y,lc) as s ->
 	(* (\* This is a special case, it needs to be a pointer type!! *\) *)
 	(* (\* Just do as you did for comtypedsymbol*\) *)
 	let datatype = get_llvm_primitive_type lc x in
@@ -1453,7 +1453,7 @@ let codegen_prototype name ins outs =
   let args = Array.of_list (List.map (fun x -> get_typed_symbol x) (ins@outs)) in
   let () = Array.iteri (fun i a -> set_value_name (args.(i)) a) (params f) in f
 
-let codegen_input_params the_function declarations inputs = 
+let codegen_input_params the_function declarations inputs =
   let () = IFDEF DEBUG THEN print_endline ("In codegen_input_params params length: " ^ (string_of_int (Array.length (params the_function)))) ELSE () ENDIF in
   let input_params = Array.sub (params the_function) 0 (Array.length inputs) in
   Array.iteri
@@ -1479,9 +1479,9 @@ let codegen_input_params the_function declarations inputs =
 	  (* Add the var decl to the declarations list *)
 	  (* add_to_declarations s alloca declarations *)
 	  add_to_declarations s ai declarations)) input_params
-    
+
 (* Just add the output params to the declarations, because they are pointer type*)
-let codegen_output_params the_function declarations input_size outputs = 
+let codegen_output_params the_function declarations input_size outputs =
   let () = IFDEF DEBUG THEN print_endline ("In codegen_output_params params length: " ^ (string_of_int (Array.length (params the_function)))) ELSE () ENDIF in
   let () = IFDEF DEBUG THEN print_endline ("Input_size: " ^ (string_of_int input_size)) ELSE () ENDIF in
   let all_params = (params the_function) in
@@ -1490,7 +1490,7 @@ let codegen_output_params the_function declarations input_size outputs =
     (* TODO: Check if this works for array types !! *)
     (match outputs.(i) with
       | SimTypedSymbol _ as s -> add_to_declarations s ai declarations
-      | ComTypedSymbol (x,y,lc) as s -> 
+      | ComTypedSymbol (x,y,lc) as s ->
 	(* In this case we need to make a pointer pointer by using alloca *)
 	(* let datatype = type_of ai in *)
 	(* let alloca = create_entry_block_alloca the_function (get_addressed_symbol y) datatype in *)
@@ -1501,10 +1501,10 @@ let codegen_output_params the_function declarations input_size outputs =
 	add_to_declarations s ai declarations)) output_params
 
 let llvm_topnode vipr = function
-  | Topnode (fcall,name,_,cfg_list,_) -> 
+  | Topnode (fcall,name,_,cfg_list,_) ->
     let func_name = name in
     (* Added the new function name to the fcall_name hashtbl *)
-    let () = Hashtbl.add fcall_names fcall func_name in 
+    let () = Hashtbl.add fcall_names fcall func_name in
     let () = IFDEF DEBUG THEN print_endline (string_of_int (List.length cfg_list)) ELSE () ENDIF in
     (* You need to build the function prototype here *)
     let inputs = decompile_filter_params (List.nth cfg_list 0) in
@@ -1518,39 +1518,39 @@ let llvm_topnode vipr = function
 	  the outputs are just put directly into declarations, because
 	  they are already alloc pointer_types *)
        let declarations = ref [] in
-       let () = codegen_input_params the_function declarations (Array.of_list inputs) in 
-       let () = codegen_output_params the_function declarations (List.length inputs) (Array.of_list outputs) in 
+       let () = codegen_input_params the_function declarations (Array.of_list inputs) in
+       let () = codegen_output_params the_function declarations (List.length inputs) (Array.of_list outputs) in
        let () = codegen_cfg BLOCK the_function declarations (List.nth cfg_list 2) in
        let _ = build_ret_void builder in
        (* Validate that the function is correct *)
        Llvm_analysis.assert_valid_function the_function;
        (* Do all the optimizations on the function *)
        (if !myopt then
-	 let _ = PassManager.run_function the_function the_fpm in the_function else the_function); 
+	 let _ = PassManager.run_function the_function the_fpm in the_function else the_function);
      with
        | e -> delete_function the_function; raise e)
   | Null -> raise (Internal_compiler_error "Hit a Null fcall expression while producing llvm IR")
 
 (* Give a function just make that function nothing more *)
 let llvm_filter_node vipr filename = function
-  | Filternode (topnode, ll) -> 
+  | Filternode (topnode, ll) ->
     (* We just return the function back so that it's type signature can
        be used *)
-    let the_function = llvm_topnode vipr topnode in 
+    let the_function = llvm_topnode vipr topnode in
     (* Add the_function to the list of kernel functions that need to be put
        into the metadata *)
     kernel_values := the_function :: !kernel_values;
     the_function
 
 (* This function actually writes the gpu.ll file out! *)
-let finalize filename = 
+let finalize filename =
   let () = IFDEF DEBUG THEN dump_module the_module ELSE () ENDIF in
   (* Everything inside is a kernel *)
   (* We can set other optimization properties later on *)
   let mds = List.map (fun x ->
     let ms = mdstring context "kernel" in
     mdnode context [|x; ms; (const_int (i32_type context) 1)|]) !kernel_values in
-  let () = List.iter (fun md -> add_named_metadata_operand the_module "nvvm.annotations" md) mds in
+  (*let () = List.iter (fun md -> add_named_metadata_operand the_module "nvvm.annotations" md) mds in *)
   let () =
     (if !myopt then
 	let _ = PassManager.run_module the_module the_mpm in
@@ -1559,7 +1559,7 @@ let finalize filename =
    else raise (Error "Could not write the llvm module to .ll file")) in ()
 
 (* This the starting function, which sets things up *)
-let init optimize myarch myslots vipr modules filename = 
+let init optimize myarch myslots vipr modules filename =
   (* Set the modules that need to be loaded *)
   (* Try loading the memory buffer file *)
   (* Go through all the files and do it!!*)

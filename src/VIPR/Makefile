@@ -1,7 +1,6 @@
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
-BATTERIES=$(HOME)/batteries-included/_build/src
-DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
+LANGDIR=$(ROOTDIR)/Abstract
+ERRORDIR=$(ROOTDIR)/Error
+DOTDIR=$(ROOTDIR)/backend
 LANGLIB=language.cmxa
 ERRORLIB=error.cmxa
 BATLIBBOPT=batteries.cmxa
@@ -14,7 +13,7 @@ all: vipr.cmxa
 
 
 vipr.cmxa: check
-	$(CC) -a *.cmx -o $@
+	$(CC) -a vipr.cmx vipr2poly.cmx viprLexer.cmx viprParser.cmx -o $@
 
 
 check:

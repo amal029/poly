@@ -1,4 +1,4 @@
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
+LANGDIR=$(ROOTDIR)/Abstract
 LANGLIB=language.cmxa
 CC=ocamlopt
 SRC=reporting.ml

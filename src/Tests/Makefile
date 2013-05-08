@@ -1,13 +1,5 @@
-COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
+COMP_HOME=$(ROOTDIR)
 XMLLIB=xml-light.cmxa
-# BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
-BATTERIES=$(HOME)/batteries-included/_build/src
-METISDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/lib-metis/lib
-CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
-BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
-LLVMDIR=/opt/llvm/lib/ocaml
-#LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
 ERRORDIR=$(COMP_HOME)/Error
 LIBDIR=$(COMP_HOME)/lib
 LANGDIR=$(COMP_HOME)/Abstract
@@ -42,8 +34,6 @@ SRC=polyc.ml
 TARGETC=polyc
 FIND=ocamlfind
 METISLIB=lib-metis.cmxa
-METISLDIR=/macports-1.9.1/lib
-DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/lib
 DOTLIB=odot.cmxa
 VECLIB=veclang.cmxa
 VIPRLIB=vipr.cmxa
@@ -55,13 +45,13 @@ run:
 	./polyc $(FILE)
 
 compiler:
-	$(CC) -I $(VECDIR) -I $(DOTDIR) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR)	\
+	$(CC) -I $(VECDIR) -I $(ODOTDIR) -I $(LLVMDIR) -I $(PARSEDIR) -I $(LANGDIR)	\
 	 -I $(VIPRDIR) -I $(REWRITEDIR) -I $(ANALYSISDIR) -I $(BACKEND) -I $(OPTDIR)	\
 	-I $(METISDIR) -I $(BATTERIES) $(LLVMLIB) $(STRLIB) $(BIGARRAYLIB)	\
 	$(UNIXLIB) $(NUMSLIB) $(BATLIBB) -I $(ERRORDIR) $(DOTLIB)	\
 	 -I $(XMLDIR) $(XMLLIB) $(ERRORLIB) $(PARSELIB) $(LANGLIB) $(CODEGEN) $(VIPRLIB) $(REWRITES)	\
 	$(ANALYSIS) $(OPTIMIZATIONS) $(VECLIB) -I $(CODEGENDIR) $(CODEGENLIB) -I	\
-	$(METISLDIR) -I $(LIBDIR) $(METISLIB) -cc clang -cclib -lstdc++	\
+	$(METISDIR) -I $(LIBDIR) $(METISLIB) -cc clang -cclib -lstdc++	\
 	 -ccopt -rdynamic $(SRC) -o $(TARGETC)
 
 clean:

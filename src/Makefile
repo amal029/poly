@@ -1,9 +1,16 @@
 # The toplevel makefile, which calls all the required makefiles one
 # after the other
 
+export ROOTDIR = $(PWD)
+export XMLDIR = /home/andrew/PhD/tools/POLY/xml-light
+export ODOTDIR = /home/andrew/PhD/tools/POLY/odot/odot-0.6
+export METISDIR = /home/andrew/PhD/tools/POLY/lib-metis/lib
+export BATTERIES = /usr/lib/ocaml/batteries
+export CAMOMILEDIR = /usr/lib/ocaml/camomile
+export BIGARRAYDIR= /usr/lib/ocaml
+export LLVMDIR = /opt/llvm/lib/ocaml
 
 all: compile
-
 
 compile:
 	$(MAKE) -e -C Abstract/ all
