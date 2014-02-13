@@ -1,10 +1,10 @@
-BATTERIES=$(HOME)/batteries-included/_build/src
-COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
+BATTERIES=`ocamlfind query batteries`
+COMP_HOME=..
+XMLDIR=`ocamlfind query xml-light`
 LLVMDIR=/opt/llvm/lib/ocaml
 #LLVMDIR=/macports-1.9.1/libexec/llvm-3.2/lib/ocaml/
 DOTDIR=$(COMP_HOME)/backend
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
+ERRORDIR=$(COMP_HOME)/Error
 LANGDIR=$(COMP_HOME)/Abstract
 VECDIR=$(COMP_HOME)/Vectorization
 XMLLIB=xml-light.cmxa

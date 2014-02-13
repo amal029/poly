@@ -44,12 +44,15 @@ try
   let vec_unroll_depth = ref 10 in
   let loop_block = ref false in
   let o2 = ref false in
+  let o3 = ref false in
   let () = Arg.parse [("-stg-lang", Arg.Set decompile_flag_stg, " Decompile to stg-lang");
 		      ("-vipr-lang", Arg.Set decompile_flag_vipr, " Decompile to vipr-lang");
 		      ("-O0", Arg.Clear optimize, " Do not perform any optimizations");
 		      ("-O2", Arg.Set o2, " Enable all except others optimizations from below");
+		      ("-O3", Arg.Set o3, " Enable when you want any sort of vectorization");
 		      ("-slots", Arg.Set slots, " Use slots instead of named vars in llvm code [default = false]");
-		      ("-march", Arg.String (fun x -> march := x), " Set the march for compilation, available, x86_64, shave, \n\t x86_64-gnu-linux and i386-gnu-linux [default = x86_64, which is apple darwin]");
+		      ("-march", Arg.String (fun x -> march := x), 
+		       " Set the march for compilation, available, x86_64, shave, \n\t x86_64-gnu-linux and i386-gnu-linux [default = x86_64, which is apple darwin]");
 		      ("-march-gpu", Arg.String (fun x -> march_gpu := x), " Set the march for compilation, available: nvvm-cuda-i32 nvvm-cuda-i64, [default:Off] ");
 		      ("-vipr", Arg.Set vipr, " Input VIPR code for parsing and code generation");
 		      ("-graph-part", Arg.Set graph_part,
@@ -131,6 +134,7 @@ try
 	  (* We can make some sys calls *)
 	  let cmd = ref "opt " in
 	  let () =
+	    if !o3 then o2 := true; ooo := true;
 	    if !die || !o2 then cmd := !cmd ^ " -die";
 	    (* if !internalize || !o2 then cmd := !cmd ^ " -internalize"; *)
 	    if !dce || !o2 then cmd := !cmd ^ " -adce";
@@ -139,10 +143,10 @@ try
 	    if !mem_opt || !o2 then cmd := !cmd ^ " -memcpyopt";
 	    if !inline || !o2 then cmd := !cmd ^ " -inline";
 	    if !loop_unroll || !o2 then cmd := !cmd ^ " -loop-unroll";
-	    if !bb || !ooo && !march <> "shave" then cmd := !cmd ^ " -vectorize-slp -vectorize-loops -vectorize-slp-aggressive";
+	    if !bb || !ooo then cmd := !cmd ^ " -vectorize-slp -vectorize-loops -vectorize-slp-aggressive";
 	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
 	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
-	    if !o2 then cmd := !cmd ^ " -O3 -strip " in
+	    if !o3 then cmd := !cmd ^ " -O3 -strip " in
 	  let _ = Sys.command (!cmd ^" " ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  let _ = Sys.command ("llvm-dis " ^ llvm_file ^".bc -o " ^ llvm_file ^".ll") in
 	  if !march <> "x86_64" then
@@ -249,18 +253,19 @@ try
 	if !optimize && (Sys.os_type = "Unix" || Sys.os_type = "Cygwin" || Sys.os_type = "Win32") then
 	  let cmd = ref "opt " in
 	  let () = 
+	    if !o3 then o2 := true; ooo := true;
 	    if !die || !o2 then cmd := !cmd ^ " -die";
-	    if !internalize || !o2 then cmd := !cmd ^ " -internalize";
+	    (* if !internalize || !o2 then cmd := !cmd ^ " -internalize"; *)
 	    if !dce || !o2 then cmd := !cmd ^ " -adce";
 	    if !globaldce || !o2 then cmd := !cmd ^ " -globaldce";
 	    if !global_opt || !o2 then cmd := !cmd ^ " -globalopt";
 	    if !mem_opt || !o2 then cmd := !cmd ^ " -memcpyopt";
 	    if !inline || !o2 then cmd := !cmd ^ " -inline";
 	    if !loop_unroll || !o2 then cmd := !cmd ^ " -loop-unroll";
-	    if !bb || !ooo && !march <> "shave" then cmd := !cmd ^ " -vectorize-slp -vectorize-loops -vectorize-slp-aggressive";
+	    if !bb || !ooo then cmd := !cmd ^ " -vectorize-slp -vectorize-loops -vectorize-slp-aggressive";
 	    if !loop_rotate || !o2 then cmd := !cmd ^ " -loop-rotate";
 	    if !loop_idiom || !o2 then cmd := !cmd ^ " -loop-idiom ";
-	    if !o2 then cmd := !cmd ^ " -O3 -strip " in
+	    if !o3 then cmd := !cmd ^ " -O3 -strip " in
 	  (* We can make some sys calls *)
 	  let _ = Sys.command (!cmd ^ " " ^ llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in
 	  (* let _ = Sys.command ("opt -internalize -loop-unroll -memcpyopt -globalopt -inline -vectorize -bb-vectorize-req-chain-depth=2 -die -globaldce -strip -adce -O3 " ^llvm_file^ ".bc -o " ^ llvm_file^ ".bc") in *)

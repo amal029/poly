@@ -1,9 +1,10 @@
 # BATTERIES=/macports-1.9.1/lib/ocaml/site-lib/batteries/
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
-DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-BATTERIES=$(HOME)/batteries-included/_build/src
+COMP_HOME=..
+LANGDIR=$(COMP_HOME)/Abstract
+ERRORDIR=$(COMP_HOME)/Error
+DOTDIR=$(COMP_HOME)/backend
+XMLDIR=`ocamlfind query xml-light`
+BATTERIES=`ocamlfind query batteries`
 CAMOMILEDIR=/macports-1.9.1/lib/ocaml/site-lib/camomile
 BIGARRAYDIR=/macports-1.9.1/lib/ocaml/
 FIND=ocamlfind

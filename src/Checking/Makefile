@@ -1,9 +1,9 @@
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
-BACKDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
-PARSEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Parsing
-REWRITEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Optimization
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
+LANGDIR=../Abstract
+BACKDIR=../backend
+ERRORDIR=../Error
+PARSEDIR=../Parsing
+REWRITEDIR=../Optimization
+XMLDIR=`ocamlfind query xml-light`
 CC=ocamlopt
 XMLLIB=xml-light.cmxa
 LANGLIB=language.cmxa

@@ -1,9 +1,9 @@
-BATTERIES=$(HOME)/batteries-included/_build/src
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
-OPTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Optimization
+BATTERIES=`ocamlfind query batteries`
+LANGDIR=../Abstract
+ERRORDIR=../Error
+XMLDIR=`ocamlfind query xml-light`
+DOTDIR=../backend
+OPTDIR=../Optimization
 LANGLIB=language.cmxa
 DOTLIB=codegen.cmxa
 ERRORLIB=error.cmxa

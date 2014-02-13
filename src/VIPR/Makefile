@@ -1,6 +1,6 @@
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
-ERRORDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Error
-BATTERIES=$(HOME)/batteries-included/_build/src
+LANGDIR=../language
+ERRORDIR=../error
+BATTERIES=`ocamlfind query batteries`
 DOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/backend
 LANGLIB=language.cmxa
 ERRORLIB=error.cmxa

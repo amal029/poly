@@ -69,8 +69,8 @@ let () = add_ipc_propagation the_mpm
 let _ =  PassManager.initialize the_fpm
 
 (* Default target data layout *)
-let target_data = ref (Llvm_target.DataLayout.create 
-			 "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64")
+let target_data = ref (Llvm_target.DataLayout.of_string 
+             "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64")
 
 let fcall_names = Hashtbl.create 10
 let func_name_counter = ref 1
@@ -597,7 +597,7 @@ let rec codegen_simexpr declarations = function
     (match (match (get declarations (get_symbol x)) with | (x,_) -> x) with 
       | ComTypedSymbol _ ->
 	(* In this case we need to send back the pointer to the array!! *)
-	let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
+	let findex = const_int (Llvm_target.DataLayout.intptr_type context !target_data) 0 in
 	build_in_bounds_gep (match get declarations (get_symbol x) with | (_,x)->x) [|findex;findex|] 
 	  (if not !slots then "tempgep" else "") builder
       | _ -> build_load (match get declarations (get_symbol x) with | (_,x) -> x) (get_symbol x) builder)
@@ -631,10 +631,11 @@ let rec codegen_simexpr declarations = function
 
     (* Then we need to sign extend the thing to ptr type *)
     let indices = List.map2 (fun x y ->
-      (match DataTypes.cmp_datatype (x,(conv_pointer_size_to_type x ((Llvm_target.pointer_size !target_data)*8))) with
+      (match DataTypes.cmp_datatype (x,(conv_pointer_size_to_type x
+      ((Llvm_target.DataLayout.pointer_size !target_data)*8))) with
     	| "sext" ->
     	  let () = IFDEF DEBUG THEN print_endline "performing sext" ELSE () ENDIF in
-    	  build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
+    	  build_sext y (Llvm_target.DataLayout.intptr_type context !target_data) (if not !slots then "sexttemp" else "") builder
     	| _ -> y)) itypes indices in
 
     let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
@@ -761,15 +762,19 @@ let rec codegen_simexpr declarations = function
       let shuffle_mask_vec_ptr = build_bitcast shuffle_maskptr (pointer_type (vector_type (i32_type context) size)) "" builder in
       let _ = build_store shuffle_mask shuffle_mask_vec_ptr builder in
 
-      let smi = Array.init size (fun i -> build_in_bounds_gep shuffle_maskptr [|(const_int (Llvm_target.intptr_type !target_data) 0)
+      let smi = Array.init size (fun i -> build_in_bounds_gep
+      shuffle_maskptr [|(const_int (Llvm_target.DataLayout.intptr_type
+      context !target_data) 0)
 								      ;(const_int (i32_type context) i)|] "" builder) in
       (* Now we have the actual values of the indices *)
       let smi = Array.map (fun x -> derefence_pointer x) smi in
-      let vecptrs = Array.map (fun x -> build_in_bounds_gep aptr [|(const_int (Llvm_target.intptr_type !target_data) 0);
+      let vecptrs = Array.map (fun x -> build_in_bounds_gep aptr
+      [|(const_int (Llvm_target.DataLayout.intptr_type context !target_data) 0);
 								  x|] "" builder) smi in
       let vec = Array.map (fun x -> derefence_pointer x) vecptrs in
       (* Now store these elements into the temp vector and send it back *)
-      let tempptrs = Array.init size (fun x -> build_in_bounds_gep temp [|(const_int (Llvm_target.intptr_type !target_data) 0);
+      let tempptrs = Array.init size (fun x -> build_in_bounds_gep temp
+      [|(const_int (Llvm_target.DataLayout.intptr_type context !target_data) 0);
 									  (const_int ((get_llvm_primitive_type lc vtyp) context) x)|] "" builder) in
       let debu = Array.map2 (fun x y -> build_store x y builder) vec tempptrs in 
       let () = IFDEF DEBUG THEN Array.iter dump_value debu ELSE () ENDIF in
@@ -978,8 +983,10 @@ let codegen_callargs defmore lc declarations = function
 	  let ret = build_in_bounds_gep alloca (Array.of_list [findex;findex]) (if not !slots then "tempgep" else "") builder in
 	  (* Then we need to sign extend the thing to ptr type *)
 	  let indices = List.map2 (fun x y ->
-	    (match DataTypes.cmp_datatype (x,(conv_pointer_size_to_type x ((Llvm_target.pointer_size !target_data)*8))) with
-    	      | "sext" -> build_sext y (Llvm_target.intptr_type !target_data) (if not !slots then "sexttemp" else "") builder
+	    (match DataTypes.cmp_datatype (x,(conv_pointer_size_to_type x
+        ((Llvm_target.DataLayout.pointer_size !target_data)*8))) with
+    	      | "sext" -> build_sext y
+              (Llvm_target.DataLayout.intptr_type context !target_data) (if not !slots then "sexttemp" else "") builder
     	      | _ -> y)) itypes indices in
 	  let () = IFDEF DEBUG THEN List.iter (fun x -> dump_value x) indices ELSE () ENDIF in
 	  (* We have to do this one after the other!! *)
@@ -1360,12 +1367,15 @@ let codegen_stmt f declarations = function
 		let aptr = build_bitcast vptr (pointer_type (array_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of vec)))) "" builder in
 		let () = IFDEF DEBUG THEN dump_value aptr ELSE () ENDIF in
 
-		let smi = Array.init size (fun i -> build_in_bounds_gep shuffle_maskptr [|(const_int (Llvm_target.intptr_type !target_data) 0)
+		let smi = Array.init size (fun i -> build_in_bounds_gep
+        shuffle_maskptr [|(const_int (Llvm_target.DataLayout.intptr_type
+        context !target_data) 0)
 										   ;(const_int (i32_type context) i)|] "" builder) in
 		(* Now we have the actual values of the indices *)
 		let smi = Array.map (fun x -> derefence_pointer x) smi in
 
-		let vecptrs = Array.map (fun x -> build_in_bounds_gep aptr [|(const_int (Llvm_target.intptr_type !target_data) 0);
+		let vecptrs = Array.map (fun x -> build_in_bounds_gep aptr
+        [|(const_int (Llvm_target.DataLayout.intptr_type context !target_data) 0);
 									     x|] "" builder) smi in
 
 		(* This should be loading values from the rval!! *)
@@ -1373,7 +1383,8 @@ let codegen_stmt f declarations = function
 		(* Assumes rval = size, which it should be!! *)
 		let temp_vec = build_bitcast temp (pointer_type (vector_type ((get_llvm_primitive_type lc vtyp) context) (vector_size (type_of rval)))) "" builder in
 		let _ = build_store rval temp_vec builder in
-		let tempptrs = Array.init size (fun x -> build_in_bounds_gep temp [|(const_int (Llvm_target.intptr_type !target_data) 0);
+		let tempptrs = Array.init size (fun x -> build_in_bounds_gep
+        temp [|(const_int (Llvm_target.DataLayout.intptr_type context !target_data) 0);
 										    (const_int ((get_llvm_primitive_type lc vtyp) context)x)|] "" builder) in
 		let vec = Array.map derefence_pointer tempptrs in
 
@@ -1395,7 +1406,8 @@ let codegen_stmt f declarations = function
 	      (match r with
 		| SimTypedSymbol _ -> alloca
 		| ComTypedSymbol(x,y,lc) as s ->
-		  let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
+		  let findex = const_int (Llvm_target.DataLayout.intptr_type
+          context !target_data) 0 in
 		  (* let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in *)
 		  build_in_bounds_gep alloca (Array.of_list [findex]) (if not !slots then "otempgep" else "") builder)
 	    | AllSymbol x -> 
@@ -1405,7 +1417,8 @@ let codegen_stmt f declarations = function
 		| SimTypedSymbol _ ->  alloca
 		| ComTypedSymbol(x,y,lc) -> 
 		  (* let findex = const_int ((get_llvm_primitive_type lc x)context) 0 in *)
-		  let findex = const_int (Llvm_target.intptr_type !target_data) 0 in
+		  let findex = const_int (Llvm_target.DataLayout.intptr_type
+          context !target_data) 0 in
 		  build_in_bounds_gep alloca (Array.of_list [findex]) (if not !slots then "otempgep" else "") builder)
 	    | AllAddressedSymbol x ->
 	      (* rval itself might be pointers as well *)
@@ -1748,7 +1761,7 @@ let compile optimize myarch_gpu myarch myslots vipr modules filename cfg =
   myfilename := filename;
   target_data := 
     (if !march = "x86_64" then !target_data
-     else Llvm_target.DataLayout.create "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32");
+     else Llvm_target.DataLayout.of_string "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32-f16:16:16-f32:32:32-v128:32:32-s:32:32-a:8:8-n32");
 
   (* Set the target triple *)
   (if !march = "x86_64" then

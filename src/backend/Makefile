@@ -1,10 +1,10 @@
-COMP_HOME=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src
-LANGDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Abstract
-BATTERIES=$(HOME)/batteries-included/_build/src
+COMP_HOME=..
+LANGDIR=../Abstract
+BATTERIES=`ocamlfind query batteries`
 VIPRDIR=$(COMP_HOME)/VIPR
-TYPEINFERENCEDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/Checking
-XMLDIR=$(HOME)/Dropbox/Personal/OCAML_WORK/xml-light
-ODOTDIR=$(HOME)/Dropbox/IBM_Work/START_WORK_IRELAND/poly/src/lib
+TYPEINFERENCEDIR=$(COMP_HOME)/Checking
+XMLDIR=`ocamlfind query xml-light`
+ODOTDIR=$(COMP_HOME)/lib
 FIND=ocamlfind
 CC=ocamlopt
 XMLLIB=xml-light.cmxa
